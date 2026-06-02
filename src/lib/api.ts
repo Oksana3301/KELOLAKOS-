@@ -25,7 +25,7 @@ export function clearStoredAccessCode(): void {
 
 export interface ApiResponse<T = unknown> {
   ok: boolean;
-  data?: T;
+  data?:;
   error?: string;
   message?: string;
   license?: {
@@ -57,7 +57,7 @@ export interface CallApiOptions { accessCode?: string; skipLicense?: boolean }
 
 export async function callApi<T = unknown>(
   action: string,
-  data?: Record<string, unknown>,
+  data?: Record<string, unknown> | object,
   options?: CallApiOptions,
 ): Promise<T> {
   if (!APPS_SCRIPT_URL) throw new ApiError('NEXT_PUBLIC_APPS_SCRIPT_URL not set in .env.local', 'CONFIG');
