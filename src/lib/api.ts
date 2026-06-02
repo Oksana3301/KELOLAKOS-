@@ -319,7 +319,10 @@ export const api = {
   getBookingFormData: () => callApi<BookingFormData>('getBookingFormData'),
 
   submitBooking: (data: SubmitBookingPayload) =>
-    callApi<{ bookingId: string; message?: string; warning?: string }>('submitBooking', data),
+    callApi<{ bookingId: string; message?: string; warning?: string }>('submitBooking', {
+      ...data,
+      nama: data.customerName,
+    }),
   submitBookingEdit: (data: SubmitBookingEditPayload) =>
     callApi<{ bookingId: string; message?: string }>('submitBookingEdit', data),
   submitBookingDelete: (bookingId: string) =>
