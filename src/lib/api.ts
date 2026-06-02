@@ -76,9 +76,9 @@ export async function callApi<T = unknown>(
       redirect: 'follow',
     });
   } catch (e) {
-    throw new ApiError(`Network error: ${(e as Error).message}. Cek koneksi internet atau Apps Script URL.`, 'NETWORK');
+    throw new ApiError('Network error: ' + (e as Error).message + '. Cek koneksi internet atau Apps Script URL.', 'NETWORK');
   }
-  if (!response.ok) throw new ApiError(`HTTP ${response.status}: ${response.statusText}`, 'HTTP_' + response.status);
+  if (!response.ok) throw new ApiError('HTTP ' + response.status + ': ' + response.statusText, 'HTTP_' + response.status);
 
   let body: ApiResponse<T>;
   try { body = await response.json(); }
@@ -94,10 +94,6 @@ export async function callApi<T = unknown>(
   }
   return body.data as T;
 }
-
-// ============================================
-// Types
-// ============================================
 
 export interface RoomStatus {
   RoomID: string; Nama_Kamar: string; Gedung: string; Layanan_Default: string;
@@ -253,60 +249,29 @@ export interface RecentTransactionsResponse {
   };
 }
 
-// ============================================
-// [B4] Laporan types
-// ============================================
-
 export interface ReportTransaction {
   type: 'PAYMENT' | 'REFUND' | 'FEE' | 'EXPENSE';
-  icon: string;
-  date: string;
-  nominal: number;
-  direction: 'IN' | 'OUT';
-  title: string;
-  subtitle: string;
-  bookingId: string;
-  diterimaOleh: string;
-  catatan: string;
+  icon: string; date: string; nominal: number;
+  direction: 'IN' | 'OUT'; title: string; subtitle: string;
+  bookingId: string; diterimaOleh: string; catatan: string;
 }
 
 export interface ReportData {
-  period: {
-    startDate: string;
-    endDate: string;
-    days: number;
-  };
+  period: { startDate: string; endDate: string; days: number; };
   summary: {
-    totalIn: number;
-    totalRefund: number;
-    totalFee: number;
-    totalExpense: number;
-    totalOut: number;
-    netCash: number;
-    countPayment: number;
-    countRefund: number;
-    countFee: number;
-    countExpense: number;
-    countAll: number;
+    totalIn: number; totalRefund: number; totalFee: number;
+    totalExpense: number; totalOut: number; netCash: number;
+    countPayment: number; countRefund: number; countFee: number;
+    countExpense: number; countAll: number;
   };
   bookingStats: {
-    totalBooking: number;
-    booking_aktif: number;
-    booking_selesai: number;
-    booking_cancel: number;
-    omzet: number;
+    totalBooking: number; booking_aktif: number;
+    booking_selesai: number; booking_cancel: number; omzet: number;
   };
   transactions: ReportTransaction[];
-  chart: Array<{
-    date: string;
-    in: number;
-    out: number;
-  }>;
+  chart: Array<{ date: string; in: number; out: number; }>;
 }
 
-// ============================================
-// API methods
-// ============================================
 export const api = {
   ping: () => callApi<{ pong: boolean; timestamp: number }>('ping', {}, { skipLicense: true }),
   verifyAccessCode: (accessCode: string) =>
@@ -322,29 +287,94 @@ export const api = {
     callApi<{ bookingId: string; message?: string; warning?: string }>('submitBooking', {
       ...data,
       nama: data.customerName,
+      no_wa: data.whatsapp || '',
+      wa: data.whatsapp || '',
+      check_in: data.checkIn,
+      check_out: data.checkOut,
+      paket_durasi: data.paket,
+      jumlah_periode: data.jumlahPeriode,
+      harga_kamar: data.hargaKamar,
+      extra_charge: data.extraCharge || 0,
+      extra_charge_final: data.extraCharge || 0,
+      dp_awal: data.dpAwal || 0,
+      dp_metode: data.dpMetode || '',
+      extra_request: data.extraRequest || '',
+      is_ekstra: data.isEkstra || false,
+      fasilitas_ids: data.fasilitasIds || [],
+      room_id: data.roomId,
     }),
   submitBookingEdit: (data: SubmitBookingEditPayload) =>
-    callApi<{ bookingId: string; message?: string }>('submitBookingEdit', data),
+    callApi<{ bookingId: string; message?: string }>('submitBookingEdit', {
+      ...data,
+      booking_id: data.bookingId,
+      nama: data.customerName,
+      no_wa: data.whatsapp,
+      wa: data.whatsapp,
+      check_in: data.checkIn,
+      check_out: data.checkOut,
+      harga_kamar: data.hargaKamar,
+      extra_charge: data.extraCharge,
+      extra_charge_final: data.extraCharge,
+      harga_total: data.hargaTotal,
+      extra_request: data.extraRequest,
+      is_ekstra: data.isEkstra,
+      fasilitas_ids: data.fasilitasIds,
+    }),
   submitBookingDelete: (bookingId: string) =>
     callApi<{ message?: string; removed?: { payments: number; refunds: number; fees: number } }>(
-      'submitBookingDelete', { bookingId }),
+      'submitBookingDelete', { bookingId, booking_id: bookingId }),
 
   submitPayment: (data: SubmitPaymentPayload) =>
-    callApi<{ paymentId: string; message?: string }>('submitPayment', data),
+    callApi<{ paymentId: string; message?: string }>('submitPayment', {
+      ...data,
+      booking_id: data.bookingId,
+      jenis_bayar: data.jenisBayar,
+      diterima_oleh: data.diterimaOleh,
+      tanggal_bayar: data.tanggalBayar,
+    }),
   submitStatusAction: (data: SubmitStatusActionPayload) =>
-    callApi<{ message?: string }>('submitStatusAction', data),
+    callApi<{ message?: string }>('submitStatusAction', {
+      ...data,
+      booking_id: data.bookingId,
+      status_booking: data.statusBooking,
+      catatan_tambahan: data.catatanTambahan,
+      refund_nominal: data.refundNominal,
+      jenis_refund: data.jenisRefund,
+      metode_refund: data.metodeRefund,
+      dikembalikan_oleh: data.dikembalikanOleh,
+      alasan_refund: data.alasanRefund,
+      tanggal_refund: data.tanggalRefund,
+    }),
 
   getBookingDetail: (bookingId: string) =>
-    callApi<BookingDetail>('getBookingDetail', { bookingId }),
+    callApi<BookingDetail>('getBookingDetail', { bookingId, booking_id: bookingId }),
   getBookingPayments: (bookingId: string) =>
-    callApi<{ payments: PaymentRecord[]; refunds: RefundRecord[] }>('getBookingPayments', { bookingId }),
+    callApi<{ payments: PaymentRecord[]; refunds: RefundRecord[] }>('getBookingPayments', { bookingId, booking_id: bookingId }),
 
   submitRefund: (data: SubmitRefundPayload) =>
-    callApi<{ refundId: string; bookingId: string; message?: string; availableAfter?: number }>('submitRefund', data),
+    callApi<{ refundId: string; bookingId: string; message?: string; availableAfter?: number }>('submitRefund', {
+      ...data,
+      booking_id: data.bookingId,
+      jenis_refund: data.jenisRefund,
+      metode_refund: data.metodeRefund,
+      dikembalikan_oleh: data.dikembalikanOleh,
+      alasan_refund: data.alasanRefund,
+      tanggal_refund: data.tanggalRefund,
+    }),
   submitStaffFee: (data: SubmitStaffFeePayload) =>
-    callApi<{ feeId: string; message?: string }>('submitStaffFee', data),
+    callApi<{ feeId: string; message?: string }>('submitStaffFee', {
+      ...data,
+      booking_id: data.bookingId,
+      room_id: data.roomId,
+      nama_penjaga: data.namaPenjaga,
+      jenis_fee: data.jenisFee,
+      status_bayar: data.statusBayar,
+    }),
   submitExpense: (data: SubmitExpensePayload) =>
-    callApi<{ expenseId: string; message?: string }>('submitExpense', data),
+    callApi<{ expenseId: string; message?: string }>('submitExpense', {
+      ...data,
+      dibeli_oleh: data.dibeliOleh,
+    }),
   getRecentTransactions: (limit?: number) =>
     callApi<RecentTransactionsResponse>('getRecentTransactions', { limit: limit || 20 }),
 
@@ -361,20 +391,12 @@ export const api = {
   submitBulkRoomPrice: (data: SubmitBulkRoomPricePayload) =>
     callApi<{ message?: string }>('submitBulkRoomPrice', data),
 
-  /** [B4] Get period-filtered report data */
   getReportData: (startDate: string, endDate: string) =>
     callApi<ReportData>('getReportData', { startDate, endDate }),
 
-  /** [B7] Delete a single transaction (Payment/Refund/Fee/Expense) */
-  submitTransactionDelete: (data: {
-    type: 'PAYMENT' | 'REFUND' | 'FEE' | 'EXPENSE';
-    id: string;
-  }) =>
+  submitTransactionDelete: (data: { type: 'PAYMENT' | 'REFUND' | 'FEE' | 'EXPENSE'; id: string; }) =>
     callApi<{
-      message: string;
-      deletedId: string;
-      type: string;
-      linkedBookingId: string;
-      recompute: string;
+      message: string; deletedId: string; type: string;
+      linkedBookingId: string; recompute: string;
     }>('submitTransactionDelete', data),
 };
