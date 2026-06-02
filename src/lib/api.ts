@@ -25,7 +25,7 @@ export function clearStoredAccessCode(): void {
 
 export interface ApiResponse<T = unknown> {
   ok: boolean;
-  data?:;
+  data?: T;
   error?: string;
   message?: string;
   license?: {
