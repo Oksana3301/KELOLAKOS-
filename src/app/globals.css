@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+  }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #FAFAF9;
+    color: #0C0A09;
+    font-size: 14px;
+    line-height: 1.55;
+    letter-spacing: -.005em;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  /* Btn variants — reuse from preview HTML */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold rounded-lg cursor-pointer border border-transparent transition-all duration-150 whitespace-nowrap;
+  }
+  .btn-pri {
+    @apply bg-ac text-inv shadow-xs hover:bg-ach;
+  }
+  .btn-pri:hover {
+    transform: translateY(-1px);
+  }
+  .btn-sec {
+    @apply bg-sf text-tx border-bd hover:bg-sf2 hover:border-bds;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1 text-[11px];
+  }
+  .btn-lg {
+    @apply px-[18px] py-2.5 text-sm;
+  }
+  .btn-danger {
+    @apply bg-rdb text-rd border border-rd hover:bg-rd hover:text-white;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full px-3 py-2.5 text-[13px] border border-bd rounded-lg bg-sf text-tx transition-all duration-150;
+  }
+  .input:focus {
+    @apply outline-none border-ac;
+    box-shadow: 0 0 0 3px rgba(12, 10, 9, .08);
+  }
+
+  /* Page title */
+  .page-title {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: -.02em;
+    margin: 0;
+  }
+
+  /* Card */
+  .card {
+    @apply bg-sf border border-bd rounded-lg p-6 shadow-xs;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider;
+  }
+  .badge-green { @apply bg-grb text-gr; }
+  .badge-amber { @apply bg-amb text-am; }
+  .badge-red   { @apply bg-rdb text-rd; }
+  .badge-blue  { @apply bg-blb text-bl; }
+  .badge-violet { @apply bg-vib text-vi; }
+}
