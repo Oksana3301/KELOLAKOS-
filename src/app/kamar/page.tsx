@@ -1,342 +1,283 @@
 'use client';
 
-import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { api, type RoomStatus } from '@/lib/api';
-import { formatRupiah, getStatusBorderColor, getStatusStyle } from '@/lib/utils';
-import { Topbar } from '@/components/topbar';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api, type RoomStatus, type SubmitRoomUpsertPayload } from '@/lib/api';
 import { toast } from 'sonner';
+import { ScreenHead, KkButton, KkCard, StickyCTA } from '@/components/kk/ui';
+import { KkIcon } from '@/components/kk/icons';
+import { mapRoomStatus, rupiah } from '@/components/kk/status';
+import { HelpSheet } from '@/components/kk/help-sheet';
+import {
+  KamarDetail,
+  KamarForm,
+  HapusKamar,
+  type KamarView,
+  type KamarFormValue,
+} from '@/components/kk/kamar-ui';
+
+const HELP = {
+  title: 'Kelola Kamar',
+  tips: [
+    'Di sini Anda menambah, mengubah, atau menghapus kamar di properti Anda.',
+    'Tekan tombol oranye "Tambah Kamar Baru" untuk membuat kamar baru.',
+    'Tekan satu kartu kamar untuk membuka detailnya, lalu pilih Ubah atau Hapus.',
+  ],
+};
+
+// Pull the monthly price for a room from the price rules (display only).
+function priceForRoom(
+  room: RoomStatus,
+  rules: { RoomID: string; Harga_Satuan: number }[],
+  prices: { Layanan: string; Gedung: string; Tipe_Kamar: string; Paket: string; Harga_Satuan: number }[],
+): number {
+  const rule = rules.find((r) => r.RoomID === room.RoomID && r.Harga_Satuan > 0);
+  if (rule) return rule.Harga_Satuan;
+  const match = prices.find(
+    (p) =>
+      p.Layanan === room.Layanan_Default &&
+      p.Gedung === room.Gedung &&
+      p.Tipe_Kamar === room.Tipe_Kamar &&
+      (p.Paket === 'BULANAN' || p.Paket === '1_BULAN' || true),
+  );
+  return match?.Harga_Satuan || 0;
+}
+
+// Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
+function floorForRoom(room: RoomStatus): number {
+  const src = `${room.Tipe_Kamar} ${room.Catatan}`;
+  const m = src.match(/lantai\s*(\d+)/i) || src.match(/\b(\d+)\b/);
+  return m ? Number(m[1]) : 1;
+}
 
 export default function KamarPage() {
-  const [search, setSearch] = useState('');
-  const [gedungFilter, setGedungFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedRoom, setSelectedRoom] = useState<RoomStatus | null>(null);
+  const qc = useQueryClient();
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [detail, setDetail] = useState<KamarView | null>(null);
+  const [form, setForm] = useState<{ edit: boolean; view: KamarView | null } | null>(null);
+  const [hapus, setHapus] = useState<KamarView | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['initial-data'],
     queryFn: api.getInitialData,
   });
 
-  const rooms = data?.roomStatus || [];
+  useEffect(() => {
+    if (isError) toast.error('Gagal memuat kamar: ' + (error as Error)?.message);
+  }, [isError, error]);
 
-  // Get list of unique gedung
-  const gedungList = useMemo(() => {
-    const set = new Set(rooms.map((r) => r.Gedung));
-    return Array.from(set).sort();
-  }, [rooms]);
+  const rooms = useMemo(() => data?.roomStatus || [], [data]);
+  const rules = useMemo(() => data?.roomPriceRules || [], [data]);
+  const prices = useMemo(() => data?.prices || [], [data]);
 
-  // Filter rooms
-  const filteredRooms = useMemo(() => {
-    return rooms.filter((r) => {
-      if (gedungFilter !== 'all' && r.Gedung !== gedungFilter) return false;
-      if (statusFilter !== 'all' && r.Status_Code !== statusFilter) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        if (
-          !r.Nama_Kamar.toLowerCase().includes(q) &&
-          !r.RoomID.toLowerCase().includes(q) &&
-          !r.Penghuni_Text.toLowerCase().includes(q)
-        )
-          return false;
-      }
-      return true;
-    });
-  }, [rooms, search, gedungFilter, statusFilter]);
+  // Build enriched views (room + derived harga + lantai).
+  const views: KamarView[] = useMemo(
+    () =>
+      rooms.map((room) => ({
+        room,
+        harga: priceForRoom(room, rules, prices),
+        lantai: floorForRoom(room),
+      })),
+    [rooms, rules, prices],
+  );
 
-  // Group filtered rooms by gedung
-  const roomsByGedung = useMemo(() => {
-    const grouped: Record<string, RoomStatus[]> = {};
-    filteredRooms.forEach((r) => {
-      if (!grouped[r.Gedung]) grouped[r.Gedung] = [];
-      grouped[r.Gedung].push(r);
+  const buildings = useMemo(
+    () => Array.from(new Set(rooms.map((r) => r.Gedung).filter(Boolean))).sort(),
+    [rooms],
+  );
+
+  const byBuilding = useMemo(() => {
+    const grouped: Record<string, KamarView[]> = {};
+    views.forEach((v) => {
+      (grouped[v.room.Gedung] ||= []).push(v);
     });
     return grouped;
-  }, [filteredRooms]);
+  }, [views]);
 
-  if (isError) {
-    toast.error('Gagal load kamar: ' + (error as Error)?.message);
+  // ── Upsert mutation (real API; payload shape per SubmitRoomUpsertPayload) ──
+  const upsert = useMutation({
+    mutationFn: (payload: SubmitRoomUpsertPayload) => api.submitRoomUpsert(payload),
+    onSuccess: (res, payload) => {
+      toast.success(res.message || `✓ ${payload.namaKamar} berhasil disimpan`);
+      setForm(null);
+      qc.invalidateQueries({ queryKey: ['initial-data'] });
+      qc.invalidateQueries({ queryKey: ['room-management'] });
+    },
+    onError: (e) => toast.error('Gagal menyimpan: ' + (e as Error).message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (roomId: string) => api.submitRoomDelete(roomId),
+    onSuccess: (res, _roomId) => {
+      toast.success(res.message || 'Kamar telah dihapus');
+      setHapus(null);
+      setDetail(null);
+      qc.invalidateQueries({ queryKey: ['initial-data'] });
+      qc.invalidateQueries({ queryKey: ['room-management'] });
+    },
+    onError: (e) => toast.error('Gagal menghapus: ' + (e as Error).message),
+  });
+
+  function handleSave(value: KamarFormValue) {
+    const existing = form?.view?.room;
+    upsert.mutate({
+      roomId: existing?.RoomID,
+      namaKamar: value.nomor,
+      layananDefault: existing?.Layanan_Default || 'KOS',
+      gedung: value.gedung,
+      tipeKamar: existing?.Tipe_Kamar || `Lantai ${value.lantai}`,
+      kapasitasNormal: existing?.Kapasitas_Normal || 1,
+      statusKamar: existing?.Status_Kamar || 'TERSEDIA',
+      catatan: existing?.Catatan || `Lantai ${value.lantai}`,
+    });
+  }
+
+  const formInitial: KamarFormValue | null =
+    form?.view != null
+      ? {
+          nomor: form.view.room.Nama_Kamar,
+          gedung: form.view.room.Gedung,
+          lantai: form.view.lantai,
+          harga: form.view.harga,
+        }
+      : null;
+
+  if (isLoading) {
+    return (
+      <div className="py-20 text-center">
+        <div className="w-12 h-12 rounded-full border-4 border-kk-mauve border-t-kk-orange animate-spin mx-auto mb-4" />
+        <div className="text-body text-kk-ink">Memuat data kamar…</div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <KkCard className="text-center py-12">
+        <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
+          <KkIcon name="info" size={30} />
+        </div>
+        <h2 className="font-heading font-bold text-subhead mb-2">Gagal memuat data</h2>
+        <p className="text-body text-kk-ink mb-5">{(error as Error)?.message || 'Terjadi kesalahan'}</p>
+        <KkButton variant="primary" onClick={() => refetch()}>
+          Coba Lagi
+        </KkButton>
+      </KkCard>
+    );
   }
 
   return (
-    <main className="max-w-[1240px] mx-auto p-5">
-      <Topbar
-        action={
-          <Link href="/booking">
-            <button className="btn btn-pri">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Booking
-            </button>
-          </Link>
-        }
+    <>
+      <ScreenHead
+        title="Kelola Kamar"
+        sub={`${rooms.length} kamar di ${buildings.length} gedung`}
+        onHelp={() => setHelpOpen(true)}
       />
 
-      <div className="mb-5 flex flex-wrap gap-4 items-end justify-between">
-        <div>
-          <h1 className="page-title">Kamar</h1>
-          <p className="text-tx3 text-[13px] mt-1 font-medium">
-            Peta seluruh kamar · klik kamar untuk detail
+      <StickyCTA>
+        <KkButton variant="primary" size="lg" block onClick={() => setForm({ edit: false, view: null })}>
+          <KkIcon name="tambah" size={24} /> Tambah Kamar Baru
+        </KkButton>
+      </StickyCTA>
+
+      <p className="text-caption text-kk-ink mt-0 mb-6">
+        Tekan satu kamar untuk <b className="text-kk-navy">ubah</b> atau{' '}
+        <b className="text-kk-navy">hapus</b>.
+      </p>
+
+      {rooms.length === 0 ? (
+        <KkCard tone="mint" className="text-center py-10">
+          <div className="w-14 h-14 rounded-full bg-white text-kk-navy grid place-items-center mx-auto mb-4">
+            <KkIcon name="kamar" size={30} />
+          </div>
+          <p className="text-body text-kk-navy m-0">
+            Belum ada kamar. Tekan tombol Tambah Kamar Baru di atas untuk memulai.
           </p>
-        </div>
-      </div>
-
-      {/* View Mode toggle (List | 3D) — preview of multi-view, 3D link goes to /layout3d later */}
-      <div className="inline-flex gap-1 p-1 bg-sf2 rounded-md mb-4 w-fit">
-        <button className="border-0 bg-sf text-tx px-4 py-2 text-[13px] font-semibold rounded-sm cursor-pointer shadow-xs inline-flex items-center gap-2">
-          📋 List View
-        </button>
-        <Link href="/layout3d">
-          <button className="border-0 bg-transparent text-tx3 hover:text-tx hover:bg-white/50 px-4 py-2 text-[13px] font-semibold rounded-sm cursor-pointer inline-flex items-center gap-2 transition-colors">
-            🏗️ Layout 3D
-          </button>
-        </Link>
-      </div>
-
-      {/* Toolbar: search + gedung + status filters */}
-      <div className="card mb-4 p-4 flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-tx3 pointer-events-none"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari kamar atau penghuni…"
-            className="input pl-9"
-          />
-        </div>
-
-        <select
-          value={gedungFilter}
-          onChange={(e) => setGedungFilter(e.target.value)}
-          className="input max-w-[180px]"
-        >
-          <option value="all">Semua Gedung</option>
-          {gedungList.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="input max-w-[180px]"
-        >
-          <option value="all">Semua Status</option>
-          <option value="READY">🟢 Tersedia</option>
-          <option value="AKTIF_LUNAS">🟣 Aktif Lunas</option>
-          <option value="AKTIF_DP">🔵 DP/Parsial</option>
-          <option value="BELUM_BAYAR">🟡 Belum Bayar</option>
-          <option value="LEWAT_CHECKOUT">🔴 Lewat Checkout</option>
-        </select>
-
-        <div className="text-tx3 text-xs ml-auto">
-          Menampilkan <strong className="text-tx">{filteredRooms.length}</strong> dari{' '}
-          {rooms.length} kamar
-        </div>
-      </div>
-
-      {isLoading && (
-        <div className="text-center py-20 text-tx3 text-sm">⏳ Loading data kamar…</div>
-      )}
-
-      {!isLoading && filteredRooms.length === 0 && (
-        <div className="card text-center py-12">
-          <div className="text-3xl mb-2">🔍</div>
-          <div className="text-tx font-semibold mb-1">Gak ada kamar yang cocok</div>
-          <div className="text-tx3 text-xs">Coba ubah filter atau search-nya</div>
-        </div>
-      )}
-
-      {/* Grouped by gedung */}
-      <div className="space-y-5">
-        {Object.entries(roomsByGedung).map(([gedung, roomList]) => {
-          const totalRooms = roomList.length;
-          const readyCount = roomList.filter((r) => r.Status_Code === 'READY').length;
-          const occupiedPct = Math.round(((totalRooms - readyCount) / totalRooms) * 100);
-
-          return (
-            <div key={gedung}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h2 className="font-bold text-base">{gedung}</h2>
-                  <p className="text-tx3 text-xs">
-                    {totalRooms} kamar · {totalRooms - readyCount} terisi · {readyCount} tersedia
-                  </p>
+        </KkCard>
+      ) : (
+        <div className="space-y-6">
+          {buildings.map((g) => {
+            const list = byBuilding[g] || [];
+            return (
+              <div key={g}>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <KkIcon name="properti" size={22} strokeWidth={2.2} className="text-kk-navy" />
+                  <h2 className="font-heading font-bold text-[21px] text-kk-navy m-0">{g}</h2>
+                  <span className="text-caption font-semibold text-kk-ink">· {list.length} kamar</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-xs text-tx3 font-semibold">{occupiedPct}% terisi</div>
-                  <div className="w-24 h-1.5 bg-sf2 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-ac transition-all duration-500"
-                      style={{ width: `${occupiedPct}%` }}
-                    />
-                  </div>
+
+                <div className="space-y-3">
+                  {list.map((v) => (
+                    <RoomRow key={v.room.RoomID} view={v} onClick={() => setDetail(v)} />
+                  ))}
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {roomList.map((room) => (
-                  <RoomCard
-                    key={room.RoomID}
-                    room={room}
-                    onClick={() => setSelectedRoom(room)}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Drawer detail */}
-      {selectedRoom && (
-        <RoomDrawer room={selectedRoom} onClose={() => setSelectedRoom(null)} />
+            );
+          })}
+        </div>
       )}
-    </main>
+
+      {/* Detail → Ubah / Hapus */}
+      <KamarDetail
+        view={detail}
+        onClose={() => setDetail(null)}
+        onEdit={(v) => {
+          setDetail(null);
+          setForm({ edit: true, view: v });
+        }}
+        onDelete={(v) => setHapus(v)}
+      />
+
+      {/* Add / Edit form */}
+      <KamarForm
+        open={!!form}
+        edit={!!form?.edit}
+        initial={formInitial}
+        buildings={buildings}
+        saving={upsert.isPending}
+        onClose={() => setForm(null)}
+        onSave={handleSave}
+      />
+
+      {/* Delete confirm */}
+      <HapusKamar
+        view={hapus}
+        loading={remove.isPending}
+        onClose={() => setHapus(null)}
+        onConfirm={() => hapus && remove.mutate(hapus.room.RoomID)}
+      />
+
+      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
+    </>
   );
 }
 
-function RoomCard({ room, onClick }: { room: RoomStatus; onClick: () => void }) {
-  const borderColor = getStatusBorderColor(room.Status_Code);
-  const statusStyle = getStatusStyle(room.Status_Code);
+function RoomRow({ view, onClick }: { view: KamarView; onClick: () => void }) {
+  const { room, harga, lantai } = view;
+  const status = mapRoomStatus(room);
+  const tint =
+    status === 'Terisi'
+      ? 'bg-kk-mint-soft border-kk-mint'
+      : status === 'Perlu Perhatian'
+        ? 'bg-kk-orange-soft border-kk-orange'
+        : 'bg-kk-mauve-soft border-kk-mauve';
 
   return (
-    <button
-      onClick={onClick}
-      className="text-left bg-sf border border-bd rounded-md p-3 hover:shadow-sm hover:-translate-y-0.5 transition-all cursor-pointer relative overflow-hidden"
-      style={{ borderLeftColor: borderColor, borderLeftWidth: '4px' }}
-    >
-      <div className="flex justify-between items-start gap-2 mb-1.5">
-        <div className="font-bold text-sm leading-tight">{room.Nama_Kamar}</div>
-        <span className="text-base">{statusStyle.emoji}</span>
-      </div>
-      <div className="text-tx3 text-[10px] mb-2">
-        {room.Layanan_Default} · {room.Tipe_Kamar}
-      </div>
-      <div className={`badge ${statusStyle.badgeClass} mb-1`}>{statusStyle.label}</div>
-      {room.Penghuni_Text && (
-        <div className="text-[10px] text-tx2 mt-2 line-clamp-2 leading-snug">
-          {room.Penghuni_Text}
-        </div>
-      )}
-    </button>
-  );
-}
-
-function RoomDrawer({ room, onClose }: { room: RoomStatus; onClose: () => void }) {
-  const statusStyle = getStatusStyle(room.Status_Code);
-
-  return (
-    <div
-      className="fixed inset-0 bg-tx/40 backdrop-blur-sm z-40 flex items-stretch justify-end"
-      onClick={onClose}
-    >
-      <aside
-        className="bg-sf w-full max-w-md h-full shadow-lg overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+    <KkCard onClick={onClick} className="flex items-center gap-3.5 py-4">
+      <div
+        className={`w-[50px] h-[50px] rounded-[13px] flex-shrink-0 border-2 grid place-items-center text-kk-navy ${tint}`}
       >
-        <div className="sticky top-0 bg-sf border-b border-bd p-5 z-10">
-          <div className="flex justify-between items-start gap-3">
-            <div>
-              <div className="text-tx3 text-[11px] font-semibold uppercase tracking-wider mb-1">
-                {room.Gedung}
-              </div>
-              <h2 className="font-bold text-lg leading-tight">{room.Nama_Kamar}</h2>
-              <div className="text-tx3 text-xs mt-0.5">
-                {room.RoomID} · {room.Layanan_Default} · {room.Tipe_Kamar}
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-tx3 hover:text-tx p-1"
-              aria-label="Close"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+        <KkIcon name="kamar" size={24} strokeWidth={2.2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-heading font-bold text-[19px] text-kk-navy truncate">
+          {room.Nama_Kamar}
         </div>
-
-        <div className="p-5 space-y-5">
-          {/* Status */}
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-tx3 mb-2">
-              Status Saat Ini
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">{statusStyle.emoji}</span>
-              <div>
-                <div className={`badge ${statusStyle.badgeClass} text-xs`}>{statusStyle.label}</div>
-                <div className="text-tx3 text-xs mt-1 leading-snug">{room.Status_Reason}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Penghuni */}
-          {room.Penghuni_Text && (
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-tx3 mb-2">
-                Penghuni Aktif
-              </div>
-              <div className="bg-sf2 border border-bd rounded-md p-3 text-sm leading-relaxed">
-                {room.Penghuni_Text}
-              </div>
-            </div>
-          )}
-
-          {/* Info detail */}
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-tx3 mb-2">
-              Spesifikasi
-            </div>
-            <div className="space-y-1.5">
-              <DRow label="Kapasitas" value={`${room.Kapasitas_Normal} orang`} />
-              <DRow label="Master Aktif" value={room.Is_Master_Active === 'YA' ? '✓ Ya' : '✗ Tidak'} />
-              <DRow label="Override" value={room.Can_Override === 'YA' ? '✓ Boleh' : '✗ Tidak'} />
-              {room.Catatan && <DRow label="Catatan" value={room.Catatan} />}
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="pt-4 border-t border-bd grid grid-cols-2 gap-2">
-            <Link href="/booking" className="w-full">
-              <button className="btn btn-pri w-full text-xs">+ Booking baru</button>
-            </Link>
-            <button
-              className="btn btn-sec text-xs"
-              onClick={() => toast.info('Edit kamar akan dibuka di /setting (coming soon)')}
-            >
-              ✏️ Edit kamar
-            </button>
-          </div>
+        <div className="text-caption text-kk-ink">
+          Lantai {lantai} · {harga > 0 ? `${rupiah(harga)}/bulan` : 'Harga belum diatur'}
         </div>
-      </aside>
-    </div>
-  );
-}
-
-function DRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between text-xs">
-      <span className="text-tx3">{label}</span>
-      <span className="text-tx font-semibold text-right">{value}</span>
-    </div>
+      </div>
+      <KkIcon name="chevron" size={22} strokeWidth={2.4} className="text-kk-mauve flex-shrink-0" />
+    </KkCard>
   );
 }
