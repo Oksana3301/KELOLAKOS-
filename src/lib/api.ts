@@ -55,6 +55,19 @@ export class LicenseError extends ApiError {
 
 export interface CallApiOptions { accessCode?: string; skipLicense?: boolean }
 
+/**
+ * Bukti / proof file attached to a booking or money record.
+ * `base64` is the raw base64 string (no "data:" prefix). Optional everywhere.
+ * Sent to the backend as `bukti_files`; storing them to Drive needs a backend
+ * handler that reads this field (Bukti_URLs is the existing display field).
+ */
+export interface BuktiFile {
+  name: string;
+  mimeType: string;
+  size: number;
+  base64: string;
+}
+
 export async function callApi<T = unknown>(
   action: string,
   data?: Record<string, unknown> | object,
@@ -158,6 +171,7 @@ export interface SubmitBookingPayload {
   hargaKamar: number; extraCharge?: number; diskon?: number; dpAwal?: number;
   dpMetode?: string; catatan?: string; extraRequest?: string;
   isEkstra?: boolean; fasilitasIds?: string[];
+  buktiFiles?: BuktiFile[];
 }
 
 export interface SubmitBookingEditPayload {
@@ -170,6 +184,7 @@ export interface SubmitBookingEditPayload {
 export interface SubmitPaymentPayload {
   bookingId: string; nominal: number; jenisBayar?: string;
   metode?: string; diterimaOleh?: string; tanggalBayar?: string; catatan?: string;
+  buktiFiles?: BuktiFile[];
 }
 
 export interface SubmitStatusActionPayload {
@@ -182,17 +197,20 @@ export interface SubmitRefundPayload {
   bookingId: string; nominal: number; jenisRefund?: string;
   metodeRefund?: string; dikembalikanOleh?: string;
   alasanRefund?: string; tanggalRefund?: string;
+  buktiFiles?: BuktiFile[];
 }
 
 export interface SubmitStaffFeePayload {
   bookingId?: string; roomId?: string; namaPenjaga: string;
   jenisFee?: string; nominal: number; statusBayar?: string;
   tanggal?: string; catatan?: string;
+  buktiFiles?: BuktiFile[];
 }
 
 export interface SubmitExpensePayload {
   unit?: string; kategori: string; item: string; nominal: number;
   metode?: string; dibeliOleh?: string; tanggal?: string; catatan?: string;
+  buktiFiles?: BuktiFile[];
 }
 
 export interface SubmitRoomUpsertPayload {
@@ -286,6 +304,7 @@ export const api = {
   submitBooking: (data: SubmitBookingPayload) =>
     callApi<{ bookingId: string; message?: string; warning?: string }>('submitBooking', {
       ...data,
+      bukti_files: data.buktiFiles || [],
       nama: data.customerName,
       no_wa: data.whatsapp || '',
       wa: data.whatsapp || '',
@@ -327,6 +346,7 @@ export const api = {
   submitPayment: (data: SubmitPaymentPayload) =>
     callApi<{ paymentId: string; message?: string }>('submitPayment', {
       ...data,
+      bukti_files: data.buktiFiles || [],
       booking_id: data.bookingId,
       jenis_bayar: data.jenisBayar,
       diterima_oleh: data.diterimaOleh,
@@ -354,6 +374,7 @@ export const api = {
   submitRefund: (data: SubmitRefundPayload) =>
     callApi<{ refundId: string; bookingId: string; message?: string; availableAfter?: number }>('submitRefund', {
       ...data,
+      bukti_files: data.buktiFiles || [],
       booking_id: data.bookingId,
       jenis_refund: data.jenisRefund,
       metode_refund: data.metodeRefund,
@@ -364,6 +385,7 @@ export const api = {
   submitStaffFee: (data: SubmitStaffFeePayload) =>
     callApi<{ feeId: string; message?: string }>('submitStaffFee', {
       ...data,
+      bukti_files: data.buktiFiles || [],
       booking_id: data.bookingId,
       room_id: data.roomId,
       nama_penjaga: data.namaPenjaga,
@@ -373,6 +395,7 @@ export const api = {
   submitExpense: (data: SubmitExpensePayload) =>
     callApi<{ expenseId: string; message?: string }>('submitExpense', {
       ...data,
+      bukti_files: data.buktiFiles || [],
       dibeli_oleh: data.dibeliOleh,
     }),
   getRecentTransactions: (limit?: number) =>

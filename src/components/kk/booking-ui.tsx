@@ -13,8 +13,10 @@ import {
   type RoomStatus,
   type PriceItem,
   type BookingFullData,
+  type BuktiFile,
 } from '@/lib/api';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
+import { FileUpload } from './file-upload';
 import { KkIcon } from './icons';
 import { rupiah, tglPanjang, tglPendek, mapPayStatus, type PayStatus } from './status';
 
@@ -162,6 +164,7 @@ export function BookingFlow({
   const [masuk, setMasuk] = useState(TODAY());
   const [bayar, setBayar] = useState<PayStatus>('Lunas');
   const [dp, setDp] = useState('');
+  const [bukti, setBukti] = useState<BuktiFile[]>([]);
 
   // Reset / prefill whenever the sheet opens.
   useEffect(() => {
@@ -186,6 +189,7 @@ export function BookingFlow({
       setBayar('Lunas');
       setDp('');
     }
+    setBukti([]);
     setStep(1);
   }, [open, editBooking]);
 
@@ -240,6 +244,7 @@ export function BookingFlow({
         jumlahPeriode: lama,
         hargaKamar: hargaBulanan,
         dpAwal: dibayar,
+        buktiFiles: bukti,
       });
     },
     onSuccess: () => {
@@ -509,6 +514,8 @@ export function BookingFlow({
                 />
               </BookingField>
             )}
+
+            <FileUpload value={bukti} onChange={setBukti} label="Bukti booking / pembayaran" />
 
             <KkCard tone="mauve">
               <InfoRow label="Penyewa" value={nama || '—'} />
