@@ -28,16 +28,18 @@ const HELP = {
   title: 'Layout Properti',
   tips: [
     'Ini peta semua kamar properti Anda beserta kondisinya saat ini.',
-    'Warna kamar menunjukkan statusnya: hijau Terisi, mint Kosong, oranye Perlu Perhatian.',
+    'Warna kamar menunjukkan statusnya: hijau = Terisi, putih = Kosong, oranye = Perlu Perhatian.',
     'Tekan satu kamar untuk melihat detail penyewa dan statusnya.',
   ],
 };
 
-// Status tint for the room tiles + summary cards.
-const TILE_TINT: Record<RoomDisplayStatus, { bg: string; dot: string }> = {
-  Terisi: { bg: 'bg-kk-mint-soft border-kk-green', dot: 'bg-kk-green' },
-  Tersedia: { bg: 'bg-kk-mint-soft border-kk-mint', dot: 'bg-kk-mint' },
-  'Perlu Perhatian': { bg: 'bg-kk-orange-soft border-kk-orange', dot: 'bg-kk-orange' },
+// Status tint for the room tiles + summary cards — three clearly distinct
+// colors so the owner can scan at a glance: green = Terisi, white = Kosong,
+// orange = Perlu Perhatian.
+const TILE_TINT: Record<RoomDisplayStatus, { bg: string; dot: string; text: string }> = {
+  Terisi: { bg: 'bg-kk-mint-soft border-kk-green', dot: 'bg-kk-green', text: 'text-kk-green' },
+  Tersedia: { bg: 'bg-white border-kk-mauve', dot: 'bg-kk-ink', text: 'text-kk-ink' },
+  'Perlu Perhatian': { bg: 'bg-kk-orange-soft border-kk-orange', dot: 'bg-kk-orange', text: 'text-kk-orange' },
 };
 
 // Plain-language label shown on tiles/summary ("Kosong" instead of "Tersedia").
@@ -202,8 +204,8 @@ export default function LayoutPropertiPage() {
               className={`border-2 rounded-kk-card px-2.5 py-4 text-center ${t.bg}`}
             >
               <div className="flex items-center justify-center gap-2">
-                <span className={`w-3 h-3 rounded-full ${t.dot}`} />
-                <span className="font-heading font-black text-[28px] leading-none text-kk-navy tabular-nums">
+                <span className={`w-3.5 h-3.5 rounded-full ${t.dot}`} />
+                <span className={`font-heading font-black text-[28px] leading-none tabular-nums ${t.text}`}>
                   {r.n}
                 </span>
               </div>
@@ -211,6 +213,13 @@ export default function LayoutPropertiPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Legenda warna — biar gampang dibaca sekilas */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3">
+        <LegendItem dot="bg-kk-green" label="Terisi" />
+        <LegendItem dot="bg-kk-ink" label="Kosong" ring />
+        <LegendItem dot="bg-kk-orange" label="Perlu Perhatian" />
       </div>
 
       <p className="text-body text-kk-ink mt-0 mb-6">
@@ -334,6 +343,15 @@ function FilterPills({
   );
 }
 
+function LegendItem({ dot, label, ring }: { dot: string; label: string; ring?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-caption font-semibold text-kk-navy">
+      <span className={`w-3.5 h-3.5 rounded-full ${dot} ${ring ? 'ring-2 ring-kk-mauve' : ''}`} />
+      {label}
+    </span>
+  );
+}
+
 function RoomTile({ room, onClick }: { room: RoomStatus; onClick: () => void }) {
   const status = mapRoomStatus(room);
   const t = TILE_TINT[status];
@@ -349,9 +367,12 @@ function RoomTile({ room, onClick }: { room: RoomStatus; onClick: () => void }) 
         <span className="font-heading font-black text-[22px] text-kk-navy truncate">
           {room.Nama_Kamar}
         </span>
-        <span className={`w-3.5 h-3.5 rounded-full flex-shrink-0 ${t.dot}`} />
+        <span className={`w-4 h-4 rounded-full flex-shrink-0 ${t.dot}`} />
       </div>
-      <div className="text-body font-semibold text-kk-navy">{plainLabel(status)}</div>
+      <div className={`inline-flex items-center gap-1.5 font-heading font-bold text-body ${t.text}`}>
+        <span className={`w-2.5 h-2.5 rounded-full ${t.dot}`} />
+        {plainLabel(status)}
+      </div>
       <div className="text-body text-kk-ink truncate">{nama || 'Siap disewa'}</div>
     </button>
   );
