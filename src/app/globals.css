@@ -1,8 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Josefin+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   KelolaKos · Design tokens (elderly-friendly redesign)
+   The EXACT approved values. Mirrors design_handoff/tokens.css.
+   ============================================================ */
+:root {
+  --kk-white: #FFFFFF;
+  --kk-navy: #0C2C47;
+  --kk-green: #2E5749;
+  --kk-orange: #BF512C;
+  --kk-yellow: #DA9B2B;
+  --kk-mauve: #D6C9C5;
+  --kk-mint: #ABCBCA;
+  --kk-ink-soft: #3B5063;
+  --kk-paper: #FAF8F7;
+  --kk-mauve-soft: #EFE9E7;
+  --kk-mint-soft: #E4EFEE;
+  --kk-orange-soft: #FBEFE9;
+  --kk-orange-shadow: #8F3C20;
+  --kk-green-shadow: #1F3D32;
+  --kk-font-heading: 'Lato', system-ui, sans-serif;
+  --kk-font-body: 'Josefin Sans', system-ui, sans-serif;
+  --kk-r-card: 18px;
+  --kk-r-button: 14px;
+}
 
 @layer base {
   html, body {
@@ -11,13 +36,16 @@
     min-height: 100vh;
   }
   body {
-    font-family: 'Inter', system-ui, sans-serif;
-    background: #FAFAF9;
-    color: #0C0A09;
-    font-size: 14px;
+    font-family: var(--kk-font-body);
+    background: var(--kk-paper);
+    color: var(--kk-navy);
+    font-size: 19px;
     line-height: 1.55;
-    letter-spacing: -.005em;
     -webkit-font-smoothing: antialiased;
+  }
+  /* Larger, comfortable form controls for elderly users */
+  input, select, textarea, button {
+    font-family: inherit;
   }
 }
 
@@ -79,4 +107,60 @@
   .badge-red   { @apply bg-rdb text-rd; }
   .badge-blue  { @apply bg-blb text-bl; }
   .badge-violet { @apply bg-vib text-vi; }
+
+  /* ========================================================
+     KelolaKos redesign component utilities
+     ======================================================== */
+
+  /* Buttons — min 56px tall, large readable text */
+  .kk-btn {
+    @apply inline-flex items-center justify-center gap-2.5 rounded-kk-btn border-2 border-transparent
+           font-body font-semibold text-button leading-tight min-h-kk-btn px-7 cursor-pointer
+           transition-transform duration-100 active:translate-y-0.5 select-none;
+  }
+  .kk-btn-lg { @apply min-h-kk-btn-lg text-[21px] px-8; }
+  .kk-btn-block { @apply w-full; }
+  .kk-btn-primary { @apply bg-kk-orange text-white shadow-kk-orange; }
+  .kk-btn-success { @apply bg-kk-green text-white shadow-kk-green; }
+  .kk-btn-secondary { @apply bg-white text-kk-navy border-kk-navy; }
+  .kk-btn-ghost { @apply bg-transparent text-kk-navy border-kk-mauve; }
+  .kk-btn:disabled { @apply opacity-45 cursor-not-allowed active:translate-y-0; }
+
+  /* Cards */
+  .kk-card {
+    @apply bg-white border-2 border-kk-mauve rounded-kk-card p-[22px];
+  }
+  .kk-card-mint { @apply bg-kk-mint-soft border-kk-mint; }
+  .kk-card-mauve { @apply bg-kk-mauve-soft border-kk-mauve; }
+
+  /* Inputs — big tap targets, navy text */
+  .kk-input {
+    @apply w-full min-h-kk-btn px-4 py-3 text-body font-body text-kk-navy bg-white
+           border-2 border-kk-mauve rounded-kk-btn transition-colors;
+  }
+  .kk-input:focus {
+    @apply outline-none border-kk-navy;
+  }
+  .kk-input::placeholder { color: var(--kk-ink-soft); opacity: 0.6; }
+
+  /* Field label + example helper */
+  .kk-label {
+    @apply block font-heading font-bold text-[20px] text-kk-navy mb-1;
+  }
+  .kk-help {
+    @apply text-caption text-kk-ink leading-snug;
+  }
+
+  /* Status badge (pill) */
+  .kk-badge {
+    @apply inline-flex items-center gap-2 rounded-full font-body font-semibold text-caption px-3 py-1.5;
+  }
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }
