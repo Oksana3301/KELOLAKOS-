@@ -616,9 +616,19 @@ function PriceModal({
 // 4. HARGA MASSAL Panel
 // ===========================================
 
+// Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
+// Mirrors floorForRoom() in src/app/kamar/page.tsx.
+function floorForRoom(room: RoomStatus): number {
+  const src = `${room.Tipe_Kamar} ${room.Catatan}`;
+  const m = src.match(/lantai\s*(\d+)/i) || src.match(/\b(\d+)\b/);
+  return m ? Number(m[1]) : 1;
+}
+
 export function HargaMassalPanel() {
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [filterGedung, setFilterGedung] = useState('ALL');
+  const [filterLantai, setFilterLantai] = useState('ALL');
   const [paket, setPaket] = useState('Bulanan');
   const [hargaSatuan, setHargaSatuan] = useState(0);
   const [dpMinimal, setDpMinimal] = useState(0);
@@ -635,15 +645,38 @@ export function HargaMassalPanel() {
   const rooms = data?.rooms || [];
   const rules = data?.rules || [];
 
-  // Group rooms by gedung
+  // Distinct gedung values for the Gedung filter.
+  const gedungOptions = useMemo(
+    () => Array.from(new Set(rooms.map((r) => r.Gedung).filter(Boolean))).sort(),
+    [rooms],
+  );
+
+  // Distinct floor numbers (derived) for the Lantai filter.
+  const lantaiOptions = useMemo(
+    () => Array.from(new Set(rooms.map((r) => floorForRoom(r)))).sort((a, b) => a - b),
+    [rooms],
+  );
+
+  // Rooms matching the active Gedung + Lantai filter.
+  const filteredRooms = useMemo(
+    () =>
+      rooms.filter(
+        (r) =>
+          (filterGedung === 'ALL' || r.Gedung === filterGedung) &&
+          (filterLantai === 'ALL' || floorForRoom(r) === Number(filterLantai)),
+      ),
+    [rooms, filterGedung, filterLantai],
+  );
+
+  // Group filtered rooms by gedung
   const groupedRooms = useMemo(() => {
     const map = new Map<string, RoomStatus[]>();
-    rooms.forEach((r) => {
+    filteredRooms.forEach((r) => {
       if (!map.has(r.Gedung)) map.set(r.Gedung, []);
       map.get(r.Gedung)!.push(r);
     });
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [rooms]);
+  }, [filteredRooms]);
 
   function toggleRoom(id: string) {
     setSelectedIds((prev) => {
@@ -655,7 +688,8 @@ export function HargaMassalPanel() {
   }
 
   function toggleGedung(gedung: string) {
-    const gedungRooms = rooms.filter((r) => r.Gedung === gedung);
+    // Operate only on rooms visible under the current filter.
+    const gedungRooms = filteredRooms.filter((r) => r.Gedung === gedung);
     const allSelected = gedungRooms.every((r) => selectedIds.has(r.RoomID));
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -667,8 +701,9 @@ export function HargaMassalPanel() {
     });
   }
 
-  function selectAll() {
-    setSelectedIds(new Set(rooms.map((r) => r.RoomID)));
+  // Select exactly the rooms currently matching the Gedung+Lantai filter.
+  function selectFiltered() {
+    setSelectedIds(new Set(filteredRooms.map((r) => r.RoomID)));
   }
 
   function clearAll() {
@@ -717,17 +752,83 @@ export function HargaMassalPanel() {
     <div className="grid lg:grid-cols-2 gap-5">
       {/* LEFT: Room selector */}
       <div>
+        {/* Gedung + Lantai filters */}
+        <div className="bg-sf2 border border-bd rounded-md p-3 mb-3 space-y-2.5">
+          <div>
+            <div className="text-[11px] font-semibold text-tx2 mb-1.5">Gedung</div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setFilterGedung('ALL')}
+                className={
+                  filterGedung === 'ALL'
+                    ? 'px-2.5 py-1 rounded text-[11px] font-semibold bg-ac text-white'
+                    : 'px-2.5 py-1 rounded text-[11px] font-semibold bg-sf border border-bd text-tx2 hover:bg-sf2'
+                }
+              >
+                Semua
+              </button>
+              {gedungOptions.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setFilterGedung(g)}
+                  className={
+                    filterGedung === g
+                      ? 'px-2.5 py-1 rounded text-[11px] font-semibold bg-ac text-white'
+                      : 'px-2.5 py-1 rounded text-[11px] font-semibold bg-sf border border-bd text-tx2 hover:bg-sf2'
+                  }
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] font-semibold text-tx2 mb-1.5">Lantai</div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setFilterLantai('ALL')}
+                className={
+                  filterLantai === 'ALL'
+                    ? 'px-2.5 py-1 rounded text-[11px] font-semibold bg-ac text-white'
+                    : 'px-2.5 py-1 rounded text-[11px] font-semibold bg-sf border border-bd text-tx2 hover:bg-sf2'
+                }
+              >
+                Semua
+              </button>
+              {lantaiOptions.map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setFilterLantai(String(l))}
+                  className={
+                    filterLantai === String(l)
+                      ? 'px-2.5 py-1 rounded text-[11px] font-semibold bg-ac text-white'
+                      : 'px-2.5 py-1 rounded text-[11px] font-semibold bg-sf border border-bd text-tx2 hover:bg-sf2'
+                  }
+                >
+                  Lantai {l}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-between items-center mb-3">
           <div className="text-xs text-tx3">
-            {selectedIds.size} dari {rooms.length} kamar dipilih
+            {selectedIds.size} kamar terpilih · {filteredRooms.length} kamar terfilter
           </div>
           <div className="flex gap-1">
-            <button onClick={selectAll} className="btn btn-sec btn-sm text-[10px]">Pilih Semua</button>
-            <button onClick={clearAll} className="btn btn-sec btn-sm text-[10px]">Reset</button>
+            <button onClick={selectFiltered} className="btn btn-sec btn-sm text-[10px]">Pilih semua (yang terfilter)</button>
+            <button onClick={clearAll} className="btn btn-sec btn-sm text-[10px]">Kosongkan pilihan</button>
           </div>
         </div>
 
         <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {groupedRooms.length === 0 && (
+            <div className="bg-sf2 border border-bd border-dashed rounded-md p-6 text-center text-tx3 text-xs">
+              Tidak ada kamar yang cocok dengan filter ini.
+            </div>
+          )}
           {groupedRooms.map(([gedung, items]) => {
             const allSelected = items.every((r) => selectedIds.has(r.RoomID));
             const someSelected = items.some((r) => selectedIds.has(r.RoomID));

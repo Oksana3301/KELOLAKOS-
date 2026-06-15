@@ -191,11 +191,11 @@ export default function KeuanganPage() {
       />
 
       {/* ── Catat Transaksi Baru ── */}
-      <h2 className="font-heading font-bold text-subhead text-kk-navy mb-1">Catat Transaksi Baru</h2>
-      <p className="text-body text-kk-ink mt-0 mb-4">
-        Pilih jenis yang sesuai. Hijau berarti uang masuk, oranye berarti uang keluar.
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mb-7">
+      <div className="flex items-baseline justify-between mb-2.5">
+        <h2 className="font-heading font-bold text-subhead text-kk-navy m-0">Catat Transaksi Baru</h2>
+        <span className="text-caption text-kk-ink">Hijau masuk · oranye keluar</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 mb-6">
         {(Object.keys(JENIS) as JenisId[]).map((id) => (
           <JenisCard key={id} jenis={JENIS[id]} onClick={() => setFormJenis(id)} />
         ))}
@@ -206,7 +206,7 @@ export default function KeuanganPage() {
       <MoneyKpiGrid data={money} onDetail={setDetailKpi} />
 
       {/* ── Riwayat Transaksi ── */}
-      <div className="flex items-center justify-between mt-7 mb-3">
+      <div className="flex items-center justify-between mt-6 mb-3">
         <h2 className="font-heading font-bold text-subhead text-kk-navy m-0">Riwayat Transaksi</h2>
         <span className="text-body font-semibold text-kk-ink">
           {loadingTx ? '…' : `${transactions.length} catatan`}

@@ -118,27 +118,28 @@ function Field({
   );
 }
 
-// ───────────────────────── 4 record-type cards ─────────────────────────
+// ───────────────────────── 4 record-type buttons (compact) ─────────────────────────
 export function JenisCard({ jenis, onClick }: { jenis: JenisMeta; onClick: () => void }) {
   const s = arahStyle(jenis.arah);
   return (
     <button
       onClick={onClick}
       className={cn(
-        'text-left cursor-pointer bg-white border-2 rounded-kk-card p-[18px] flex flex-col gap-2.5 min-h-[156px]',
+        'text-left cursor-pointer bg-white border-2 rounded-kk-card px-3.5 py-3 flex items-center gap-3 min-h-[64px]',
         s.border,
       )}
     >
-      <div className="flex items-center justify-between">
-        <div className={cn('w-12 h-12 rounded-[13px] grid place-items-center', s.soft, s.text)}>
-          <KkIcon name={jenis.ic} size={26} strokeWidth={2.2} />
+      <div className={cn('w-11 h-11 flex-shrink-0 rounded-[12px] grid place-items-center', s.soft, s.text)}>
+        <KkIcon name={jenis.ic} size={24} strokeWidth={2.2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-heading font-bold text-[18px] text-kk-navy leading-tight break-words">
+          {jenis.label}
         </div>
-        <span className={cn('rounded-full font-body font-semibold text-[16px] px-2.5 py-1', s.tagBg)}>
+        <span className={cn('inline-block mt-0.5 rounded-full font-body font-semibold text-[14px] px-2 py-0.5', s.tagBg)}>
           {s.tag}
         </span>
       </div>
-      <div className="font-heading font-bold text-[19px] text-kk-navy">{jenis.label}</div>
-      <div className="text-caption text-kk-ink leading-snug">{jenis.ringkas}</div>
     </button>
   );
 }
