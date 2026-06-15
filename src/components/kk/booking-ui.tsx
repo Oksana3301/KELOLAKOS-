@@ -18,7 +18,7 @@ import {
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
 import { KkIcon } from './icons';
-import { rupiah, tglPanjang, tglPendek, mapPayStatus, type PayStatus } from './status';
+import { rupiah, tglPanjang, tglPendek, mapPayStatus, mapRoomStatus, type PayStatus, type RoomDisplayStatus } from './status';
 
 const TODAY = () => new Date().toISOString().split('T')[0];
 
@@ -84,7 +84,8 @@ function StepHead({ step }: { step: number }) {
   const langkah = [
     { n: 1, l: 'Data Penyewa' },
     { n: 2, l: 'Pilih Kamar' },
-    { n: 3, l: 'Pembayaran' },
+    { n: 3, l: 'Lama Sewa' },
+    { n: 4, l: 'Pembayaran' },
   ];
   return (
     <div className="flex items-center gap-1.5 mb-6">
@@ -113,9 +114,9 @@ function StepHead({ step }: { step: number }) {
                 {s.l}
               </span>
             </div>
-            {i < 2 && (
+            {i < 3 && (
               <div
-                className={`flex-1 h-[3px] rounded-full min-w-[10px] ${
+                className={`flex-1 h-[3px] rounded-full min-w-[8px] ${
                   done ? 'bg-kk-green' : 'bg-kk-mauve'
                 }`}
               />
@@ -131,6 +132,25 @@ function StepHead({ step }: { step: number }) {
 export interface RoomOption {
   room: RoomStatus;
   harga: number;
+}
+
+// Small status pill for a room (Terisi / Kosong / Perlu Perhatian) — mirrors
+// the colour coding on the Layout Properti page.
+function RoomStatusBadge({ room, className = '' }: { room: RoomStatus; className?: string }) {
+  const s = mapRoomStatus(room);
+  const map: Record<RoomDisplayStatus, { bg: string; label: string }> = {
+    Terisi: { bg: 'bg-kk-green text-white', label: 'Terisi' },
+    Tersedia: { bg: 'bg-kk-mauve text-kk-navy', label: 'Kosong' },
+    'Perlu Perhatian': { bg: 'bg-kk-orange text-white', label: 'Perlu Perhatian' },
+  };
+  const m = map[s];
+  return (
+    <span
+      className={`inline-flex items-center rounded-full font-body font-semibold text-caption px-3 py-1 leading-none whitespace-nowrap ${m.bg} ${className}`}
+    >
+      {m.label}
+    </span>
+  );
 }
 
 // Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
@@ -170,12 +190,26 @@ export function buildRoomOptions(
   function priceFor(r: RoomStatus): number {
     return satuan === 'Harian' ? dailyPrice(r) : monthlyPrice(r);
   }
-  const available = rooms.filter((r) => r.Status_Code === 'READY');
-  if (currentRoomId && !available.some((r) => r.RoomID === currentRoomId)) {
-    const cur = rooms.find((r) => r.RoomID === currentRoomId);
-    if (cur) available.unshift(cur);
+  // Show ALL rooms (kosong first), so the owner can also book an occupied room
+  // when needed — a warning is shown before saving. The current room (edit
+  // mode) stays at the very top.
+  const sorted = [...rooms].sort((a, b) => {
+    const av = a.Status_Code === 'READY' ? 0 : 1;
+    const bv = b.Status_Code === 'READY' ? 0 : 1;
+    if (av !== bv) return av - bv;
+    return (a.Nama_Kamar || '').localeCompare(b.Nama_Kamar || '', 'id', { numeric: true });
+  });
+  if (currentRoomId) {
+    const idx = sorted.findIndex((r) => r.RoomID === currentRoomId);
+    if (idx > 0) {
+      const [cur] = sorted.splice(idx, 1);
+      sorted.unshift(cur);
+    } else if (idx < 0) {
+      const cur = rooms.find((r) => r.RoomID === currentRoomId);
+      if (cur) sorted.unshift(cur);
+    }
   }
-  return available.map((r) => ({ room: r, harga: priceFor(r) }));
+  return sorted.map((r) => ({ room: r, harga: priceFor(r) }));
 }
 
 // ═════════════════════════ TAMBAH / UBAH BOOKING FLOW ═════════════════════════
@@ -198,7 +232,13 @@ export function BookingFlow({
   // "Atur tanggal sendiri" mode: pick check-in/check-out, bill per day.
   const [customDate, setCustomDate] = useState(false);
   const [keluarDate, setKeluarDate] = useState('');
-  const durasiRef = useRef<HTMLDivElement>(null);
+  // Anchors for the room-list up/down scroll buttons (step 2).
+  const topRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  // Scroll the sheet back to the top whenever the step changes.
+  const headRef = useRef<HTMLDivElement>(null);
+  // Confirm dialog when booking a room that's already occupied.
+  const [warnOccupied, setWarnOccupied] = useState(false);
   // When picking custom dates we always bill per day.
   const effSatuan: Satuan = customDate ? 'Harian' : satuan;
   const unit = effSatuan === 'Harian' ? 'hari' : 'bulan';
@@ -258,6 +298,12 @@ export function BookingFlow({
     setFLantai('Semua');
     setStep(1);
   }, [open, editBooking]);
+
+  // Scroll the sheet to the top each time the step changes.
+  useEffect(() => {
+    if (!open) return;
+    headRef.current?.scrollIntoView({ block: 'start' });
+  }, [step, open]);
 
   const options = useMemo(
     () => buildRoomOptions(rooms, prices, effSatuan, editBooking?.RoomID),
@@ -329,10 +375,24 @@ export function BookingFlow({
     step === 1
       ? nama.trim().length > 0
       : step === 2
-      ? !!chosen && !!masuk && (customDate ? customHari >= 1 : lama >= 1)
-      : // Step 3: DP only needs a positive amount (sisa is computed). Lunas/Belum
+      ? !!chosen
+      : step === 3
+      ? !!masuk && (customDate ? customHari >= 1 : lama >= 1)
+      : // Step 4: DP only needs a positive amount (sisa is computed). Lunas/Belum
         // Bayar always valid.
         bayar !== 'DP' || Number(dp) > 0;
+
+  // Booking an occupied / attention room is allowed, but warn first.
+  const roomOccupied = !!chosen && chosen.room.Status_Code !== 'READY';
+
+  function handleSave() {
+    if (!bisaLanjut || saveMutation.isPending) return;
+    if (roomOccupied && !isEdit) {
+      setWarnOccupied(true);
+      return;
+    }
+    saveMutation.mutate();
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -418,20 +478,29 @@ export function BookingFlow({
 
   return (
     <>
-      {/* Floating "jump to duration" button — only on step 2, above the sheet. */}
+      {/* Floating up/down scroll buttons — only on step 2 (banyak kamar). */}
       {open && curStep === 2 && (
-        <button
-          onClick={() => durasiRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          aria-label="Langsung ke pilihan lama sewa"
-          className="fixed z-[80] right-5 bottom-6 min-h-[52px] px-5 rounded-full bg-kk-orange text-white shadow-[0_8px_22px_rgba(143,60,32,.5)] font-body font-semibold text-body inline-flex items-center gap-2 active:translate-y-0.5"
-        >
-          Pilih lama sewa
-          <KkIcon name="chevron" size={22} strokeWidth={2.6} className="rotate-90" />
-        </button>
+        <div className="fixed z-[80] right-5 bottom-6 flex flex-col gap-2.5">
+          <button
+            onClick={() => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            aria-label="Ke atas"
+            className="w-[52px] h-[52px] rounded-full bg-kk-navy text-white shadow-[0_8px_22px_rgba(12,44,71,.45)] grid place-items-center active:translate-y-0.5"
+          >
+            <KkIcon name="panahAtas" size={26} strokeWidth={2.4} />
+          </button>
+          <button
+            onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
+            aria-label="Ke bawah"
+            className="w-[52px] h-[52px] rounded-full bg-kk-orange text-white shadow-[0_8px_22px_rgba(143,60,32,.5)] grid place-items-center active:translate-y-0.5"
+          >
+            <KkIcon name="panahAtas" size={26} strokeWidth={2.4} className="rotate-180" />
+          </button>
+        </div>
       )}
       <Sheet open={open} onClose={onClose}>
         <SheetHead title={judul} onClose={onClose} />
       <div className="px-6 pb-8 pt-2">
+        <div ref={headRef} />
         <StepHead step={curStep} />
 
         {/* LANGKAH 1 — DATA PENYEWA */}
@@ -469,15 +538,16 @@ export function BookingFlow({
           </div>
         )}
 
-        {/* LANGKAH 2 — PILIH KAMAR & LAMA SEWA */}
+        {/* LANGKAH 2 — PILIH KAMAR */}
         {curStep === 2 && (
           <div>
+            <div ref={topRef} />
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
-              2. Pilih kamar &amp; lama sewa
+              2. Pilih kamar
             </h3>
 
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">
-              Kamar yang kosong
+              Daftar kamar
             </div>
 
             {/* ── Pencarian & filter kamar (UI saja, tidak mengubah data) ── */}
@@ -586,7 +656,7 @@ export function BookingFlow({
 
             <div className="flex flex-col gap-3 mb-6">
               {options.length === 0 && (
-                <KkCard className="text-body text-kk-ink">Belum ada kamar kosong saat ini.</KkCard>
+                <KkCard className="text-body text-kk-ink">Belum ada kamar. Tambahkan kamar dulu di menu Kamar.</KkCard>
               )}
               {options.length > 0 && filteredOptions.length === 0 && (
                 <KkCard className="text-body text-kk-ink">
@@ -595,17 +665,26 @@ export function BookingFlow({
               )}
               {filteredOptions.map((o) => {
                 const sel = chosen?.room.RoomID === o.room.RoomID;
+                const st = mapRoomStatus(o.room);
+                const border = sel
+                  ? 'border-kk-navy bg-kk-mint-soft'
+                  : st === 'Perlu Perhatian'
+                  ? 'border-kk-orange bg-white'
+                  : st === 'Terisi'
+                  ? 'border-kk-green bg-white'
+                  : 'border-kk-mauve bg-white';
                 return (
                   <button
                     key={o.room.RoomID}
                     onClick={() => setRoomId(o.room.RoomID)}
-                    className={`text-left p-[18px] rounded-kk-card border-2 flex justify-between items-center gap-3 ${
-                      sel ? 'border-kk-navy bg-kk-mint-soft' : 'border-kk-mauve bg-white'
-                    }`}
+                    className={`text-left p-[18px] rounded-kk-card border-2 flex justify-between items-center gap-3 ${border}`}
                   >
-                    <div>
-                      <div className="font-heading font-bold text-[20px] text-kk-navy">
-                        {o.room.Nama_Kamar}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-heading font-bold text-[20px] text-kk-navy">
+                          {o.room.Nama_Kamar}
+                        </span>
+                        <RoomStatusBadge room={o.room} />
                       </div>
                       <div className="text-caption text-kk-ink">
                         {o.room.Gedung} · {o.harga > 0 ? `${rupiah(o.harga)}/${unit}` : 'harga belum diatur'}
@@ -621,8 +700,32 @@ export function BookingFlow({
               })}
             </div>
 
-            {/* Anchor target for the floating "ke pemilihan lama sewa" button */}
-            <div ref={durasiRef} />
+            <div ref={bottomRef} />
+          </div>
+        )}
+
+        {/* LANGKAH 3 — LAMA SEWA */}
+        {curStep === 3 && (
+          <div>
+            <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
+              3. Berapa lama menyewa?
+            </h3>
+
+            {/* Kamar yang dipilih — dibawa dari langkah sebelumnya */}
+            {chosen && (
+              <div className="bg-kk-mauve-soft border-2 border-kk-mauve rounded-kk-card p-4 mb-5 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-[12px] bg-white text-kk-navy grid place-items-center flex-shrink-0">
+                  <KkIcon name="kamar" size={24} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-caption text-kk-ink">Kamar dipilih</div>
+                  <div className="font-heading font-bold text-[19px] text-kk-navy truncate">
+                    {chosen.room.Nama_Kamar} · {chosen.room.Gedung}
+                  </div>
+                </div>
+                <RoomStatusBadge room={chosen.room} className="ml-auto flex-shrink-0" />
+              </div>
+            )}
 
             {/* Mode: pilihan cepat (per bulan/hari) atau atur tanggal sendiri */}
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">Lama sewa</div>
@@ -772,11 +875,11 @@ export function BookingFlow({
           </div>
         )}
 
-        {/* LANGKAH 3 — PEMBAYARAN */}
-        {curStep === 3 && (
+        {/* LANGKAH 4 — PEMBAYARAN */}
+        {curStep === 4 && (
           <div>
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
-              3. Bagaimana pembayarannya?
+              4. Bagaimana pembayarannya?
             </h3>
 
             <div className="bg-kk-navy rounded-kk-card px-5 py-[18px] mb-5 text-white">
@@ -866,7 +969,7 @@ export function BookingFlow({
               Kembali
             </KkButton>
           )}
-          {curStep < 3 && (
+          {curStep < 4 && (
             <KkButton
               variant="primary"
               size="lg"
@@ -877,13 +980,13 @@ export function BookingFlow({
               Lanjut
             </KkButton>
           )}
-          {curStep === 3 && (
+          {curStep === 4 && (
             <KkButton
               variant="success"
               size="lg"
               className="flex-[2]"
               disabled={!bisaLanjut || saveMutation.isPending}
-              onClick={() => bisaLanjut && saveMutation.mutate()}
+              onClick={handleSave}
             >
               <KkIcon name="cek" size={22} strokeWidth={2.4} />{' '}
               {saveMutation.isPending ? 'Menyimpan…' : 'Simpan Booking'}
@@ -892,6 +995,38 @@ export function BookingFlow({
         </div>
       </div>
       </Sheet>
+
+      {/* Konfirmasi kalau kamar yang dipilih sudah terisi */}
+      <Dialog open={warnOccupied}>
+        <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
+          <KkIcon name="info" size={30} />
+        </div>
+        <h3 className="font-heading font-bold text-subhead text-center m-0 mb-2">
+          Kamar ini sudah terisi
+        </h3>
+        <p className="text-body text-kk-ink text-center mt-0 mb-6 leading-snug">
+          Kamar <b className="text-kk-navy">{chosen?.room.Nama_Kamar}</b> statusnya{' '}
+          <b className="text-kk-navy">
+            {chosen ? (mapRoomStatus(chosen.room) === 'Terisi' ? 'Terisi' : 'Perlu Perhatian') : ''}
+          </b>
+          . Yakin tetap mau membuat booking di kamar ini?
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <KkButton variant="secondary" onClick={() => setWarnOccupied(false)} disabled={saveMutation.isPending}>
+            Tidak Jadi
+          </KkButton>
+          <KkButton
+            variant="primary"
+            onClick={() => {
+              setWarnOccupied(false);
+              saveMutation.mutate();
+            }}
+            disabled={saveMutation.isPending}
+          >
+            Ya, Lanjut
+          </KkButton>
+        </div>
+      </Dialog>
     </>
   );
 }
