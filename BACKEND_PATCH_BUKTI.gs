@@ -36,6 +36,12 @@
  * BAGIAN 1 — HELPER (copy semua ke backend .gs Anda)
  * ===================================================================== */
 
+// ID spreadsheet KelolaKos (ambil dari URL Google Sheet, bagian /d/<INI>/edit).
+// Kalau backend Anda sudah punya konstanta SPREADSHEET_ID sendiri, hapus baris
+// ini supaya tidak dobel. Kalau belum (mis. error "SPREADSHEET_ID is not
+// defined"), biarkan baris ini — ini yang mendefinisikannya.
+var SPREADSHEET_ID = '1TjTgYh8UFnvIMWkP1uTYVVYBzREFynyIjlfiPXT51QI';
+
 // Folder induk di Drive tempat semua bukti disimpan.
 var BUKTI_ROOT_FOLDER_NAME = 'KelolaKos Bukti';
 
