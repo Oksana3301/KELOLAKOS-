@@ -196,19 +196,52 @@ function ReportBody({
     keluar: keluarRinci,
   };
 
-  // ── Trend: last 5 calendar months from the daily chart ──
+  // ── Trend: adaptive buckets built from the SELECTED period's daily chart ──
+  // ≤ ~31 days → daily (merged to ≤ MAX_BARS), > ~31 days → calendar months.
   const trend = useMemo(() => {
-    const byMonth = new Map<string, { masuk: number; keluar: number; key: string; bln: string }>();
-    for (const c of data.chart) {
-      const d = new Date(c.date);
-      if (isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-      const cur = byMonth.get(key) || { masuk: 0, keluar: 0, key, bln: MONTH_ID[d.getMonth()] };
-      cur.masuk += c.in;
-      cur.keluar += c.out;
-      byMonth.set(key, cur);
+    const MAX_BARS = 12;
+
+    // Normalize + sort the daily series.
+    const days = data.chart
+      .map((c) => ({ d: new Date(c.date), masuk: c.in, keluar: c.out }))
+      .filter((c) => !isNaN(c.d.getTime()))
+      .sort((a, b) => a.d.getTime() - b.d.getTime());
+
+    if (days.length === 0) return [];
+
+    const spanDays =
+      (days[days.length - 1].d.getTime() - days[0].d.getTime()) / 86_400_000 + 1;
+
+    if (spanDays > 31) {
+      // Group by calendar month.
+      const byMonth = new Map<string, { masuk: number; keluar: number; key: string; bln: string }>();
+      for (const c of days) {
+        const key = `${c.d.getFullYear()}-${c.d.getMonth()}`;
+        const cur = byMonth.get(key) || { masuk: 0, keluar: 0, key, bln: MONTH_ID[c.d.getMonth()] };
+        cur.masuk += c.masuk;
+        cur.keluar += c.keluar;
+        byMonth.set(key, cur);
+      }
+      const months = [...byMonth.values()];
+      // Keep the most recent buckets if somehow > MAX_BARS (e.g. very long ranges).
+      return months.slice(-MAX_BARS);
     }
-    return [...byMonth.values()].slice(-5);
+
+    // Daily: merge consecutive days into ≤ MAX_BARS groups so phones don't overflow.
+    const group = Math.max(1, Math.ceil(days.length / MAX_BARS));
+    const bars: { masuk: number; keluar: number; key: string; bln: string }[] = [];
+    for (let i = 0; i < days.length; i += group) {
+      const slice = days.slice(i, i + group);
+      const first = slice[0].d;
+      bars.push({
+        key: `${first.getFullYear()}-${first.getMonth()}-${first.getDate()}`,
+        // Label the start of each bucket, e.g. "5 Jun".
+        bln: `${first.getDate()} ${MONTH_ID[first.getMonth()]}`,
+        masuk: slice.reduce((s, c) => s + c.masuk, 0),
+        keluar: slice.reduce((s, c) => s + c.keluar, 0),
+      });
+    }
+    return bars;
   }, [data.chart]);
   const maxTrend = Math.max(...trend.flatMap((d) => [d.masuk, d.keluar]), 1);
 
@@ -243,7 +276,7 @@ function ReportBody({
       <MoneyKpiGrid data={money} onDetail={setDetailKpi} />
 
       {/* Tren */}
-      <SectionTitle>Tren 5 Bulan Terakhir</SectionTitle>
+      <SectionTitle>Tren {label}</SectionTitle>
       <KkCard>
         <div className="flex gap-5 mb-5">
           <span className="inline-flex items-center gap-2 text-body font-semibold text-kk-navy">
@@ -254,7 +287,7 @@ function ReportBody({
           </span>
         </div>
         {trend.length === 0 ? (
-          <p className="text-body text-kk-ink m-0">Belum ada data tren untuk periode ini.</p>
+          <p className="text-body text-kk-ink m-0">Belum ada data pada periode ini.</p>
         ) : (
           <div className="flex items-end justify-between gap-2.5 h-[190px]">
             {trend.map((d) => (

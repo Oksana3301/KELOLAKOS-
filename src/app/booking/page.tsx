@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type BookingItem, type BookingFullData } from '@/lib/api';
+import { facilityApi } from '@/lib/api-v2';
 import { ScreenHead, KkButton, KkCard, BayarBadge, StickyCTA } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
@@ -51,6 +52,7 @@ function BookingPageInner() {
   // Add / edit flow
   const [showFlow, setShowFlow] = useState(false);
   const [editBooking, setEditBooking] = useState<BookingFullData | null>(null);
+  const [editFacilityIds, setEditFacilityIds] = useState<string[]>([]);
 
   // Detail sheet + its derived dialogs
   const [detail, setDetail] = useState<BookingFullData | null>(null);
@@ -61,6 +63,12 @@ function BookingPageInner() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['initial-data'],
     queryFn: api.getInitialData,
+  });
+
+  // Active facilities (offered as add-ons during booking).
+  const { data: facilities } = useQuery({
+    queryKey: ['fasilitas'],
+    queryFn: facilityApi.list,
   });
 
   useEffect(() => {
@@ -115,6 +123,7 @@ function BookingPageInner() {
     try {
       const d = await api.getBookingDetail(b.BookingID);
       setDetail(d.booking);
+      setEditFacilityIds((d.facilities || []).map((f) => f.id));
     } catch (e) {
       toast.error('Gagal memuat detail: ' + (e as Error).message);
     }
@@ -285,10 +294,13 @@ function BookingPageInner() {
         onClose={() => {
           setShowFlow(false);
           setEditBooking(null);
+          setEditFacilityIds([]);
         }}
         rooms={data.roomStatus || []}
         prices={data.prices || []}
         editBooking={editBooking}
+        facilities={facilities || []}
+        editFacilityIds={editFacilityIds}
       />
 
       {detail && (

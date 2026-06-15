@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type BookingItem } from '@/lib/api';
+import { kwitansiApi } from '@/lib/api-v2';
 import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
@@ -28,6 +29,20 @@ export default function KwitansiPage() {
     queryKey: ['initial-data'],
     queryFn: api.getInitialData,
   });
+
+  // Business profile (saved in Pengaturan → Profil Bisnis). Same query key,
+  // so the kwitansi updates whenever the owner edits & saves the profile.
+  const { data: settings } = useQuery({
+    queryKey: ['kwitansi-settings'],
+    queryFn: kwitansiApi.get,
+  });
+
+  const businessName = settings?.business_name?.trim() || 'KelolaKos';
+  const logoLetter = (settings?.logo_letter?.trim() || businessName[0] || 'K').toUpperCase();
+  const showTagline = Boolean(settings?.show_tagline && settings?.tagline?.trim());
+  const alamat = settings?.alamat?.trim() || '';
+  const kontak = settings?.kontak?.trim() || '';
+  const contactLine = [alamat, kontak].filter(Boolean).join(' · ');
 
   // Tenants for the picker — only those who have paid something (Lunas / DP).
   const tenants: BookingItem[] = useMemo(() => {
@@ -151,18 +166,27 @@ export default function KwitansiPage() {
               (fixed width, centered, no baseline-dependent alignment). */}
           <div ref={previewRef} className="bg-white p-3">
             <div className="mx-auto w-full max-w-[480px] bg-white border-2 border-kk-mauve rounded-kk-card px-6 pt-7 pb-6">
-              {/* Header: centered logo + title + status — tidy & clip-safe on export */}
+              {/* Header: centered logo + business name + (optional) tagline/contact + status.
+                  Uses the saved Profil Bisnis settings — tidy & clip-safe on export. */}
               <div className="text-center border-b-2 border-dashed border-kk-mauve pb-5 mb-2">
                 <div className="flex items-center justify-center gap-2.5 mb-2.5">
                   <div className="w-11 h-11 rounded-[12px] bg-kk-orange text-white grid place-items-center font-heading font-black text-[24px] flex-shrink-0 leading-none">
-                    K
+                    {logoLetter}
                   </div>
-                  <div className="font-heading font-black text-[22px] text-kk-navy leading-none">KelolaKos</div>
+                  <div className="font-heading font-black text-[22px] text-kk-navy leading-none">
+                    {businessName}
+                  </div>
                 </div>
+                {showTagline && (
+                  <div className="text-caption text-kk-ink leading-snug mb-2">{settings?.tagline}</div>
+                )}
+                {contactLine && (
+                  <div className="text-caption text-kk-ink leading-snug mb-2">{contactLine}</div>
+                )}
                 <div className="font-body font-semibold text-caption text-kk-ink tracking-wide mb-3">
                   KWITANSI PEMBAYARAN
                 </div>
-                <div className="flex justify-center">
+                <div className="flex items-center justify-center">
                   <ReceiptStatus status={mapPayStatus(selected)} />
                 </div>
               </div>
@@ -253,7 +277,7 @@ function ReceiptStatus({ status }: { status: PayStatus }) {
   return (
     <span
       className={
-        'inline-flex items-center justify-center rounded-full font-body font-semibold text-[15px] px-3.5 py-1.5 leading-none whitespace-nowrap ' +
+        'inline-flex items-center justify-center rounded-full font-body font-semibold text-[15px] px-3.5 py-1.5 leading-tight whitespace-nowrap ' +
         map[status]
       }
     >

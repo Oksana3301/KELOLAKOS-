@@ -15,6 +15,7 @@ import {
   type BookingFullData,
   type BuktiFile,
 } from '@/lib/api';
+import { type Fasilitas } from '@/lib/api-v2';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
 import { KkIcon } from './icons';
@@ -170,10 +171,23 @@ export function buildRoomOptions(
   satuan: Satuan,
   currentRoomId?: string,
 ): RoomOption[] {
+  // Find matching price rows for a room. Lenient: try the exact
+  // (Layanan + Gedung + Tipe) match first, then progressively relax so a
+  // configured "Harga Umum" still shows up even if Tipe_Kamar/Layanan differ
+  // slightly. (Avoids "harga belum diatur" when the data keys don't align.)
   function rowsFor(r: RoomStatus): PriceItem[] {
-    return prices.filter(
+    const exact = prices.filter(
       (p) => p.Layanan === r.Layanan_Default && p.Gedung === r.Gedung && p.Tipe_Kamar === r.Tipe_Kamar,
     );
+    if (exact.length) return exact;
+    const byLayananGedung = prices.filter(
+      (p) => p.Layanan === r.Layanan_Default && p.Gedung === r.Gedung,
+    );
+    if (byLayananGedung.length) return byLayananGedung;
+    const byGedung = prices.filter((p) => p.Gedung === r.Gedung);
+    if (byGedung.length) return byGedung;
+    const byLayanan = prices.filter((p) => p.Layanan === r.Layanan_Default);
+    return byLayanan;
   }
   function monthlyPrice(r: RoomStatus): number {
     const rows = rowsFor(r);
@@ -219,12 +233,18 @@ export function BookingFlow({
   rooms,
   prices,
   editBooking,
+  facilities = [],
+  editFacilityIds,
 }: {
   open: boolean;
   onClose: () => void;
   rooms: RoomStatus[];
   prices: PriceItem[];
   editBooking?: BookingFullData | null;
+  /** Active facilities (with per-period price_adjust). */
+  facilities?: Fasilitas[];
+  /** Facility ids already attached to the booking being edited. */
+  editFacilityIds?: string[];
 }) {
   const qc = useQueryClient();
   const isEdit = !!editBooking;
@@ -232,6 +252,8 @@ export function BookingFlow({
   // "Atur tanggal sendiri" mode: pick check-in/check-out, bill per day.
   const [customDate, setCustomDate] = useState(false);
   const [keluarDate, setKeluarDate] = useState('');
+  // Selected extra facilities (ids) — adds price_adjust per period.
+  const [selFas, setSelFas] = useState<Set<string>>(new Set());
   // Anchors for the room-list up/down scroll buttons (step 2).
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -291,6 +313,7 @@ export function BookingFlow({
       setBayar('Lunas');
       setDp('');
     }
+    setSelFas(new Set(editBooking ? editFacilityIds || [] : []));
     setBukti([]);
     setFLayanan('Semua');
     setFCari('');
@@ -358,11 +381,18 @@ export function BookingFlow({
   const customHari = customDate ? daysBetween(masuk, keluarDate) : 0;
   const lamaEff = customDate ? Math.max(0, customHari) : lama;
 
+  // Extra facilities add their price_adjust PER PERIOD (same contract as the
+  // legacy form: base hargaKamar + fasilitasIds → backend totals it).
+  const activeFas = facilities.filter((f) => f.is_active);
+  const fasTotalPerPeriode = activeFas.reduce(
+    (s, f) => (selFas.has(f.id) ? s + (f.price_adjust || 0) : s),
+    0,
+  );
+
   // Money math. In edit mode the existing total is authoritative for display.
   const hargaSatuan = chosen?.harga || 0;
-  const total = isEdit
-    ? editBooking!.Harga_Total_Net || hargaSatuan * lamaEff
-    : hargaSatuan * lamaEff;
+  const baseTotal = (hargaSatuan + fasTotalPerPeriode) * lamaEff;
+  const total = isEdit ? editBooking!.Harga_Total_Net || baseTotal : baseTotal;
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
   const keluar = customDate
@@ -410,6 +440,7 @@ export function BookingFlow({
           catatan: editBooking.Catatan,
           extraRequest: editBooking.Extra_Request,
           isEkstra: editBooking.Is_Ekstra === 'YA',
+          fasilitasIds: Array.from(selFas),
         });
       }
       if (!chosen) throw new Error('Kamar belum dipilih');
@@ -423,6 +454,7 @@ export function BookingFlow({
         jumlahPeriode: lamaEff,
         hargaKamar: hargaSatuan,
         dpAwal: dibayar,
+        fasilitasIds: Array.from(selFas),
         buktiFiles: bukti,
       });
     },
@@ -851,6 +883,52 @@ export function BookingFlow({
               </>
             )}
 
+            {/* Fasilitas tambahan (opsional) — harga otomatis ditambah ke total */}
+            {activeFas.length > 0 && (
+              <div className="mb-6">
+                <div className="font-heading font-bold text-[18px] text-kk-navy mb-1">
+                  Tambah fasilitas?
+                </div>
+                <p className="kk-help mb-3">Boleh dilewati. Harganya otomatis ditambah ke total sewa.</p>
+                <div className="space-y-2.5">
+                  {activeFas.map((f) => {
+                    const on = selFas.has(f.id);
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() =>
+                          setSelFas((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(f.id)) next.delete(f.id);
+                            else next.add(f.id);
+                            return next;
+                          })
+                        }
+                        className={`w-full text-left p-3.5 rounded-kk-card border-2 flex items-center gap-3 ${
+                          on ? 'border-kk-navy bg-kk-mint-soft' : 'border-kk-mauve bg-white'
+                        }`}
+                      >
+                        <span
+                          className={`w-7 h-7 rounded-md flex-shrink-0 border-2 grid place-items-center ${
+                            on ? 'bg-kk-green border-kk-green text-white' : 'border-kk-mauve text-transparent'
+                          }`}
+                        >
+                          <KkIcon name="cek" size={16} strokeWidth={2.8} />
+                        </span>
+                        <span className="flex-1 min-w-0 font-heading font-bold text-[18px] text-kk-navy">
+                          {f.nama}
+                        </span>
+                        <span className="font-heading font-bold text-[17px] text-kk-green whitespace-nowrap">
+                          + {rupiah(f.price_adjust)}/{unit}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {chosen && (
               <div className="bg-kk-mint-soft border-2 border-kk-mint rounded-kk-card p-[18px]">
                 <div className="text-caption text-kk-ink font-semibold mb-1.5">
@@ -858,12 +936,22 @@ export function BookingFlow({
                 </div>
                 <div className="flex justify-between items-baseline text-body mb-1.5">
                   <span className="text-kk-navy">
-                    {rupiah(hargaSatuan)} × {lamaEff} {unit}
+                    Kamar {rupiah(hargaSatuan)} × {lamaEff} {unit}
                   </span>
                   <span className="text-caption text-kk-ink">
                     sampai {keluar ? tglPendek(keluar) : '—'}
                   </span>
                 </div>
+                {fasTotalPerPeriode > 0 && (
+                  <div className="flex justify-between items-baseline text-body mb-1.5">
+                    <span className="text-kk-navy">
+                      Fasilitas {rupiah(fasTotalPerPeriode)} × {lamaEff} {unit}
+                    </span>
+                    <span className="text-caption font-semibold text-kk-green">
+                      + {rupiah(fasTotalPerPeriode * lamaEff)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-baseline border-t-2 border-dashed border-kk-mint pt-2.5 mt-1.5">
                   <span className="font-heading font-bold text-[19px] text-kk-navy">Total Sewa</span>
                   <span className="font-heading font-black text-[26px] text-kk-navy">
