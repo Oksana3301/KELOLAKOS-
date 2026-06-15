@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KelolaKos · Navigasi Baru (HP & Laptop) + Peta Alur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Josefin+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --white:#FFFFFF; --navy:#0C2C47; --green:#2E5749; --orange:#BF512C;
+    --yellow:#DA9B2B; --mauve:#D6C9C5; --mint:#ABCBCA;
+    --paper:#FAF8F7; --mauve-soft:#EFE9E7; --mint-soft:#E4EFEE; --orange-soft:#FBEFE9; --ink-soft:#3B5063;
+    --heading:'Lato', system-ui, sans-serif; --body:'Josefin Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--mauve-soft);color:var(--navy);font-family:var(--body);font-weight:500;font-size:18px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,h4{font-family:var(--heading);font-weight:700;color:var(--navy);margin:0;line-height:1.1;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+  svg{display:block;}
+
+  .masthead{background:var(--navy);color:#fff;padding:54px 0 46px;}
+  .masthead .kicker{font-weight:600;font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--mint);}
+  .masthead h1{color:#fff;font-size:40px;font-weight:900;margin:12px 0 0;letter-spacing:-.01em;}
+  .masthead p{font-size:20px;color:#D6E2EC;max-width:760px;margin:12px 0 0;}
+
+  section{padding:52px 0;}
+  .sec-num{font-family:var(--heading);font-weight:900;font-size:16px;color:var(--orange);letter-spacing:.12em;}
+  .sec-title{font-size:30px;margin:8px 0 8px;}
+  .sec-lead{font-size:19px;color:var(--ink-soft);max-width:780px;margin:0 0 30px;}
+  .done-chip{display:inline-flex;align-items:center;gap:8px;background:var(--mint-soft);border:2px solid var(--mint);color:var(--green);font-family:var(--heading);font-weight:700;font-size:14px;padding:6px 14px;border-radius:999px;margin-left:10px;vertical-align:middle;}
+  .new-chip{display:inline-flex;align-items:center;gap:8px;background:var(--orange);color:#fff;font-family:var(--heading);font-weight:700;font-size:14px;padding:6px 14px;border-radius:999px;margin-left:10px;vertical-align:middle;}
+
+  /* ---------- Structure tree ---------- */
+  .tree{display:flex;flex-wrap:wrap;gap:20px;}
+  .branch{flex:1;min-width:280px;background:#fff;border:2px solid var(--mauve);border-radius:18px;padding:24px;}
+  .branch .head{font-family:'Lato';font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
+  .branch h3{font-size:22px;margin-bottom:16px;}
+  .leaf{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--mauve-soft);}
+  .leaf:first-of-type{border-top:none;}
+  .leaf .ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;}
+  .leaf b{font-family:var(--heading);font-weight:700;font-size:18px;display:block;}
+  .leaf span{font-size:15px;color:var(--ink-soft);}
+
+  /* ---------- Browser frame (laptop) ---------- */
+  .frame-label{font-family:'Lato';font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+  .browser{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(12,44,71,.22);border:1px solid var(--mauve);}
+  .browser .chrome{height:52px;background:#fff;border-bottom:2px solid var(--mauve-soft);display:flex;align-items:center;gap:16px;padding:0 18px;}
+  .dots{display:flex;gap:8px;}
+  .dots i{width:13px;height:13px;border-radius:50%;display:block;}
+  .urlbar{flex:1;height:32px;background:var(--mauve-soft);border-radius:8px;display:flex;align-items:center;padding:0 14px;font-size:15px;color:var(--ink-soft);gap:8px;}
+  .app{display:grid;grid-template-columns:272px 1fr;min-height:560px;}
+
+  /* sidebar */
+  .side{background:var(--paper);border-right:2px solid var(--mauve-soft);padding:20px 16px;display:flex;flex-direction:column;}
+  .brand{display:flex;align-items:center;gap:12px;padding:6px 8px 16px;border-bottom:2px solid var(--mauve-soft);margin-bottom:14px;}
+  .brand .logo{width:44px;height:44px;border-radius:12px;background:var(--orange);color:#fff;display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:24px;}
+  .brand b{font-family:var(--heading);font-weight:900;font-size:20px;}
+  .brand span{font-size:13px;color:var(--ink-soft);}
+  .side .cta{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--orange);color:#fff;font-family:var(--body);font-weight:600;font-size:18px;min-height:56px;border-radius:14px;box-shadow:0 4px 0 #8F3C20;margin-bottom:18px;}
+  .navlabel{font-family:'Lato';font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);padding:0 10px;margin:6px 0 6px;}
+  .nav-item{display:flex;align-items:center;gap:14px;min-height:54px;padding:0 14px;border-radius:13px;font-family:var(--body);font-weight:600;font-size:18px;color:var(--navy);margin-bottom:4px;}
+  .nav-item.active{background:var(--navy);color:#fff;}
+  .nav-item.muted{color:var(--ink-soft);font-weight:500;}
+  .nav-item .ic{flex-shrink:0;}
+  .side .spacer{flex:1;}
+  .side .foot{border-top:2px solid var(--mauve-soft);padding-top:14px;display:flex;flex-direction:column;gap:6px;}
+
+  /* main content */
+  .main{padding:30px 34px;background:#fff;}
+  .main .greet{font-size:17px;color:var(--ink-soft);font-weight:600;}
+  .main h2.page{font-size:32px;font-family:var(--heading);font-weight:900;margin:2px 0 22px;}
+  .kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;}
+  .kpi{border-radius:16px;padding:20px;border:2px solid var(--mauve);}
+  .kpi.g{background:var(--green);border-color:var(--green);color:#fff;}
+  .kpi .l{font-size:15px;font-weight:600;color:var(--ink-soft);}
+  .kpi.g .l{color:#C9DAD3;}
+  .kpi .v{font-family:var(--heading);font-weight:900;font-size:26px;margin-top:6px;}
+  .panel-h{display:flex;align-items:center;gap:10px;margin:6px 0 14px;}
+  .panel-h h3{font-size:21px;}
+  .count{background:var(--orange);color:#fff;font-family:var(--heading);font-weight:700;font-size:14px;padding:2px 11px;border-radius:999px;}
+  .row{display:flex;align-items:center;gap:16px;border:2px solid var(--mauve);border-radius:14px;padding:14px 18px;margin-bottom:10px;}
+  .row .nm{font-family:var(--heading);font-weight:700;font-size:18px;}
+  .row .sub{font-size:15px;color:var(--ink-soft);}
+  .badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--body);font-weight:600;font-size:15px;padding:5px 12px;border-radius:999px;}
+  .b-dp{background:var(--yellow);color:var(--navy);}
+  .b-belum{background:var(--orange);color:#fff;}
+  .btn-tagih{margin-left:auto;background:var(--green);color:#fff;font-family:var(--body);font-weight:600;font-size:16px;min-height:48px;padding:0 22px;border-radius:12px;display:flex;align-items:center;box-shadow:0 3px 0 #1F3D32;}
+
+  /* annotation callouts */
+  .notes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px;}
+  .note{background:var(--mint-soft);border:2px solid var(--mint);border-radius:14px;padding:16px 18px;}
+  .note b{font-family:var(--heading);font-weight:700;font-size:17px;display:flex;gap:9px;align-items:center;margin-bottom:5px;}
+  .note span{font-size:16px;color:var(--ink-soft);}
+
+  /* ---------- HP reference ---------- */
+  .hp-wrap{display:flex;gap:32px;align-items:center;flex-wrap:wrap;}
+  .phone{width:300px;border:2px solid var(--mauve);border-radius:34px;overflow:hidden;background:var(--paper);box-shadow:0 18px 44px rgba(12,44,71,.18);flex-shrink:0;}
+  .phone .pscreen{height:150px;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:16px;border-bottom:2px solid var(--mauve-soft);}
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);padding:10px 6px 14px;background:#fff;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:5px;font-family:var(--body);font-weight:600;font-size:12px;color:var(--ink-soft);}
+  .tab.active{color:var(--navy);}
+  .tab.active .ic{color:var(--orange);}
+
+  /* ---------- Journey map ---------- */
+  .flow{background:#fff;border:2px solid var(--mauve);border-radius:18px;padding:24px;margin-bottom:18px;}
+  .flow .ttl{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+  .flow .ttl .n{width:44px;height:44px;border-radius:12px;background:var(--navy);color:#fff;display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:20px;flex-shrink:0;}
+  .flow .ttl h3{font-size:21px;}
+  .flow .ttl .klik{margin-left:auto;background:var(--mint-soft);border:2px solid var(--mint);color:var(--green);font-family:var(--heading);font-weight:700;font-size:15px;padding:6px 14px;border-radius:999px;white-space:nowrap;}
+  .steps{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;}
+  .step{flex:1;min-width:150px;background:var(--paper);border:2px solid var(--mauve);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;}
+  .step.start{background:var(--mauve-soft);}
+  .step.end{background:var(--mint-soft);border-color:var(--mint);}
+  .step .k{font-family:'Lato';font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+  .step b{font-family:var(--heading);font-weight:700;font-size:17px;}
+  .step span{font-size:15px;color:var(--ink-soft);}
+  .arrow{display:flex;align-items:center;justify-content:center;padding:0 6px;color:var(--orange);flex-shrink:0;}
+  .tap{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--orange);margin-top:2px;}
+
+  .footer{padding:36px 0 64px;color:var(--ink-soft);font-size:15px;}
+  @media(max-width:900px){
+    .app{grid-template-columns:1fr;}
+    .side{flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:2px solid var(--mauve-soft);}
+    .kpis{grid-template-columns:1fr;}
+    .notes{grid-template-columns:1fr;}
+    .step{min-width:100%;}
+    .arrow{transform:rotate(90deg);padding:8px 0;}
+  }
+</style>
+</head>
+<body>
+
+  <header class="masthead">
+    <div class="wrap">
+      <div class="kicker">Redesign Navigasi · Journey Sependek Mungkin</div>
+      <h1>Navigasi Baru KelolaKos — HP &amp; Laptop</h1>
+      <p>Tugas tersering selesai dalam 1–2 klik dari layar utama. Menu jarang-pakai disembunyikan di "Lainnya". Semua menu memakai <strong style="color:#fff">label teks</strong>, bukan sekadar ikon.</p>
+    </div>
+  </header>
+
+  <!-- 01 STRUKTUR -->
+  <section>
+    <div class="wrap">
+      <div class="sec-num">01 — STRUKTUR</div>
+      <h2 class="sec-title">Struktur Menu yang Disederhanakan <span class="done-chip">✓ Sudah di prototipe</span></h2>
+      <p class="sec-lead">Empat menu inti yang dipakai tiap hari tetap di depan. Empat menu jarang-pakai dikelompokkan di balik satu pintu "Lainnya" agar layar utama lega.</p>
+
+      <div class="tree">
+        <div class="branch">
+          <div class="head">Selalu Terlihat · Dipakai Tiap Hari</div>
+          <h3>4 Menu Inti + Tombol Tambah</h3>
+          <div class="leaf"><div class="ic" style="background:var(--orange);color:#fff"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><div><b>Tambah Penyewa</b><span>Tombol oranye utama — paling menonjol</span></div></div>
+          <div class="leaf"><div class="ic" style="background:var(--mint-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg></div><div><b>Beranda</b><span>Ringkasan &amp; tugas hari ini</span></div></div>
+          <div class="leaf"><div class="ic" style="background:var(--mint-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></div><div><b>Booking</b><span>Daftar &amp; tambah penyewa</span></div></div>
+          <div class="leaf"><div class="ic" style="background:var(--mint-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M3 18h18M6 10V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3"/></svg></div><div><b>Kamar</b><span>Kondisi tiap kamar</span></div></div>
+          <div class="leaf"><div class="ic" style="background:var(--mint-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg></div><div><b>Uang</b><span>Pemasukan &amp; pengeluaran</span></div></div>
+        </div>
+
+        <div class="branch" style="background:var(--paper)">
+          <div class="head">Disembunyikan · Jarang Dipakai</div>
+          <h3>Di Balik "Lainnya"</h3>
+          <div class="leaf"><div class="ic" style="background:var(--mint-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="13" width="4.5" height="7" rx="1.2"/><rect x="9.7" y="8" width="4.5" height="12" rx="1.2"/><rect x="16.5" y="4" width="4.5" height="16" rx="1.2"/></svg></div><div><b>Laporan</b><span>Ringkasan bulanan</span></div></div>
+          <div class="leaf"><div class="ic" style="background:var(--orange-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#BF512C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-2.5-1.7L13 21l-2.5-1.7L8 21l-2-1.7L6 3z"/><path d="M9.5 8.5h5M9.5 12.5h5"/></svg></div><div><b>Kwitansi</b><span>Bukti pembayaran</span></div></div>
+          <div class="leaf"><div class="ic" style="background:var(--mauve-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9.5h18M9.5 9.5V21"/></svg></div><div><b>Layout Properti</b><span>Peta kamar</span></div></div>
+          <div class="leaf"><div class="ic" style="background:var(--mint-soft)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="8" cy="17" r="2.1"/></svg></div><div><b>Pengaturan</b><span>Properti &amp; akun</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 LAPTOP -->
+  <section style="background:var(--paper);">
+    <div class="wrap">
+      <div class="sec-num">02 — TAMPILAN LAPTOP</div>
+      <h2 class="sec-title">Navigasi Laptop: Sidebar Berlabel <span class="new-chip">Baru</span></h2>
+      <p class="sec-lead">Di layar lebar, menu pindah ke <strong>sidebar kiri</strong> yang selalu terlihat. Tiap menu adalah baris besar (ikon + tulisan), tinggi 54px. Tombol "Tambah Penyewa" oranye nangkring paling atas — aksi tersering selalu satu klik.</p>
+
+      <div class="frame-label">kelolakos.app · tampilan laptop</div>
+      <div class="browser">
+        <div class="chrome">
+          <div class="dots"><i style="background:#ED6A5E"></i><i style="background:#F4BF50"></i><i style="background:#61C454"></i></div>
+          <div class="urlbar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B5063" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>kelolakos.app/beranda</div>
+        </div>
+        <div class="app">
+          <!-- SIDEBAR -->
+          <aside class="side">
+            <div class="brand"><div class="logo">K</div><div><b>KelolaKos</b><br><span>Kos Mawar Melati</span></div></div>
+            <div class="cta"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Tambah Penyewa</div>
+            <div class="navlabel">Menu Utama</div>
+            <div class="nav-item active"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg></span> Beranda</div>
+            <div class="nav-item"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span> Booking</div>
+            <div class="nav-item"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M3 18h18M6 10V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3"/></svg></span> Kamar</div>
+            <div class="nav-item"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg></span> Uang</div>
+            <div class="navlabel" style="margin-top:14px;">Lainnya</div>
+            <div class="nav-item muted"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="13" width="4.5" height="7" rx="1.2"/><rect x="9.7" y="8" width="4.5" height="12" rx="1.2"/><rect x="16.5" y="4" width="4.5" height="16" rx="1.2"/></svg></span> Laporan</div>
+            <div class="nav-item muted"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-2.5-1.7L13 21l-2.5-1.7L8 21l-2-1.7L6 3z"/><path d="M9.5 8.5h5M9.5 12.5h5"/></svg></span> Kwitansi</div>
+            <div class="nav-item muted"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9.5h18M9.5 9.5V21"/></svg></span> Layout Properti</div>
+            <div class="nav-item muted"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="8" cy="17" r="2.1"/></svg></span> Pengaturan</div>
+            <div class="spacer"></div>
+            <div class="foot">
+              <div class="nav-item muted"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .8-1 1.7M12 17h.01"/></svg></span> Bantuan</div>
+            </div>
+          </aside>
+
+          <!-- MAIN -->
+          <main class="main">
+            <div class="greet">Selamat datang kembali,</div>
+            <h2 class="page">Bu Endang</h2>
+            <div class="kpis">
+              <div class="kpi g"><div class="l">Uang Masuk Bulan Ini</div><div class="v">Rp 3,9 jt</div></div>
+              <div class="kpi"><div class="l">Kamar Terisi</div><div class="v">8 / 12</div></div>
+              <div class="kpi"><div class="l">Perlu Ditagih</div><div class="v" style="color:var(--orange)">4 orang</div></div>
+            </div>
+            <div class="panel-h"><h3>Perlu Ditagih</h3><span class="count">4</span></div>
+            <div class="row"><div><div class="nm">Bu Siti Aminah</div><div class="sub">Kamar A2 · Sisa Rp 450.000</div></div><span class="badge b-dp"><span style="width:9px;height:9px;border-radius:50%;background:var(--navy)"></span>DP</span><div class="btn-tagih">Tagih</div></div>
+            <div class="row"><div><div class="nm">Mas Andi Pratama</div><div class="sub">Kamar A4 · Sisa Rp 850.000</div></div><span class="badge b-belum"><span style="width:9px;height:9px;border-radius:50%;background:#fff"></span>Belum Bayar</span><div class="btn-tagih">Tagih</div></div>
+          </main>
+        </div>
+      </div>
+
+      <div class="notes">
+        <div class="note"><b><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2.6" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>Label teks penuh</b><span>Tiap menu ditulis lengkap — lansia tidak perlu menebak arti ikon.</span></div>
+        <div class="note"><b><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2.6" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>Aksi utama 1 klik</b><span>"Tambah Penyewa" oranye selalu di atas, dari layar mana pun.</span></div>
+        <div class="note"><b><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2.6" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>Tagih di tempatnya</b><span>Tombol "Tagih" tepat di baris penyewa — info &amp; aksi menyatu.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 HP -->
+  <section>
+    <div class="wrap">
+      <div class="sec-num">03 — TAMPILAN HP</div>
+      <h2 class="sec-title">Navigasi HP: Tab Bawah Berlabel <span class="done-chip">✓ Sudah di prototipe</span></h2>
+      <p class="sec-lead">Di HP, menu yang sama pindah ke <strong>bawah layar</strong> — pas untuk jempol. Lima tombol besar, ikon + tulisan. "Lainnya" membuka empat menu sekunder.</p>
+
+      <div class="hp-wrap">
+        <div class="phone">
+          <div class="pscreen">Isi layar (Beranda)</div>
+          <div class="tabbar">
+            <div class="tab active"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg></span>Beranda</div>
+            <div class="tab"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span>Booking</div>
+            <div class="tab"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M3 18h18M6 10V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3"/></svg></span>Kamar</div>
+            <div class="tab"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg></span>Uang</div>
+            <div class="tab"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><path d="M10 6h10M10 12h10M10 18h10"/></svg></span>Lainnya</div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:260px;">
+          <div class="note" style="margin-bottom:14px;"><b><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2.6" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>Sama persis dengan laptop</b><span>Urutan &amp; nama menu identik di HP dan laptop, jadi Bu Endang tidak perlu belajar dua kali.</span></div>
+          <div class="note"><b><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2.6" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>Di bawah = mudah dijangkau</b><span>Posisi tab di bawah pas untuk jempol saat memegang HP dengan satu tangan.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 PETA ALUR -->
+  <section style="background:var(--paper);">
+    <div class="wrap">
+      <div class="sec-num">04 — PETA ALUR</div>
+      <h2 class="sec-title">Peta Alur ke 3 Tugas Tersering <span class="new-chip">Baru</span></h2>
+      <p class="sec-lead">Dari Beranda (layar utama), tiap tugas penting selesai dalam 1–2 klik. Tidak ada jalan memutar.</p>
+
+      <!-- Flow 1 -->
+      <div class="flow">
+        <div class="ttl"><div class="n">1</div><h3>Buat Booking / Tambah Penyewa</h3><div class="klik">2 klik · 3 langkah singkat</div></div>
+        <div class="steps">
+          <div class="step start"><div class="k">Layar Utama</div><b>Beranda</b><span>Tombol oranye "Tambah Penyewa"</span><span class="tap">▸ klik 1</span></div>
+          <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div class="step"><div class="k">Lembar Isian</div><b>Nama → Kamar → Bayar</b><span>3 langkah pendek, satu per layar</span><span class="tap">▸ klik 2: Simpan</span></div>
+          <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div class="step end"><div class="k">Selesai</div><b>Penyewa tersimpan</b><span>Muncul pesan "berhasil disimpan"</span></div>
+        </div>
+      </div>
+
+      <!-- Flow 2 -->
+      <div class="flow">
+        <div class="ttl"><div class="n">2</div><h3>Catat Pembayaran</h3><div class="klik">2 klik</div></div>
+        <div class="steps">
+          <div class="step start"><div class="k">Layar Utama</div><b>Beranda</b><span>Daftar "Perlu Ditagih" langsung terlihat</span><span class="tap">▸ klik 1: Tagih</span></div>
+          <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div class="step"><div class="k">Konfirmasi</div><b>"Tandai sudah lunas?"</b><span>Tampil jumlah &amp; nama penyewa</span><span class="tap">▸ klik 2: Ya, Lunas</span></div>
+          <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div class="step end"><div class="k">Selesai</div><b>Tercatat lunas</b><span>Status berubah jadi hijau "Lunas"</span></div>
+        </div>
+      </div>
+
+      <!-- Flow 3 -->
+      <div class="flow">
+        <div class="ttl"><div class="n">3</div><h3>Lihat Pendapatan</h3><div class="klik">0–1 klik</div></div>
+        <div class="steps">
+          <div class="step start"><div class="k">Layar Utama</div><b>Beranda</b><span>"Uang Masuk Bulan Ini" sudah tampil di atas</span><span class="tap">▸ 0 klik untuk angka utama</span></div>
+          <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div class="step"><div class="k">Bila ingin detail</div><b>Menu "Uang"</b><span>Rincian masuk, keluar &amp; sisa bersih</span><span class="tap">▸ klik 1</span></div>
+          <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div class="step end"><div class="k">Selesai</div><b>Lihat semua angka</b><span>Pemasukan, pengeluaran, sisa bersih</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    <div class="wrap">KelolaKos · Navigasi Baru &amp; Peta Alur — sidebar laptop &amp; peta alur adalah tambahan baru; struktur menu &amp; tab HP sudah hidup di KelolaKos Prototype.html.</div>
+  </div>
+
+</body>
+</html>

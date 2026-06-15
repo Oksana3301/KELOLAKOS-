@@ -1,431 +1,339 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, type ReportData } from '@/lib/api';
-import { formatRupiah, formatRupiahShort, formatDate } from '@/lib/utils';
-import { Topbar } from '@/components/topbar';
+import { api, type ReportData, type RoomStatus } from '@/lib/api';
+import { toast } from 'sonner';
+import { ScreenHead, KkButton, KkCard, StickyCTA } from '@/components/kk/ui';
+import { KkIcon } from '@/components/kk/icons';
+import {
+  KkPeriodFilter,
+  MoneyKpiGrid,
+  MoneyKpiDetail,
+  periodLabel,
+  resolvePeriod,
+  type PeriodValue,
+  type MoneyData,
+} from '@/components/kk/money';
+import { HelpSheet } from '@/components/kk/help-sheet';
+import { rupiah } from '@/components/kk/status';
 import { exportGeneralLedgerExcel } from '@/lib/excel-export';
 import { kwitansiApi } from '@/lib/api-v2';
-import { toast } from 'sonner';
+import { mapRoomStatus } from '@/components/kk/status';
+import { BreakBar } from '@/components/kk/laporan-ui';
+import { cn } from '@/lib/utils';
 
-// Quick period presets
-const PRESETS = [
-  { key: 'last7', label: '7 hari', days: 7 },
-  { key: 'last30', label: '30 hari', days: 30 },
-  { key: 'thisMonth', label: 'Bulan ini', custom: 'thisMonth' },
-  { key: 'lastMonth', label: 'Bulan lalu', custom: 'lastMonth' },
-  { key: 'last90', label: '90 hari', days: 90 },
-];
+const HELP = {
+  title: 'Laporan',
+  tips: [
+    'Pilih periode di atas (Bulan Ini, dll.) untuk melihat ringkasan keuangan pada rentang waktu tersebut.',
+    'Kartu hijau berarti Anda untung, kartu oranye berarti pengeluaran lebih besar dari pemasukan.',
+    'Tekan tombol oranye "Unduh Laporan PDF" untuk menyimpan atau mencetak laporan ini.',
+  ],
+};
 
-function presetToRange(preset: typeof PRESETS[number]): { start: string; end: string } {
-  const today = new Date();
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
+const MONTH_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-  if (preset.custom === 'thisMonth') {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return { start: fmt(start), end: fmt(today) };
-  }
-  if (preset.custom === 'lastMonth') {
-    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const end = new Date(today.getFullYear(), today.getMonth(), 0);
-    return { start: fmt(start), end: fmt(end) };
-  }
-  const start = new Date(today);
-  start.setDate(start.getDate() - (preset.days || 30) + 1);
-  return { start: fmt(start), end: fmt(today) };
-}
+// Plain-language category labels for the income / expense breakdowns.
+const MASUK_LABEL: Record<string, string> = { PAYMENT: 'Pembayaran sewa' };
+const KELUAR_LABEL: Record<string, string> = {
+  FEE: 'Gaji penjaga',
+  EXPENSE: 'Belanja operasional',
+  REFUND: 'Pengembalian (refund)',
+};
 
 export default function LaporanPage() {
-  // Default: 30 days
-  const defaultRange = presetToRange(PRESETS[1]);
-  const [startDate, setStartDate] = useState(defaultRange.start);
-  const [endDate, setEndDate] = useState(defaultRange.end);
-  const [activePreset, setActivePreset] = useState<string>('last30');
+  const [period, setPeriod] = useState<PeriodValue>({ preset: 'this_month' });
+  const [detailKpi, setDetailKpi] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
-  function applyPreset(preset: typeof PRESETS[number]) {
-    const range = presetToRange(preset);
-    setStartDate(range.start);
-    setEndDate(range.end);
-    setActivePreset(preset.key);
-  }
+  const resolved = useMemo(() => resolvePeriod(period), [period]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['report-data', startDate, endDate],
-    queryFn: () => api.getReportData(startDate, endDate),
-    enabled: !!startDate && !!endDate,
+    queryKey: ['report-data', resolved?.start, resolved?.end],
+    queryFn: () => api.getReportData(resolved!.start, resolved!.end),
+    enabled: !!resolved,
   });
 
-  function handlePrint() {
+  // Room occupancy comes from the dashboard init data (room master + status).
+  const { data: initData } = useQuery({
+    queryKey: ['initial-data'],
+    queryFn: api.getInitialData,
+  });
+
+  async function handleExportPDF() {
+    // Preserve the existing PDF export mechanism (browser print → Save as PDF).
     window.print();
   }
 
-  function handleExportCSV() {
+  async function handleExportExcel() {
     if (!data) return;
-    const rows = [
-      ['Tanggal', 'Tipe', 'Judul', 'Subtitle', 'Direction', 'Nominal', 'BookingID', 'PIC', 'Catatan'],
-      ...data.transactions.map((t) => [
-        new Date(t.date).toISOString().split('T')[0],
-        t.type,
-        t.title,
-        t.subtitle,
-        t.direction,
-        String(t.nominal),
-        t.bookingId,
-        t.diterimaOleh,
-        t.catatan,
-      ]),
-    ];
-    const csv = rows
-      .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-${startDate}-to-${endDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('✓ CSV ke-download');
-  }
-
-  async function handleExportGL() {
-    if (!data) return;
-    const toastId = toast.loading('⏳ Generating Excel GL...');
+    const toastId = toast.loading('⏳ Menyiapkan file Excel…');
     try {
-      // Fetch business name from kwitansi settings
       let businessName = 'KelolaKos';
       try {
         const settings = await kwitansiApi.get();
         if (settings?.business_name) businessName = settings.business_name;
       } catch (e) {
-        // Fallback to default if can't fetch settings
         console.warn('Failed to fetch business name:', e);
       }
-
-      await exportGeneralLedgerExcel({
-        reportData: data,
-        businessName,
-        saldoAwal: 0,
-      });
-      toast.success('✓ Excel GL ke-download', { id: toastId });
+      await exportGeneralLedgerExcel({ reportData: data, businessName, saldoAwal: 0 });
+      toast.success('✓ File Excel berhasil diunduh', { id: toastId });
     } catch (e) {
-      toast.error('Gagal export Excel: ' + (e as Error).message, { id: toastId });
+      toast.error('Gagal membuat Excel: ' + (e as Error).message, { id: toastId });
     }
   }
 
   return (
     <>
-      <Topbar />
+      <ScreenHead
+        title="Laporan"
+        sub="Ringkasan keuangan properti Anda."
+        onHelp={() => setHelpOpen(true)}
+      />
 
-      <div className="px-6 py-6 max-w-7xl mx-auto print:max-w-none print:px-0 print:py-0">
-        {/* Header — hidden in print */}
-        <div className="mb-5 print:hidden">
-          <Link href="/" className="text-tx3 text-xs hover:text-ac inline-flex items-center gap-1 mb-1">
-            ← Beranda
-          </Link>
-          <div className="flex justify-between items-start gap-3">
-            <div>
-              <h1 className="font-serif text-3xl tracking-tight">Laporan</h1>
-              <p className="text-tx3 text-sm mt-1">
-                Ringkasan transaksi dalam periode tertentu
-              </p>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={handlePrint} className="btn btn-sec text-xs" disabled={!data}>
-                🖨️ Print / PDF
-              </button>
-              <button onClick={handleExportCSV} className="btn btn-sec text-xs" disabled={!data}>
-                📊 CSV
-              </button>
-              <button onClick={handleExportGL} className="btn btn-pri text-xs" disabled={!data}>
-                📑 Excel GL
-              </button>
-            </div>
-          </div>
+      <StickyCTA>
+        <KkButton variant="primary" size="lg" block disabled={!data} onClick={handleExportPDF}>
+          <KkIcon name="unduh" size={22} strokeWidth={2.2} /> Unduh Laporan PDF
+        </KkButton>
+      </StickyCTA>
+
+      <KkPeriodFilter value={period} onChange={setPeriod} />
+
+      {isLoading ? (
+        <div className="py-20 text-center">
+          <div className="w-12 h-12 rounded-full border-4 border-kk-mauve border-t-kk-orange animate-spin mx-auto mb-4" />
+          <div className="text-body text-kk-ink">Memuat laporan…</div>
         </div>
-
-        {/* Period Picker — hidden in print */}
-        <div className="bg-sf border border-bd rounded-md p-4 mb-5 print:hidden">
-          <div className="flex flex-wrap gap-2 mb-3">
-            {PRESETS.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => applyPreset(p)}
-                className={
-                  activePreset === p.key
-                    ? 'px-3 py-1.5 rounded-md bg-ac text-inv text-xs font-semibold'
-                    : 'px-3 py-1.5 rounded-md bg-sf2 text-tx2 text-xs font-medium hover:bg-bd'
-                }
-              >
-                {p.label}
-              </button>
-            ))}
+      ) : isError || !data ? (
+        <KkCard className="text-center py-12">
+          <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
+            <KkIcon name="info" size={30} />
           </div>
-          <div className="flex flex-wrap gap-3 items-end">
-            <div>
-              <label className="text-[11px] font-semibold text-tx2 mb-1 block">Mulai</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); setActivePreset('custom'); }}
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-tx2 mb-1 block">Sampai</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); setActivePreset('custom'); }}
-                className="input"
-              />
-            </div>
-            <button onClick={() => refetch()} className="btn btn-pri text-xs">
-              🔄 Refresh
-            </button>
-          </div>
-        </div>
+          <h2 className="font-heading font-bold text-subhead mb-2">Gagal memuat laporan</h2>
+          <p className="text-body text-kk-ink mb-5">{(error as Error)?.message || 'Terjadi kesalahan'}</p>
+          <KkButton variant="primary" onClick={() => refetch()}>
+            Coba Lagi
+          </KkButton>
+        </KkCard>
+      ) : (
+        <ReportBody
+          data={data}
+          rooms={initData?.roomStatus}
+          label={periodLabel(period)}
+          detailKpi={detailKpi}
+          setDetailKpi={setDetailKpi}
+          onExportExcel={handleExportExcel}
+        />
+      )}
 
-        {/* Print Header — only in print */}
-        <div className="hidden print:block mb-6">
-          <h1 className="font-serif text-2xl">Laporan KelolaKos</h1>
-          <p className="text-sm text-tx3">
-            Periode: {formatDate(startDate)} – {formatDate(endDate)}
-          </p>
-        </div>
-
-        {isLoading ? (
-          <div className="text-tx3 text-sm text-center py-12">⏳ Loading laporan...</div>
-        ) : isError ? (
-          <div className="bg-rdb border border-rd rounded-md p-4 text-center text-rd text-sm">
-            Gagal load: {(error as Error)?.message}
-            <button onClick={() => refetch()} className="btn btn-pri text-xs ml-3">Retry</button>
-          </div>
-        ) : data ? (
-          <ReportContent data={data} />
-        ) : null}
-      </div>
+      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
 
       <style jsx global>{`
         @media print {
-          .print\\:hidden { display: none !important; }
-          .print\\:block { display: block !important; }
-          body { background: white !important; }
+          body {
+            background: white !important;
+          }
         }
       `}</style>
     </>
   );
 }
 
-function ReportContent({ data }: { data: ReportData }) {
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-3 mt-8">{children}</h2>;
+}
+
+function ReportBody({
+  data,
+  rooms,
+  label,
+  detailKpi,
+  setDetailKpi,
+  onExportExcel,
+}: {
+  data: ReportData;
+  rooms: RoomStatus[] | undefined;
+  label: string;
+  detailKpi: string | null;
+  setDetailKpi: (id: string | null) => void;
+  onExportExcel: () => void;
+}) {
+  const masuk = data.summary.totalIn;
+  const keluar = data.summary.totalOut;
+  const net = masuk - keluar;
+  const untung = net >= 0;
+
+  const money: MoneyData = { masuk, keluar, sisa: data.summary.netCash, label };
+
+  // ── Category breakdowns, derived from real transactions ──
+  const { masukRinci, keluarRinci, maxMasuk, maxKeluar } = useMemo(() => {
+    const inAgg = new Map<string, number>();
+    const outAgg = new Map<string, number>();
+    for (const t of data.transactions) {
+      if (t.direction === 'IN') {
+        const l = MASUK_LABEL[t.type] || t.title || 'Pemasukan lain';
+        inAgg.set(l, (inAgg.get(l) || 0) + t.nominal);
+      } else {
+        const l = KELUAR_LABEL[t.type] || t.title || 'Pengeluaran lain';
+        outAgg.set(l, (outAgg.get(l) || 0) + t.nominal);
+      }
+    }
+    const toRows = (m: Map<string, number>) =>
+      [...m.entries()].map(([l, v]) => ({ l, v })).filter((r) => r.v > 0).sort((a, b) => b.v - a.v);
+    const masukRinci = toRows(inAgg);
+    const keluarRinci = toRows(outAgg);
+    return {
+      masukRinci,
+      keluarRinci,
+      maxMasuk: Math.max(...masukRinci.map((x) => x.v), 1),
+      maxKeluar: Math.max(...keluarRinci.map((x) => x.v), 1),
+    };
+  }, [data.transactions]);
+
+  const breakdown = {
+    masuk: masukRinci,
+    keluar: keluarRinci,
+  };
+
+  // ── Trend: last 5 calendar months from the daily chart ──
+  const trend = useMemo(() => {
+    const byMonth = new Map<string, { masuk: number; keluar: number; key: string; bln: string }>();
+    for (const c of data.chart) {
+      const d = new Date(c.date);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const cur = byMonth.get(key) || { masuk: 0, keluar: 0, key, bln: MONTH_ID[d.getMonth()] };
+      cur.masuk += c.in;
+      cur.keluar += c.out;
+      byMonth.set(key, cur);
+    }
+    return [...byMonth.values()].slice(-5);
+  }, [data.chart]);
+  const maxTrend = Math.max(...trend.flatMap((d) => [d.masuk, d.keluar]), 1);
+
+  // ── Hunian Kamar (occupancy) from room master/status ──
+  const roomList = rooms || [];
+  const totalKamar = roomList.length;
+  const terisi = roomList.filter((r) => mapRoomStatus(r) === 'Terisi').length;
+  const huniPct = totalKamar > 0 ? Math.round((terisi / totalKamar) * 100) : 0;
+
   return (
-    <div className="space-y-5">
-      {/* KPI Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <KpiCard
-          label="💵 Pemasukan"
-          value={data.summary.totalIn}
-          accent="text-gr"
-          subtitle={`${data.summary.countPayment} pembayaran`}
-        />
-        <KpiCard
-          label="↩️ Pengeluaran Refund"
-          value={data.summary.totalRefund}
-          accent="text-rd"
-          subtitle={`${data.summary.countRefund} refund`}
-        />
-        <KpiCard
-          label="🧹+🛒 Operasional"
-          value={data.summary.totalFee + data.summary.totalExpense}
-          accent="text-am"
-          subtitle={`${data.summary.countFee} fee + ${data.summary.countExpense} belanja`}
-        />
-        <KpiCard
-          label="💰 Net Cash"
-          value={data.summary.netCash}
-          accent={data.summary.netCash >= 0 ? 'text-gr' : 'text-rd'}
-          subtitle={data.summary.netCash >= 0 ? 'Surplus' : 'Defisit'}
-          bold
-        />
+    <div>
+      {/* Insight bahasa sederhana */}
+      <div
+        className={cn(
+          'rounded-kk-card p-[22px] mb-[18px] text-white',
+          untung ? 'bg-kk-green' : 'bg-kk-orange',
+        )}
+      >
+        <div className="text-body font-semibold mb-1 text-white/90">
+          {label} · {untung ? 'Untung Bersih' : 'Rugi Bersih'}
+        </div>
+        <div className="font-heading font-black text-[34px] leading-[1.05] tracking-tight tabular-nums">
+          {rupiah(Math.abs(net))}
+        </div>
+        <p className="mt-3 mb-0 text-body leading-relaxed text-white">
+          Anda menerima <b>{rupiah(masuk)}</b> dan mengeluarkan <b>{rupiah(keluar)}</b>
+          {untung ? ', jadi ada keuntungan bersih.' : ', sehingga pengeluaran lebih besar.'}
+        </p>
       </div>
 
-      {/* Chart */}
-      {data.chart.length > 0 && (
-        <div className="bg-sf border border-bd rounded-md p-4">
-          <h2 className="font-bold text-sm mb-3">📈 Trend Cash Flow</h2>
-          <ChartBars data={data.chart} />
-        </div>
-      )}
+      {/* 4 angka */}
+      <MoneyKpiGrid data={money} onDetail={setDetailKpi} />
 
-      {/* Booking stats */}
-      <div className="bg-sf border border-bd rounded-md p-4">
-        <h2 className="font-bold text-sm mb-3">🏠 Aktivitas Booking di Periode Ini</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Stat label="Total Booking" value={data.bookingStats.totalBooking} />
-          <Stat label="Aktif" value={data.bookingStats.booking_aktif} accent="text-bl" />
-          <Stat label="Selesai" value={data.bookingStats.booking_selesai} accent="text-gr" />
-          <Stat label="Cancel" value={data.bookingStats.booking_cancel} accent="text-rd" />
-          <Stat label="Omzet" value={formatRupiahShort(data.bookingStats.omzet)} accent="text-tx" />
+      {/* Tren */}
+      <SectionTitle>Tren 5 Bulan Terakhir</SectionTitle>
+      <KkCard>
+        <div className="flex gap-5 mb-5">
+          <span className="inline-flex items-center gap-2 text-body font-semibold text-kk-navy">
+            <span className="w-3.5 h-3.5 rounded bg-kk-green" /> Masuk
+          </span>
+          <span className="inline-flex items-center gap-2 text-body font-semibold text-kk-navy">
+            <span className="w-3.5 h-3.5 rounded bg-kk-orange" /> Keluar
+          </span>
         </div>
-      </div>
-
-      {/* Transactions table */}
-      <div className="bg-sf border border-bd rounded-md p-4">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="font-bold text-sm">📋 Detail Transaksi ({data.transactions.length})</h2>
-        </div>
-        {data.transactions.length === 0 ? (
-          <div className="text-tx3 text-sm text-center py-6">Tidak ada transaksi di periode ini</div>
+        {trend.length === 0 ? (
+          <p className="text-body text-kk-ink m-0">Belum ada data tren untuk periode ini.</p>
         ) : (
-          <div className="overflow-x-auto -mx-4">
-            <table className="w-full text-xs">
-              <thead className="bg-sf2 border-y border-bd">
-                <tr>
-                  <th className="text-left px-3 py-2 font-semibold">Tanggal</th>
-                  <th className="text-left px-3 py-2 font-semibold">Tipe</th>
-                  <th className="text-left px-3 py-2 font-semibold">Detail</th>
-                  <th className="text-right px-3 py-2 font-semibold">Nominal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.transactions.map((tx, i) => (
-                  <tr key={i} className="border-b border-bd hover:bg-sf2">
-                    <td className="px-3 py-2 tabular-nums whitespace-nowrap">
-                      {formatDate(tx.date)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="inline-flex items-center gap-1">
-                        <span>{tx.icon}</span>
-                        <span className="font-medium">{tx.type}</span>
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{tx.title}</div>
-                      <div className="text-tx3 text-[10px]">{tx.subtitle}</div>
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-right font-bold tabular-nums whitespace-nowrap ${
-                        tx.direction === 'IN' ? 'text-gr' : 'text-rd'
-                      }`}
-                    >
-                      {tx.direction === 'IN' ? '+' : '-'}
-                      {formatRupiah(tx.nominal)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="bg-sf2 border-t-2 border-bd">
-                <tr>
-                  <td colSpan={3} className="px-3 py-2 font-bold">Net Cash</td>
-                  <td
-                    className={`px-3 py-2 text-right font-bold tabular-nums ${
-                      data.summary.netCash >= 0 ? 'text-gr' : 'text-rd'
-                    }`}
-                  >
-                    {data.summary.netCash >= 0 ? '+' : ''}
-                    {formatRupiah(data.summary.netCash)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+          <div className="flex items-end justify-between gap-2.5 h-[190px]">
+            {trend.map((d) => (
+              <div key={d.key} className="flex-1 flex flex-col items-center gap-2">
+                <div className="flex gap-[5px] items-end h-[150px]">
+                  <div
+                    className="w-[18px] bg-kk-green rounded-t-[5px]"
+                    style={{ height: `${Math.max(d.masuk > 0 ? 3 : 0, (d.masuk / maxTrend) * 150)}px` }}
+                  />
+                  <div
+                    className="w-[18px] bg-kk-orange rounded-t-[5px]"
+                    style={{ height: `${Math.max(d.keluar > 0 ? 3 : 0, (d.keluar / maxTrend) * 150)}px` }}
+                  />
+                </div>
+                <span className="text-body font-semibold text-kk-ink">{d.bln}</span>
+              </div>
+            ))}
           </div>
         )}
+      </KkCard>
+
+      {/* Dari mana uang masuk */}
+      <SectionTitle>Dari Mana Uang Masuk</SectionTitle>
+      <KkCard className="pb-2">
+        {masukRinci.length === 0 ? (
+          <p className="text-body text-kk-ink m-0 pb-2">Belum ada pemasukan pada periode ini.</p>
+        ) : (
+          masukRinci.map((x, i) => (
+            <BreakBar key={i} label={x.l} val={x.v} max={maxMasuk} color="green" />
+          ))
+        )}
+      </KkCard>
+
+      {/* Ke mana uang keluar */}
+      <SectionTitle>Ke Mana Uang Keluar</SectionTitle>
+      <KkCard className="pb-2">
+        {keluarRinci.length === 0 ? (
+          <p className="text-body text-kk-ink m-0 pb-2">Belum ada pengeluaran pada periode ini.</p>
+        ) : (
+          keluarRinci.map((x, i) => (
+            <BreakBar key={i} label={x.l} val={x.v} max={maxKeluar} color="orange" />
+          ))
+        )}
+      </KkCard>
+
+      {/* Hunian kamar */}
+      <SectionTitle>Hunian Kamar</SectionTitle>
+      <KkCard>
+        <div className="flex justify-between items-baseline mb-3">
+          <span className="text-body font-semibold text-kk-ink">Kamar terisi</span>
+          <span className="font-heading font-black text-[22px] tabular-nums">
+            {terisi} dari {totalKamar}
+          </span>
+        </div>
+        <div className="h-[18px] rounded-kk-pill bg-kk-mauve-soft overflow-hidden">
+          <div className="h-full bg-kk-navy rounded-kk-pill" style={{ width: `${huniPct}%` }} />
+        </div>
+        <div className="text-body text-kk-ink mt-2.5">
+          {totalKamar > 0
+            ? `${huniPct}% kamar Anda sedang disewa.`
+            : 'Belum ada data kamar.'}
+        </div>
+      </KkCard>
+
+      {/* Unduh Excel (Buku Besar) — sekunder */}
+      <div className="mt-7">
+        <KkButton variant="secondary" block onClick={onExportExcel}>
+          <KkIcon name="unduh" size={22} strokeWidth={2.2} /> Unduh Excel (Buku Besar)
+        </KkButton>
       </div>
-    </div>
-  );
-}
 
-function KpiCard({
-  label,
-  value,
-  accent,
-  subtitle,
-  bold,
-}: {
-  label: string;
-  value: number;
-  accent?: string;
-  subtitle?: string;
-  bold?: boolean;
-}) {
-  return (
-    <div className="bg-sf border border-bd rounded-md p-3">
-      <div className="text-tx3 text-[10px] font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className={`tabular-nums ${bold ? 'font-bold text-base' : 'font-bold text-sm'} ${accent || 'text-tx'}`}>
-        {formatRupiah(value)}
-      </div>
-      {subtitle && <div className="text-tx3 text-[10px] mt-0.5">{subtitle}</div>}
-    </div>
-  );
-}
-
-function Stat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
-  return (
-    <div>
-      <div className="text-tx3 text-[10px] font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className={`font-bold text-base tabular-nums ${accent || 'text-tx'}`}>{value}</div>
-    </div>
-  );
-}
-
-function ChartBars({ data }: { data: ReportData['chart'] }) {
-  const max = useMemo(() => {
-    return Math.max(...data.map((d) => Math.max(d.in, d.out)), 1);
-  }, [data]);
-
-  // For very long periods, limit to ~30 bars by sampling
-  const displayData = useMemo(() => {
-    if (data.length <= 31) return data;
-    // Aggregate by week
-    const weeks: typeof data = [];
-    for (let i = 0; i < data.length; i += 7) {
-      const slice = data.slice(i, i + 7);
-      weeks.push({
-        date: slice[0].date,
-        in: slice.reduce((s, d) => s + d.in, 0),
-        out: slice.reduce((s, d) => s + d.out, 0),
-      });
-    }
-    return weeks;
-  }, [data]);
-
-  const isWeekly = displayData.length !== data.length;
-
-  return (
-    <div>
-      <div className="text-tx3 text-[10px] mb-2">
-        {isWeekly ? 'Per minggu' : 'Per hari'} · Hijau = pemasukan · Merah = pengeluaran
-      </div>
-      <div className="flex items-end gap-0.5 h-32 overflow-x-auto pb-1">
-        {displayData.map((d, i) => {
-          const inH = (d.in / max) * 100;
-          const outH = (d.out / max) * 100;
-          return (
-            <div
-              key={i}
-              className="flex flex-col items-center flex-shrink-0 group"
-              style={{ minWidth: `${Math.max(20, 100 / displayData.length)}px` }}
-              title={`${d.date}: +${formatRupiahShort(d.in)} / -${formatRupiahShort(d.out)}`}
-            >
-              <div className="flex items-end gap-px h-28 w-full">
-                <div
-                  className="bg-gr/60 group-hover:bg-gr flex-1 transition-colors rounded-t-sm"
-                  style={{ height: `${inH}%`, minHeight: d.in > 0 ? '2px' : 0 }}
-                />
-                <div
-                  className="bg-rd/60 group-hover:bg-rd flex-1 transition-colors rounded-t-sm"
-                  style={{ height: `${outH}%`, minHeight: d.out > 0 ? '2px' : 0 }}
-                />
-              </div>
-              {(i === 0 || i === displayData.length - 1 || i === Math.floor(displayData.length / 2)) && (
-                <div className="text-[9px] text-tx3 mt-1 tabular-nums">{d.date.slice(5)}</div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {detailKpi && (
+        <MoneyKpiDetail
+          id={detailKpi}
+          data={money}
+          breakdown={breakdown}
+          onClose={() => setDetailKpi(null)}
+        />
+      )}
     </div>
   );
 }

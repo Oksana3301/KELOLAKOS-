@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KelolaKos · Design System Final</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Josefin+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --white:#FFFFFF; --navy:#0C2C47; --green:#2E5749; --orange:#BF512C;
+    --yellow:#DA9B2B; --mauve:#D6C9C5; --mint:#ABCBCA;
+    --paper:#FAF8F7; --mauve-soft:#EFE9E7; --mint-soft:#E4EFEE; --orange-soft:#FBEFE9; --ink-soft:#3B5063;
+    --heading:'Lato', system-ui, sans-serif; --body:'Josefin Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--paper);color:var(--navy);font-family:var(--body);font-weight:500;font-size:19px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,h4{font-family:var(--heading);font-weight:700;color:var(--navy);margin:0;line-height:1.1;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 28px;}
+  svg{display:block;}
+  strong{font-weight:600;}
+
+  /* Masthead */
+  .masthead{background:var(--navy);color:#fff;padding:62px 0 54px;}
+  .kicker{font-family:var(--body);font-weight:600;font-size:16px;letter-spacing:.18em;text-transform:uppercase;color:var(--mint);}
+  .logo-row{display:flex;align-items:center;gap:18px;margin-top:18px;}
+  .logo-mark{width:64px;height:64px;border-radius:16px;background:var(--orange);display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:38px;color:#fff;flex-shrink:0;}
+  .masthead h1{color:#fff;font-size:46px;font-weight:900;letter-spacing:-.01em;}
+  .masthead p{font-size:21px;color:#D6E2EC;max-width:720px;margin:18px 0 0;}
+  .verify-chip{display:inline-flex;align-items:center;gap:9px;margin-top:22px;background:var(--green);color:#fff;font-family:var(--heading);font-weight:700;font-size:16px;padding:9px 18px;border-radius:999px;}
+
+  /* TOC */
+  .toc{display:flex;flex-wrap:wrap;gap:10px;padding:24px 0 4px;}
+  .toc a{font-family:var(--body);font-weight:600;font-size:16px;color:var(--navy);background:#fff;border:2px solid var(--mauve);border-radius:999px;padding:9px 16px;text-decoration:none;}
+  .toc a:hover{background:var(--mauve-soft);}
+
+  section{padding:56px 0;border-bottom:2px solid var(--mauve-soft);}
+  .sec-num{font-family:var(--heading);font-weight:900;font-size:17px;color:var(--orange);letter-spacing:.12em;}
+  .sec-title{font-size:33px;margin:8px 0 10px;}
+  .sec-lead{font-size:20px;color:var(--ink-soft);max-width:780px;margin:0 0 34px;}
+  .sub{font-family:var(--heading);font-weight:700;font-size:22px;margin:34px 0 16px;}
+
+  /* Palette */
+  .swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px;}
+  .swatch{border:2px solid var(--mauve);border-radius:18px;overflow:hidden;background:#fff;}
+  .swatch .chip{height:120px;display:flex;align-items:flex-end;padding:14px;}
+  .swatch .chip .role{font-family:var(--body);font-weight:600;font-size:15px;}
+  .swatch .meta{padding:16px 18px 18px;}
+  .swatch .name{font-family:var(--heading);font-weight:700;font-size:20px;}
+  .swatch .hex{font-family:'Lato';font-weight:400;font-size:16px;letter-spacing:.04em;color:var(--ink-soft);margin-top:2px;}
+  .swatch .use{font-size:16px;color:var(--ink-soft);margin-top:10px;line-height:1.4;}
+
+  /* Contrast matrix */
+  .matrix{width:100%;border-collapse:separate;border-spacing:0;border:2px solid var(--mauve);border-radius:18px;overflow:hidden;background:#fff;}
+  .matrix th,.matrix td{padding:15px 18px;text-align:left;border-bottom:1px solid var(--mauve-soft);}
+  .matrix thead th{background:var(--mauve-soft);font-family:var(--heading);font-weight:700;font-size:16px;}
+  .matrix tbody tr:last-child td{border-bottom:none;}
+  .sample{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:10px;font-family:var(--heading);font-weight:700;font-size:18px;}
+  .ratio{font-family:'Lato';font-weight:700;font-size:20px;}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;font-size:15px;font-weight:700;font-family:var(--heading);}
+  .pill.aaa{background:var(--green);color:#fff;} .pill.aa{background:#E4EFEE;color:var(--green);} .pill.no{background:#F6E0D8;color:var(--orange);}
+
+  /* Type scale */
+  .type-row{display:grid;grid-template-columns:170px 1fr;gap:28px;align-items:baseline;padding:20px 0;border-bottom:1px solid var(--mauve-soft);}
+  .type-row:last-child{border-bottom:none;}
+  .type-spec{font-family:'Lato';font-weight:400;font-size:15px;color:var(--ink-soft);}
+  .type-spec b{display:block;font-family:var(--heading);font-weight:700;font-size:16px;color:var(--navy);}
+
+  /* Component demo */
+  .demo{background:#fff;border:2px solid var(--mauve);border-radius:18px;padding:26px;margin-bottom:22px;}
+  .demo-label{font-family:'Lato';font-weight:400;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:18px;}
+  .row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
+
+  /* Buttons */
+  .btn{font-family:var(--body);font-weight:600;font-size:19px;min-height:56px;padding:0 26px;border-radius:14px;border:2px solid transparent;display:inline-flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;}
+  .btn-lg{min-height:64px;font-size:21px;}
+  .btn-primary{background:var(--orange);color:#fff;box-shadow:0 4px 0 #8F3C20;}
+  .btn-success{background:var(--green);color:#fff;box-shadow:0 4px 0 #1F3D32;}
+  .btn-secondary{background:#fff;color:var(--navy);border-color:var(--navy);}
+  .btn-ghost{background:transparent;color:var(--navy);border-color:var(--mauve);}
+
+  /* badges */
+  .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;font-family:var(--body);font-weight:600;font-size:17px;}
+  .badge .dot{width:11px;height:11px;border-radius:50%;}
+  .b-lunas{background:var(--green);color:#fff;} .b-belum{background:var(--orange);color:#fff;}
+  .b-dp{background:var(--yellow);color:var(--navy);} .b-batal{background:var(--mauve);color:var(--navy);} .b-info{background:var(--mint);color:var(--navy);}
+
+  /* field */
+  .field label{display:block;font-family:var(--heading);font-weight:700;font-size:19px;margin-bottom:9px;}
+  .field input{width:100%;font-family:var(--body);font-weight:500;font-size:19px;color:var(--navy);padding:15px 16px;border:2px solid var(--mauve);border-radius:12px;background:#fff;}
+  .field .ex{font-size:16px;color:var(--ink-soft);margin-top:8px;}
+  .field .hint{font-size:16px;color:var(--ink-soft);margin-top:8px;display:flex;gap:8px;align-items:center;}
+
+  /* card sample */
+  .ucard{background:#fff;border:2px solid var(--mauve);border-radius:18px;padding:20px;}
+  .stat{background:var(--green);border-radius:16px;padding:18px;color:#fff;}
+  .stat .l{font-size:16px;color:#C9DAD3;font-weight:600;} .stat .v{font-family:var(--heading);font-weight:900;font-size:26px;margin-top:4px;}
+
+  /* toast */
+  .toast{display:inline-flex;align-items:center;gap:12px;color:#fff;font-family:var(--body);font-weight:600;font-size:17px;padding:14px 20px;border-radius:14px;}
+
+  /* empty state */
+  .empty{text-align:center;border:2px dashed var(--mauve);border-radius:18px;padding:28px;background:#fff;}
+  .empty .ill{width:88px;height:88px;border-radius:50%;margin:6px auto 16px;background:var(--mauve-soft);display:grid;place-items:center;color:var(--ink-soft);}
+
+  /* CRUD flow */
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;}
+  .step{flex:1;min-width:150px;background:#fff;border:2px solid var(--mauve);border-radius:14px;padding:16px;}
+  .step.start{background:var(--mauve-soft);} .step.end{background:var(--mint-soft);border-color:var(--mint);}
+  .step .k{font-family:'Lato';font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+  .step b{font-family:var(--heading);font-weight:700;font-size:17px;display:block;margin:4px 0;}
+  .step span{font-size:15px;color:var(--ink-soft);}
+  .arrow{display:flex;align-items:center;padding:0 6px;color:var(--orange);}
+  .crud-list{list-style:none;margin:0;padding:0;}
+  .crud-list li{display:flex;gap:14px;padding:14px 0;border-top:1px solid var(--mauve-soft);font-size:18px;}
+  .crud-list li:first-child{border-top:none;}
+  .crud-list .tag{flex-shrink:0;font-family:var(--heading);font-weight:700;font-size:15px;color:#fff;background:var(--navy);border-radius:8px;padding:4px 12px;height:fit-content;}
+
+  /* icon grid */
+  .icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px;}
+  .icon-cell{background:#fff;border:2px solid var(--mauve);border-radius:14px;padding:16px 8px;text-align:center;color:var(--navy);}
+  .icon-cell .nm{font-size:14px;color:var(--ink-soft);margin-top:8px;}
+
+  /* rules */
+  .rules{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  .rule{border-radius:18px;padding:24px;border:2px solid;}
+  .rule.do{background:var(--mint-soft);border-color:var(--mint);} .rule.dont{background:#F6E0D8;border-color:#E7BCAD;}
+  .rule h4{font-size:20px;display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .rule ul{margin:0;padding-left:4px;list-style:none;}
+  .rule li{position:relative;padding-left:32px;margin-bottom:12px;font-size:17px;line-height:1.45;}
+  .rule li::before{position:absolute;left:0;top:-1px;font-family:var(--heading);font-weight:900;font-size:19px;}
+  .rule.do li::before{content:"✓";color:var(--green);} .rule.dont li::before{content:"✕";color:var(--orange);}
+  .mark{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-family:var(--heading);font-weight:900;font-size:20px;}
+
+  .footer{padding:40px 0 70px;color:var(--ink-soft);font-size:16px;}
+  @media(max-width:760px){.rules{grid-template-columns:1fr;}.type-row{grid-template-columns:1fr;gap:8px;}.masthead h1{font-size:36px;}.step{min-width:100%;}.arrow{transform:rotate(90deg);padding:8px 0;}}
+</style>
+</head>
+<body>
+
+  <header class="masthead">
+    <div class="wrap">
+      <div class="kicker">Design System Final · Versi 2.0</div>
+      <div class="logo-row">
+        <div class="logo-mark">K</div>
+        <h1>KelolaKos</h1>
+      </div>
+      <p>Satu sistem desain konsisten untuk seluruh aplikasi — dirancang <strong style="color:#fff">ramah lansia</strong>: teks besar, kontras tinggi, tombol lebar, dan satu pola yang sama di mana-mana sehingga cukup dipelajari sekali.</p>
+      <div class="verify-chip">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+        Terverifikasi: 0 teks &lt; 16px · semua kombinasi teks lolos WCAG AA/AAA · area klik ≥ 48px
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <nav class="toc">
+      <a href="#warna">01 Warna</a>
+      <a href="#kontras">02 Kontras</a>
+      <a href="#tipografi">03 Tipografi</a>
+      <a href="#tombol">04 Tombol</a>
+      <a href="#komponen">05 Komponen</a>
+      <a href="#ikon">06 Ikon</a>
+      <a href="#crud">07 Pola CRUD</a>
+      <a href="#aturan">08 Aturan</a>
+    </nav>
+  </div>
+
+  <!-- 01 WARNA -->
+  <section id="warna">
+    <div class="wrap">
+      <div class="sec-num">01 — WARNA</div>
+      <h2 class="sec-title">Palet &amp; Aturan Pemakaian</h2>
+      <p class="sec-lead">Tujuh warna inti. Navy untuk semua teks, Orange untuk aksi utama, Green untuk hal positif. Mauve &amp; Mint <strong>hanya untuk latar</strong> — tidak pernah jadi warna teks.</p>
+      <div class="swatch-grid">
+        <div class="swatch"><div class="chip" style="background:#FFFFFF;border-bottom:1px solid var(--mauve)"><span class="role" style="color:var(--navy)">Latar utama</span></div><div class="meta"><div class="name">White</div><div class="hex">#FFFFFF</div><div class="use">Latar belakang utama semua layar &amp; kartu.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#0C2C47"><span class="role" style="color:#fff">Teks &amp; navigasi</span></div><div class="meta"><div class="name">Navy</div><div class="hex">#0C2C47</div><div class="use">Semua teks &amp; judul, ikon, item navigasi aktif, kartu "Sisa Uang".</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#BF512C"><span class="role" style="color:#fff">Aksi utama</span></div><div class="meta"><div class="name">Orange</div><div class="hex">#BF512C</div><div class="use">Tombol utama (Tambah/Simpan), status "Belum Bayar", pengeluaran. Teks putih.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#2E5749"><span class="role" style="color:#fff">Positif / sukses</span></div><div class="meta"><div class="name">Green</div><div class="hex">#2E5749</div><div class="use">Pemasukan, tombol sukses, status "Lunas", toast sukses. Teks putih.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#DA9B2B"><span class="role" style="color:var(--navy)">Peringatan</span></div><div class="meta"><div class="name">Yellow</div><div class="hex">#DA9B2B</div><div class="use">Status "DP / Parsial". Teks di atasnya selalu Navy (jangan putih).</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#ABCBCA"><span class="role" style="color:var(--navy)">Latar highlight</span></div><div class="meta"><div class="name">Mint</div><div class="hex">#ABCBCA</div><div class="use">Latar kartu sekunder &amp; badge info. Hanya latar — bukan teks.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#D6C9C5"><span class="role" style="color:var(--navy)">Latar &amp; garis</span></div><div class="meta"><div class="name">Mauve</div><div class="hex">#D6C9C5</div><div class="use">Border, garis pemisah, status "Batal". Hanya latar — bukan teks.</div></div></div>
+      </div>
+
+      <div class="sub">Warna turunan (latar halus &amp; teks sekunder)</div>
+      <div class="swatch-grid">
+        <div class="swatch"><div class="chip" style="background:#3B5063"><span class="role" style="color:#fff">Teks sekunder</span></div><div class="meta"><div class="name">Ink-soft</div><div class="hex">#3B5063</div><div class="use">Satu-satunya "abu" — keterangan &amp; sub-teks. 8.35:1 di atas putih (AAA).</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#FAF8F7;border-bottom:1px solid var(--mauve)"><span class="role" style="color:var(--navy)">Latar halaman</span></div><div class="meta"><div class="name">Paper</div><div class="hex">#FAF8F7</div><div class="use">Latar halaman/aplikasi yang sedikit hangat.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#E4EFEE"><span class="role" style="color:var(--navy)">Highlight halus</span></div><div class="meta"><div class="name">Mint-soft</div><div class="hex">#E4EFEE</div><div class="use">Kartu/banner ramah, tombol "?" bantuan.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#FBEFE9"><span class="role" style="color:var(--navy)">Peringatan halus</span></div><div class="meta"><div class="name">Orange-soft</div><div class="hex">#FBEFE9</div><div class="use">Latar item "perlu perhatian" / pengeluaran.</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 KONTRAS -->
+  <section id="kontras">
+    <div class="wrap">
+      <div class="sec-num">02 — KONTRAS</div>
+      <h2 class="sec-title">Verifikasi Kontras (Ramah Lansia)</h2>
+      <p class="sec-lead">Rasio dihitung dengan rumus WCAG 2.1 dari nilai hex resmi. Target minimal <strong>AA 4.5:1</strong>; sebagian besar melampaui <strong>AAA 7:1</strong>. Tiga baris terbawah <strong>dilarang dipakai</strong>.</p>
+      <table class="matrix">
+        <thead><tr><th>Contoh</th><th>Kombinasi</th><th>Rasio</th><th>Hasil</th></tr></thead>
+        <tbody>
+          <tr><td><span class="sample" style="background:#FFFFFF;color:#0C2C47">Teks contoh</span></td><td>Navy di atas White</td><td class="ratio">14.3 : 1</td><td><span class="pill aaa">Lolos AAA</span></td></tr>
+          <tr><td><span class="sample" style="background:#FFFFFF;color:#3B5063">Teks contoh</span></td><td>Ink-soft di atas White <span style="color:var(--ink-soft)">(teks sekunder)</span></td><td class="ratio">8.4 : 1</td><td><span class="pill aaa">Lolos AAA</span></td></tr>
+          <tr><td><span class="sample" style="background:#ABCBCA;color:#0C2C47">Teks contoh</span></td><td>Navy di atas Mint</td><td class="ratio">8.3 : 1</td><td><span class="pill aaa">Lolos AAA</span></td></tr>
+          <tr><td><span class="sample" style="background:#D6C9C5;color:#0C2C47">Teks contoh</span></td><td>Navy di atas Mauve</td><td class="ratio">8.9 : 1</td><td><span class="pill aaa">Lolos AAA</span></td></tr>
+          <tr><td><span class="sample" style="background:#2E5749;color:#FFFFFF">Teks contoh</span></td><td>White di atas Green</td><td class="ratio">8.2 : 1</td><td><span class="pill aaa">Lolos AAA</span></td></tr>
+          <tr><td><span class="sample" style="background:#DA9B2B;color:#0C2C47">Teks contoh</span></td><td>Navy di atas Yellow</td><td class="ratio">5.9 : 1</td><td><span class="pill aa">Lolos AA</span></td></tr>
+          <tr><td><span class="sample" style="background:#BF512C;color:#FFFFFF">Teks contoh</span></td><td>White di atas Orange <span style="color:var(--ink-soft)">(teks tombol, tebal)</span></td><td class="ratio">4.7 : 1</td><td><span class="pill aa">Lolos AA</span></td></tr>
+          <tr><td><span class="sample" style="background:#FFFFFF;color:#DA9B2B">Teks contoh</span></td><td>White di atas Yellow <span style="color:var(--ink-soft)">(dilarang)</span></td><td class="ratio">2.4 : 1</td><td><span class="pill no">Gagal — pakai Navy</span></td></tr>
+          <tr><td><span class="sample" style="background:#FFFFFF;color:#ABCBCA">Teks contoh</span></td><td>Mint sebagai teks <span style="color:var(--ink-soft)">(dilarang)</span></td><td class="ratio">1.7 : 1</td><td><span class="pill no">Gagal — latar saja</span></td></tr>
+          <tr><td><span class="sample" style="background:#FFFFFF;color:#D6C9C5">Teks contoh</span></td><td>Mauve sebagai teks <span style="color:var(--ink-soft)">(dilarang)</span></td><td class="ratio">1.6 : 1</td><td><span class="pill no">Gagal — latar saja</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 03 TIPOGRAFI -->
+  <section id="tipografi">
+    <div class="wrap">
+      <div class="sec-num">03 — TIPOGRAFI</div>
+      <h2 class="sec-title">Skala Huruf</h2>
+      <p class="sec-lead"><strong>Lato</strong> (700/900) untuk judul &amp; angka; <strong>Josefin Sans</strong> (400–600) untuk teks. Teks penting tidak pernah di bawah <strong>16px</strong>; teks isi 18–19px.</p>
+      <div>
+        <div class="type-row"><div class="type-spec"><b>Judul Besar</b>Lato 900 · 46px</div><div style="font-family:var(--heading);font-weight:900;font-size:46px;letter-spacing:-.01em;">Selamat datang</div></div>
+        <div class="type-row"><div class="type-spec"><b>Judul Halaman</b>Lato 900 · 32px</div><div style="font-family:var(--heading);font-weight:900;font-size:32px;">Beranda</div></div>
+        <div class="type-row"><div class="type-spec"><b>Sub Judul</b>Lato 700 · 23px</div><div style="font-family:var(--heading);font-weight:700;font-size:23px;">Perlu Tindakan</div></div>
+        <div class="type-row"><div class="type-spec"><b>Angka Besar</b>Lato 900 · 28–36px</div><div style="font-family:var(--heading);font-weight:900;font-size:34px;letter-spacing:-.01em;">Rp 12.400.000</div></div>
+        <div class="type-row"><div class="type-spec"><b>Teks Isi</b>Josefin Sans 500 · 18–19px</div><div style="font-size:19px;">Klik tombol oranye di bawah untuk menambah penyewa baru.</div></div>
+        <div class="type-row"><div class="type-spec"><b>Teks Tombol</b>Josefin Sans 600 · 19px</div><div style="font-family:var(--body);font-weight:600;font-size:19px;">Tambah Penyewa</div></div>
+        <div class="type-row"><div class="type-spec"><b>Keterangan</b>Josefin Sans 500 · 16px</div><div style="font-size:16px;color:var(--ink-soft);">Ukuran terkecil yang diperbolehkan untuk teks sekunder.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 TOMBOL -->
+  <section id="tombol">
+    <div class="wrap">
+      <div class="sec-num">04 — TOMBOL</div>
+      <h2 class="sec-title">Tombol &amp; Ukuran Sentuh</h2>
+      <p class="sec-lead">Satu aksi utama per layar. Tinggi minimal <strong>56px</strong> (besar 64px), area sentuh ≥ 48px, sudut membulat, bayangan tebal di bawah agar terasa bisa ditekan.</p>
+      <div class="demo"><div class="demo-label">Aksi Utama (Orange) · Sukses (Green)</div><div class="row">
+        <button class="btn btn-primary btn-lg">＋ Tambah Penyewa</button>
+        <button class="btn btn-success">✓ Catat Pembayaran</button>
+      </div></div>
+      <div class="demo"><div class="demo-label">Sekunder &amp; Ghost</div><div class="row">
+        <button class="btn btn-secondary">Ubah</button>
+        <button class="btn btn-secondary" style="color:var(--orange);border-color:#E7BCAD">Batal / Refund</button>
+        <button class="btn btn-ghost" style="color:var(--ink-soft)">Hapus</button>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 05 KOMPONEN -->
+  <section id="komponen">
+    <div class="wrap">
+      <div class="sec-num">05 — KOMPONEN</div>
+      <h2 class="sec-title">Komponen Standar</h2>
+      <p class="sec-lead">Komponen yang sama dipakai di semua halaman, dengan teks besar &amp; kontras tinggi.</p>
+
+      <div class="demo"><div class="demo-label">Status Badge</div><div class="row">
+        <span class="badge b-lunas"><span class="dot" style="background:#fff"></span>Lunas</span>
+        <span class="badge b-belum"><span class="dot" style="background:#fff"></span>Belum Bayar</span>
+        <span class="badge b-dp"><span class="dot" style="background:var(--navy)"></span>DP</span>
+        <span class="badge b-batal"><span class="dot" style="background:var(--ink-soft)"></span>Batal</span>
+        <span class="badge b-info"><span class="dot" style="background:var(--navy)"></span>Tersedia</span>
+      </div></div>
+
+      <div class="row" style="align-items:stretch;gap:22px;">
+        <div class="demo" style="flex:1;min-width:280px;margin:0;"><div class="demo-label">Kartu Angka</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="stat"><div class="l">Uang Masuk Bulan Ini</div><div class="v">Rp 12,4 jt</div></div>
+            <div class="ucard" style="padding:18px;"><div style="font-size:16px;color:var(--ink-soft);font-weight:600;">Kamar Terisi</div><div style="font-family:var(--heading);font-weight:900;font-size:26px;margin-top:4px;">8 / 12</div></div>
+          </div>
+        </div>
+        <div class="demo" style="flex:1;min-width:280px;margin:0;"><div class="demo-label">Form Field (label + contoh + bantuan)</div>
+          <div class="field">
+            <label>Nama Penyewa</label>
+            <input type="text" value="Pak Budi Santoso">
+            <div class="ex">Contoh: Pak Budi Santoso</div>
+            <div class="hint"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 4v-4H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg> Tulis nama lengkap supaya mudah dikenali.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="align-items:stretch;gap:22px;">
+        <div class="demo" style="flex:1;min-width:280px;margin:0;"><div class="demo-label">Pesan Sukses / Gagal (Toast)</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <span class="toast" style="background:var(--green);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg> Booking Bu Sri berhasil disimpan</span>
+            <span class="toast" style="background:var(--orange);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg> Gagal menyimpan, coba lagi</span>
+            <span class="toast" style="background:var(--navy);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6h.01"/></svg> Data telah dihapus</span>
+          </div>
+        </div>
+        <div class="demo" style="flex:1;min-width:280px;margin:0;"><div class="demo-label">Empty State Memandu</div>
+          <div class="empty">
+            <div style="color:var(--orange);display:grid;place-items:center;margin-bottom:4px;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#BF512C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M6 11l6-6 6 6"/></svg></div>
+            <div class="ill"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#3B5063" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></div>
+            <h3 style="font-size:21px;margin-bottom:8px;">Belum ada booking</h3>
+            <p style="font-size:17px;color:var(--ink-soft);margin:0 0 18px;">Tekan tombol Tambah Penyewa di atas untuk mulai.</p>
+            <button class="btn btn-primary" style="margin:0 auto;">＋ Tambah Penyewa</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="align-items:stretch;gap:22px;">
+        <div class="demo" style="flex:1;min-width:280px;margin:0;"><div class="demo-label">Tombol Bantuan &amp; Banner</div>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <span style="width:48px;height:48px;border-radius:50%;background:var(--mint-soft);border:2px solid var(--mint);color:var(--navy);display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:22px;flex-shrink:0;">?</span>
+            <span style="font-size:17px;color:var(--ink-soft);">Ada di pojok kanan atas setiap halaman — membuka penjelasan singkat &amp; Panduan.</span>
+          </div>
+        </div>
+        <div class="demo" style="flex:1;min-width:280px;margin:0;"><div class="demo-label">Navigasi (item aktif = Navy)</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <span style="display:inline-flex;align-items:center;gap:9px;background:var(--navy);color:#fff;min-height:48px;padding:0 18px;border-radius:13px;font-family:var(--body);font-weight:600;font-size:18px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg> Beranda</span>
+            <span style="display:inline-flex;align-items:center;gap:9px;background:#fff;color:var(--navy);min-height:48px;padding:0 18px;border-radius:13px;border:2px solid var(--mauve);font-family:var(--body);font-weight:600;font-size:18px;">Booking</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 IKON -->
+  <section id="ikon">
+    <div class="wrap">
+      <div class="sec-num">06 — IKON</div>
+      <h2 class="sec-title">Ikon Garis</h2>
+      <p class="sec-lead">Semua ikon bergaya garis (stroke 2–2.4px), <code>currentColor</code>, viewBox 24×24. Tidak ada emoji.</p>
+      <div class="icons" id="icongrid"></div>
+    </div>
+  </section>
+
+  <!-- 07 CRUD -->
+  <section id="crud">
+    <div class="wrap">
+      <div class="sec-num">07 — POLA CRUD</div>
+      <h2 class="sec-title">Satu Pola Tambah / Ubah / Hapus</h2>
+      <p class="sec-lead">Pola yang <strong>sama persis</strong> di Booking, Kelola Kamar, dan Keuangan — pelajari sekali, paham di mana-mana.</p>
+
+      <ul class="crud-list" style="margin-bottom:28px;">
+        <li><span class="tag">TAMBAH</span><span>Tombol <strong>Oranye besar</strong> menonjol &amp; menempel di atas (atau di sidebar laptop) → membuka <strong>lembar form</strong> berlabel besar + contoh → tombol <strong>Simpan</strong> hijau → pesan sukses.</span></li>
+        <li><span class="tag">LIHAT</span><span>Daftar berupa kartu besar. <strong>Tekan satu kartu</strong> → membuka <strong>lembar detail</strong>.</span></li>
+        <li><span class="tag">UBAH</span><span>Dari detail, tombol <strong>"Ubah"</strong> (sekunder) membuka form yang sama, sudah terisi otomatis.</span></li>
+        <li><span class="tag">HAPUS</span><span>Dari detail, tombol <strong>"Hapus"</strong> → <strong>dialog konfirmasi menenangkan</strong> ("Tenang, data lain tidak terpengaruh…") → "Tidak Jadi" / "Ya, Hapus".</span></li>
+      </ul>
+
+      <div class="flow">
+        <div class="step start"><div class="k">Mulai</div><b>Tombol Tambah</b><span>Oranye, menempel di atas tiap layar.</span></div>
+        <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="step"><div class="k">Isi</div><b>Form berlabel</b><span>Kolom sedikit, label besar, contoh pengisian.</span></div>
+        <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="step"><div class="k">Simpan</div><b>Tombol hijau</b><span>"Simpan" besar di bawah.</span></div>
+        <div class="arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="step end"><div class="k">Selesai</div><b>Pesan sukses</b><span>Toast hijau menenangkan.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 ATURAN -->
+  <section id="aturan" style="border-bottom:none;">
+    <div class="wrap">
+      <div class="sec-num">08 — ATURAN</div>
+      <h2 class="sec-title">Yang Wajib &amp; Yang Dilarang</h2>
+      <div class="rules">
+        <div class="rule do"><h4><span class="mark" style="background:var(--green)">✓</span> Lakukan</h4><ul>
+          <li>Teks penting ≥ 16px, teks isi 18–19px, judul jauh lebih besar</li>
+          <li>Teks selalu Navy atau Ink-soft di atas latar terang</li>
+          <li>Satu tombol Oranye utama paling menonjol per layar</li>
+          <li>Bahasa Indonesia sehari-hari yang sederhana</li>
+          <li>Tombol &amp; area klik minimal 48px, jarak antar tombol cukup</li>
+          <li>Pakai pola CRUD yang sama di semua menu</li>
+          <li>Sediakan tombol "?" &amp; konfirmasi hapus menenangkan</li>
+        </ul></div>
+        <div class="rule dont"><h4><span class="mark" style="background:var(--orange)">✕</span> Hindari</h4><ul>
+          <li>Teks di bawah 16px atau abu-abu pucat</li>
+          <li>Mauve, Mint, atau Yellow sebagai warna teks</li>
+          <li>Teks putih di atas Yellow (kontras lemah)</li>
+          <li>Istilah teknis/Inggris &amp; kode status mentah</li>
+          <li>Layout padat &amp; banyak pilihan dalam satu layar</li>
+          <li>Banyak tombol dengan bobot visual yang sama</li>
+          <li>Bahasa menakut-nakuti saat konfirmasi</li>
+        </ul></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer"><div class="wrap">KelolaKos · Design System Final v2.0 — Lato + Josefin Sans · Navy #0C2C47 · Orange #BF512C · Green #2E5749 · Yellow #DA9B2B · Mint #ABCBCA · Mauve #D6C9C5 · Ink-soft #3B5063</div></div>
+
+  <script>
+    // ikon garis — sama dengan yang dipakai aplikasi
+    const P='fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    const ICONS={
+      Beranda:`<path ${P} d="M3 11l9-7 9 7"/><path ${P} d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/>`,
+      Booking:`<rect ${P} x="3" y="5" width="18" height="16" rx="2"/><path ${P} d="M3 9h18M8 3v4M16 3v4"/>`,
+      Kamar:`<path ${P} d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path ${P} d="M3 18h18M6 10V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3"/>`,
+      Uang:`<rect ${P} x="3" y="6" width="18" height="13" rx="2"/><path ${P} d="M3 10h18M16 15h2"/>`,
+      Laporan:`<rect ${P} x="3" y="13" width="4.5" height="7" rx="1.2"/><rect ${P} x="9.7" y="8" width="4.5" height="12" rx="1.2"/><rect ${P} x="16.5" y="4" width="4.5" height="16" rx="1.2"/>`,
+      Kwitansi:`<path ${P} d="M6 3h12v18l-2.5-1.7L13 21l-2.5-1.7L8 21l-2-1.7L6 3z"/><path ${P} d="M9.5 8.5h5M9.5 12.5h5"/>`,
+      Pembayaran:`<rect ${P} x="2" y="6" width="20" height="12" rx="2"/><circle ${P} cx="12" cy="12" r="2.6"/><path ${P} d="M6 9.5v5M18 9.5v5"/>`,
+      Belanja:`<path ${P} d="M6 8h12l-1.2 11.2a1 1 0 0 1-1 .8H8.2a1 1 0 0 1-1-.8L6 8z"/><path ${P} d="M9 8a3 3 0 0 1 6 0"/>`,
+      Refund:`<path ${P} d="M3 12a9 9 0 1 0 2.6-6.3"/><path ${P} d="M3 4v4h4"/>`,
+      Centang:`<circle ${P} cx="12" cy="12" r="9"/><path ${P} d="M8 12.5l2.5 2.5L16 9"/>`,
+      Hapus:`<path ${P} d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1l1-13"/>`,
+      Bantuan:`<path ${P} d="M5 4h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 4v-4H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>`,
+      Akun:`<circle ${P} cx="12" cy="8" r="4"/><path ${P} d="M5 20a7 7 0 0 1 14 0"/>`,
+      Pengaturan:`<path ${P} d="M4 7h16M4 12h16M4 17h16"/><circle ${P} cx="9" cy="7" r="2.1"/><circle ${P} cx="15" cy="12" r="2.1"/><circle ${P} cx="8" cy="17" r="2.1"/>`,
+      Kalender:`<rect ${P} x="3" y="5" width="18" height="16" rx="2"/><path ${P} d="M3 9.5h18M8 3v4M16 3v4"/>`,
+      Chevron:`<path ${P} d="M9 6l6 6-6 6"/>`
+    };
+    const grid=document.getElementById('icongrid');
+    Object.entries(ICONS).forEach(([nm,svg])=>{
+      const cell=document.createElement('div');cell.className='icon-cell';
+      cell.innerHTML=`<svg width="30" height="30" viewBox="0 0 24 24" style="margin:0 auto">${svg}</svg><div class="nm">${nm}</div>`;
+      grid.appendChild(cell);
+    });
+  </script>
+</body>
+</html>

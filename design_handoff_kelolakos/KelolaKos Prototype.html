@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KelolaKos · Prototipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Josefin+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --white:#FFFFFF; --navy:#0C2C47; --green:#2E5749; --orange:#BF512C;
+    --yellow:#DA9B2B; --mauve:#D6C9C5; --mint:#ABCBCA;
+    --paper:#FAF8F7; --mauve-soft:#EFE9E7; --mint-soft:#E4EFEE; --ink-soft:#3B5063;
+    --heading:'Lato', system-ui, sans-serif; --body:'Josefin Sans', system-ui, sans-serif;
+    --card-radius:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:radial-gradient(circle at 50% 0%, #173a59, #0C2C47 70%);
+    font-family:var(--body); color:var(--navy);
+    display:grid; place-items:center; padding:24px; min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* Phone frame */
+  .phone{
+    position:relative; width:432px; max-width:100%; height:min(908px,94vh);
+    background:var(--paper); border-radius:42px; overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.45), 0 0 0 10px #0a2138, 0 0 0 12px #1c3954;
+    display:flex; flex-direction:column;
+  }
+  .statusbar{height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-family:var(--heading);font-weight:700;font-size:14px;color:var(--navy);flex-shrink:0;padding-top:6px;}
+  .scroll{flex:1;overflow-y:auto;padding:8px 20px 28px;}
+  .scroll::-webkit-scrollbar{width:0;}
+  .navbar{flex-shrink:0;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border-top:2px solid var(--mauve-soft);padding:8px 6px calc(8px + env(safe-area-inset-bottom));}
+  .navbtn{display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:7px 2px;border-radius:12px;color:var(--ink-soft);font-family:var(--body);font-weight:600;font-size:13px;}
+  .navbtn.active{color:var(--navy);}
+  .navbtn.active .ndot{background:var(--orange);}
+  .ndot{width:5px;height:5px;border-radius:50%;background:transparent;margin-top:1px;}
+  .navbtn svg{width:26px;height:26px;}
+
+  /* Toast */
+  .toast{position:absolute;left:0;right:0;margin-inline:auto;width:max-content;max-width:calc(100% - 40px);bottom:96px;z-index:90;background:var(--navy);color:#fff;
+    padding:16px 22px;border-radius:14px;font-size:17px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.3);
+    animation:toastIn .25s cubic-bezier(.2,.8,.2,1);display:flex;align-items:center;gap:12px;text-align:center;}
+
+  /* ===== Tampilan laptop (sidebar) ===== */
+  .desk{position:fixed;inset:0;display:flex;background:var(--paper);}
+  .dside{width:288px;flex-shrink:0;background:#fff;border-right:2px solid var(--mauve-soft);padding:18px 14px;display:flex;flex-direction:column;overflow-y:auto;}
+  .dbrand{display:flex;align-items:center;gap:12px;padding:6px 8px 16px;border-bottom:2px solid var(--mauve-soft);margin-bottom:14px;}
+  .dlogo{width:46px;height:46px;border-radius:12px;background:var(--orange);color:#fff;display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:24px;flex-shrink:0;}
+  .dbname{font-family:var(--heading);font-weight:900;font-size:20px;line-height:1.1;}
+  .dbsub{font-size:13px;color:var(--ink-soft);margin-top:2px;}
+  .dcta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--orange);color:#fff;font-family:var(--body);font-weight:600;font-size:18px;min-height:56px;border:none;border-radius:14px;box-shadow:0 4px 0 #8F3C20;cursor:pointer;margin-bottom:16px;}
+  .dcta:active{transform:translateY(2px);}
+  .dlabel{font-family:'Lato';font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);padding:0 12px;margin:8px 0 8px;}
+  .dnav{display:flex;align-items:center;gap:14px;width:100%;min-height:54px;padding:0 14px;border:none;background:none;border-radius:13px;font-family:var(--body);font-weight:600;font-size:18px;color:var(--navy);cursor:pointer;text-align:left;margin-bottom:3px;}
+  .dnav .dic{display:grid;flex-shrink:0;}
+  .dnav .dic svg{width:24px;height:24px;}
+  .dnav:hover{background:var(--mauve-soft);}
+  .dnav.muted{color:var(--ink-soft);font-weight:500;}
+  .dnav.active{background:var(--navy);color:#fff;}
+  .dspacer{flex:1;min-height:16px;}
+  .dmain{flex:1;overflow-y:auto;}
+  .dmain-inner{max-width:840px;margin:0 auto;padding:34px 40px 70px;}
+
+  /* KPI grid: 1 kolom di HP (lebar penuh), 2x2 hanya di sidebar laptop */
+  .kpi-grid{display:grid;grid-template-columns:1fr;gap:14px;}
+  .desk .kpi-grid{grid-template-columns:1fr 1fr;}
+
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes slideUp{from{transform:translateY(40px)}to{transform:translateY(0)}}
+  @keyframes popIn{from{transform:scale(.96)}to{transform:scale(1)}}
+  @keyframes toastIn{from{transform:translateY(20px)}to{transform:translateY(0)}}
+  @keyframes naikTurun{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  @keyframes scrFade{from{transform:translateY(10px)}to{transform:translateY(0)}}
+  .screen-anim{animation:scrFade .25s ease;}
+
+  @media(max-width:480px){
+    body{padding:0;}
+    .phone{width:100%;height:100vh;border-radius:0;box-shadow:none;}
+  }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="app/tweaks-panel.jsx"></script>
+  <script type="text/babel" src="app/data.jsx"></script>
+  <script type="text/babel" src="app/ui.jsx"></script>
+  <script type="text/babel" src="app/money.jsx"></script>
+  <script type="text/babel" src="app/screens-core.jsx"></script>
+  <script type="text/babel" src="app/screens-more.jsx"></script>
+  <script type="text/babel" src="app/modals.jsx"></script>
+  <script type="text/babel" src="app/booking.jsx"></script>
+  <script type="text/babel" src="app/keuangan.jsx"></script>
+  <script type="text/babel" src="app/kamar.jsx"></script>
+  <script type="text/babel" src="app/help.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ---- ikon navigasi (garis sederhana) ----
+    const Icon = ({ name, active }) => {
+      const sw = active ? 2.4 : 2;
+      const p = { fill:'none', stroke:'currentColor', strokeWidth:sw, strokeLinecap:'round', strokeLinejoin:'round' };
+      const paths = {
+        beranda: <><path {...p} d="M3 11l9-7 9 7"/><path {...p} d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></>,
+        booking: <><rect {...p} x="3" y="5" width="18" height="16" rx="2"/><path {...p} d="M3 9h18M8 3v4M16 3v4"/></>,
+        kamar: <><path {...p} d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path {...p} d="M3 18h18M6 10V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3"/></>,
+        keuangan: <><rect {...p} x="3" y="6" width="18" height="13" rx="2"/><path {...p} d="M3 10h18M16 15h2"/></>,
+        lainnya: <><circle {...p} cx="5" cy="6" r="1.6"/><circle {...p} cx="5" cy="12" r="1.6"/><circle {...p} cx="5" cy="18" r="1.6"/><path {...p} d="M10 6h10M10 12h10M10 18h10"/></>,
+      };
+      return <svg viewBox="0 0 24 24">{paths[name]}</svg>;
+    };
+
+    const TWEAK_DEFAULTS = {
+      "ukuranTeks": "normal",
+      "warnaTombol": "#BF512C",
+      "sudutKartu": 18,
+      "labelNavigasi": true
+    };
+
+    const NAV = [
+      { id:'beranda', label:'Beranda' },
+      { id:'booking', label:'Booking' },
+      { id:'kamar', label:'Kamar' },
+      { id:'keuangan', label:'Uang' },
+      { id:'lainnya', label:'Lainnya' },
+    ];
+    const LAINNYA = [
+      { id:'laporan', label:'Laporan', ic:'laporan', d:'Lihat ringkasan keuangan bulanan', tint:'var(--mint-soft)', ink:'var(--green)' },
+      { id:'kwitansi', label:'Kwitansi', ic:'kwitansi', d:'Buat & kirim bukti pembayaran', tint:'#FBEFE9', ink:'var(--orange)' },
+      { id:'layout', label:'Layout Properti', ic:'layout', d:'Lihat peta semua kamar', tint:'var(--mauve-soft)', ink:'var(--navy)' },
+      { id:'setting', label:'Pengaturan', ic:'setting', d:'Atur properti, kamar & akun', tint:'var(--mint-soft)', ink:'var(--navy)' },
+      { id:'panduan', label:'Panduan', ic:'bantuan', d:'Cara pakai aplikasi, langkah demi langkah', tint:'var(--mint-soft)', ink:'var(--green)' },
+    ];
+    const SCREENS = {
+      beranda: window.Beranda, booking: window.Booking, kamar: window.Kamar,
+      keuangan: window.Keuangan, laporan: window.Laporan, kwitansi: window.Kwitansi,
+      layout: window.LayoutProperti, setting: window.Setting,
+      panduan: window.Panduan,
+    };
+
+    function App(){
+      const [t, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
+      const [screen, setScreen] = useState('beranda');
+      const [lainnyaOpen, setLainnyaOpen] = useState(false);
+      const [help, setHelp] = useState(null);
+      const [bookingFlow, setBookingFlow] = useState(false);
+      const [editBooking, setEditBooking] = useState(null);
+      const [bookingDetail, setBookingDetail] = useState(null);
+      const [cancelTarget, setCancelTarget] = useState(null);
+      const [roomDetail, setRoomDetail] = useState(null);
+      const [payTarget, setPayTarget] = useState(null);
+      const [delTarget, setDelTarget] = useState(null);
+      const [logout, setLogout] = useState(false);
+      const [toast, setToast] = useState(null);
+      const [tour, setTour] = useState(() => { try { return !localStorage.getItem('kk_onboarded'); } catch (e) { return true; } });
+
+      useEffect(() => {
+        document.documentElement.style.setProperty('--orange', t.warnaTombol);
+        document.documentElement.style.setProperty('--card-radius', t.sudutKartu + 'px');
+      }, [t.warnaTombol, t.sudutKartu]);
+
+      // Responsif: sidebar untuk laptop (>=980px), tab bawah untuk HP
+      const [wide, setWide] = useState(() => window.innerWidth >= 900);
+      useEffect(() => {
+        const f = () => setWide(window.innerWidth >= 900);
+        window.addEventListener('resize', f);
+        return () => window.removeEventListener('resize', f);
+      }, []);
+
+      const showToast = (msg, type) => {
+        let m = msg, ty = type;
+        if (!ty) { ty = (m && m[0] === '✓') ? 'success' : 'info'; }
+        if (m && m[0] === '✓') m = m.slice(1).trim();
+        setToast({ msg: m, type: ty }); clearTimeout(window.__tt); window.__tt = setTimeout(() => setToast(null), 2800);
+      };
+      const tutupTur = () => { try { localStorage.setItem('kk_onboarded', '1'); } catch (e) {} setTour(false); };
+
+      const ctx = {
+        openHelp: (topic) => setHelp(topic),
+        openBooking: () => { setEditBooking(null); setBookingFlow(true); },
+        openBookingDetail: (b) => setBookingDetail(b),
+        openRoom: (r) => setRoomDetail(r),
+        openPayment: (b) => { setBookingDetail(null); setPayTarget(b); },
+        openLogout: () => setLogout(true),
+        go: (id) => setScreen(id),
+        openPanduan: () => setScreen('panduan'),
+        replayTour: () => setTour(true),
+        textScale: t.ukuranTeks,
+        setTextScale: (v) => setTweak('ukuranTeks', v),
+        wide: wide,
+        toast: showToast,
+      };
+
+      const ScreenComp = SCREENS[screen] || window.Beranda;
+      const zoom = t.ukuranTeks === 'besar' ? 1.1 : t.ukuranTeks === 'sangat' ? 1.22 : 1;
+
+      const go = (id) => { if (id === 'lainnya') setLainnyaOpen(true); else { setScreen(id); } };
+      const activeNav = NAV.some(n => n.id === screen) ? screen : 'lainnya';
+
+      const mainNav = NAV.filter(n => n.id !== 'lainnya');
+
+      const screenBody = (
+        <div className="screen-anim" style={{ zoom }}>
+          <ScreenComp ctx={ctx} />
+        </div>
+      );
+
+      // Modal, toast, & tweaks — sama untuk HP dan laptop
+      const overlays = (
+        <>
+          <window.BookingFlow open={bookingFlow} editBooking={editBooking} onClose={() => { setBookingFlow(false); setEditBooking(null); }} onDone={(nama, isEdit) => { setBookingFlow(false); setEditBooking(null); showToast(isEdit ? '✓ Perubahan ' + nama + ' tersimpan' : '✓ Booking ' + nama + ' berhasil disimpan'); }} />
+          <window.BookingDetail booking={bookingDetail} onClose={() => setBookingDetail(null)} onPay={ctx.openPayment} onEdit={(b) => { setBookingDetail(null); setEditBooking(b); setBookingFlow(true); }} onCancel={(b) => { setBookingDetail(null); setCancelTarget(b); }} onDelete={(b) => { setBookingDetail(null); setDelTarget(b); }} />
+          <window.CancelConfirm target={cancelTarget} onClose={() => setCancelTarget(null)} onConfirm={() => { const n = cancelTarget.nama; setCancelTarget(null); showToast('Booking ' + n + ' telah dibatalkan'); }} />
+          <window.RoomDetail room={roomDetail} onClose={() => setRoomDetail(null)} />
+          <window.PayConfirm booking={payTarget} onClose={() => setPayTarget(null)} onConfirm={() => { const n = payTarget.nama; setPayTarget(null); showToast('✓ Pembayaran ' + n + ' dicatat lunas'); }} />
+          <window.DeleteConfirm target={delTarget} onClose={() => setDelTarget(null)} onConfirm={() => { const n = delTarget.nama; setDelTarget(null); showToast('Data ' + n + ' telah dihapus'); }} />
+          <window.LogoutConfirm open={logout} onClose={() => setLogout(false)} onConfirm={() => { setLogout(false); showToast('Anda telah keluar dari aplikasi'); }} />
+          <window.HelpSheet topic={help} onClose={() => setHelp(null)} onPanduan={() => { setHelp(null); setScreen('panduan'); }} />
+          <window.Onboarding open={tour} onClose={tutupTur} onPanduan={() => setScreen('panduan')} />
+          {toast && <window.KkToast data={toast} />}
+          <window.TweaksPanel title="Tweaks">
+            <window.TweakSection label="Ramah Lansia" />
+            <window.TweakRadio label="Ukuran Teks" value={t.ukuranTeks}
+              options={[{value:'normal',label:'Normal'},{value:'besar',label:'Besar'},{value:'sangat',label:'Ekstra'}]}
+              onChange={(v) => setTweak('ukuranTeks', v)} />
+            <window.TweakToggle label="Tampilkan label navigasi" value={t.labelNavigasi} onChange={(v) => setTweak('labelNavigasi', v)} />
+            <window.TweakSection label="Tampilan" />
+            <window.TweakColor label="Warna Tombol Utama" value={t.warnaTombol}
+              options={['#BF512C','#A8451F','#2E5749','#0C2C47']} onChange={(v) => setTweak('warnaTombol', v)} />
+            <window.TweakRadio label="Sudut Kartu" value={t.sudutKartu}
+              options={[{value:18,label:'Membulat'},{value:8,label:'Sedang'},{value:2,label:'Tegas'}]}
+              onChange={(v) => setTweak('sudutKartu', v)} />
+          </window.TweaksPanel>
+        </>
+      );
+
+      // ===== Tampilan LAPTOP: sidebar berlabel =====
+      if (wide) {
+        return (
+          <div className="desk">
+            <aside className="dside">
+              <div className="dbrand">
+                <div className="dlogo">K</div>
+                <div><div className="dbname">KelolaKos</div><div className="dbsub">Kos Mawar Melati</div></div>
+              </div>
+              <button className="dcta" onClick={() => ctx.openBooking()}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                Tambah Penyewa
+              </button>
+              <div className="dlabel">Menu Utama</div>
+              {mainNav.map(n => (
+                <button key={n.id} className={'dnav' + (screen === n.id ? ' active' : '')} onClick={() => setScreen(n.id)}>
+                  <span className="dic"><Icon name={n.id} active={screen === n.id} /></span>{n.label}
+                </button>
+              ))}
+              <div className="dlabel" style={{ marginTop: 12 }}>Lainnya</div>
+              {LAINNYA.map(m => (
+                <button key={m.id} className={'dnav muted' + (screen === m.id ? ' active' : '')} onClick={() => setScreen(m.id)}>
+                  <span className="dic"><window.LineIcon name={m.ic} size={23} sw={2} color="currentColor" /></span>{m.label}
+                </button>
+              ))}
+              <div className="dspacer" />
+              <button className="dnav muted" onClick={() => setHelp(screen)}>
+                <span className="dic"><window.LineIcon name="bantuan" size={22} sw={2} color="currentColor" /></span>Bantuan
+              </button>
+              <button className="dnav muted" onClick={() => setLogout(true)}>
+                <span className="dic"><window.LineIcon name="logout" size={22} sw={2} color="currentColor" /></span>Keluar
+              </button>
+            </aside>
+            <main className="dmain">
+              <div className="dmain-inner" key={screen}>{screenBody}</div>
+            </main>
+            {overlays}
+          </div>
+        );
+      }
+
+      // ===== Tampilan HP: tab bawah =====
+      return (
+        <div className="phone">
+          <div className="statusbar"><span>09.41</span><span>KelolaKos</span></div>
+
+          <div className="scroll" key={screen}>{screenBody}</div>
+
+          {/* Navigasi bawah */}
+          <div className="navbar">
+            {NAV.map(n => {
+              const active = activeNav === n.id;
+              return (
+                <button key={n.id} className={'navbtn' + (active ? ' active' : '')} onClick={() => go(n.id)}>
+                  <Icon name={n.id} active={active} />
+                  {t.labelNavigasi && <span>{n.label}</span>}
+                  <span className="ndot" />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sheet "Lainnya" */}
+          <window.Sheet open={lainnyaOpen} onClose={() => setLainnyaOpen(false)} maxH="70%">
+            <div style={{ padding:'22px 22px 28px' }}>
+              <h2 style={{ fontFamily:'var(--heading)', fontWeight:700, fontSize:24, margin:'0 0 18px' }}>Menu Lainnya</h2>
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {LAINNYA.map(m => (
+                  <button key={m.id} onClick={() => { setScreen(m.id); setLainnyaOpen(false); }} style={{ textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:16, padding:16, borderRadius:'var(--card-radius)', border:'2px solid var(--mauve)', background:'#fff' }}>
+                    <div style={{ width:54, height:54, borderRadius:16, background:m.tint, display:'grid', placeItems:'center', flexShrink:0, color:m.ink }}><window.LineIcon name={m.ic} size={28} sw={2.2} color={m.ink} /></div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontFamily:'var(--heading)', fontWeight:700, fontSize:20 }}>{m.label}</div>
+                      <div style={{ fontSize:16, color:'var(--ink-soft)' }}>{m.d}</div>
+                    </div>
+                    <span style={{ color:'var(--mauve)', display:'grid' }}><window.LineIcon name="chevron" size={22} sw={2.4} /></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </window.Sheet>
+
+          {overlays}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

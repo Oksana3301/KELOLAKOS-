@@ -1,115 +1,75 @@
 'use client';
 
-import Link from 'next/link';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type BookingItem, type RecentTransaction, type ReportTransaction } from '@/lib/api';
-import { formatRupiah, formatDate } from '@/lib/utils';
-import { Topbar } from '@/components/topbar';
-import { PaymentForm, RefundForm, FeeForm, ExpenseForm } from '@/components/keuangan-forms';
-import { PeriodFilter, resolvePeriod, type PeriodValue } from '@/components/period-filter';
 import { toast } from 'sonner';
+import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
+import { KkIcon } from '@/components/kk/icons';
+import {
+  KkPeriodFilter,
+  MoneyKpiGrid,
+  MoneyKpiDetail,
+  periodLabel,
+  resolvePeriod,
+  type PeriodValue,
+  type MoneyData,
+} from '@/components/kk/money';
+import { HelpSheet } from '@/components/kk/help-sheet';
+import { DeleteConfirm } from '@/components/kk/confirm';
+import { rupiah } from '@/components/kk/status';
+import {
+  JENIS,
+  JenisCard,
+  RiwayatRow,
+  TransaksiFormSheet,
+  type JenisId,
+  type RiwayatTx,
+} from '@/components/kk/keuangan-ui';
 
-type TabType = 'pembayaran' | 'refund' | 'fee' | 'belanja';
-
-// Unified type that handles both RecentTransaction and ReportTransaction
-interface UnifiedTx {
-  type: 'PAYMENT' | 'REFUND' | 'FEE' | 'EXPENSE';
-  icon: string;
-  id: string; // for delete (from RecentTransaction.id); ReportTransaction has no per-row ID so we extract from title
-  date: string;
-  title: string;
-  subtitle: string;
-  nominal: number;
-  direction: 'IN' | 'OUT';
-  bookingId: string;
-  catatan: string;
-}
+const HELP = {
+  title: 'Uang',
+  tips: [
+    'Tekan salah satu dari 4 kotak di atas untuk mencatat uang masuk atau keluar. Hijau berarti uang masuk, oranye berarti uang keluar.',
+    'Bagian ringkasan menunjukkan total uang Anda pada periode yang dipilih. Ganti periode dengan tombol Bulan Ini, dll.',
+    'Di "Riwayat Transaksi" Anda bisa melihat catatan terbaru. Tekan tombol tempat sampah untuk menghapus satu catatan.',
+  ],
+};
 
 export default function KeuanganPage() {
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabType>('pembayaran');
-  const [period, setPeriod] = useState<PeriodValue>({ preset: 'all' });
-  const [deletingTxKey, setDeletingTxKey] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const [period, setPeriod] = useState<PeriodValue>({ preset: 'this_month' });
+  const [detailKpi, setDetailKpi] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [formJenis, setFormJenis] = useState<JenisId | null>(null);
+  const [hapusTarget, setHapusTarget] = useState<RiwayatTx | null>(null);
 
-  const { data: initialData } = useQuery({
+  // Dashboard / init data — for all-time money fallback + booking choices.
+  const { data: initialData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['initial-data'],
     queryFn: api.getInitialData,
   });
 
-  // Resolved period for filter
-  const resolvedPeriod = useMemo(() => resolvePeriod(period), [period]);
+  // Period resolution (mirrors Beranda).
+  const resolved = useMemo(() => resolvePeriod(period), [period]);
+  const { data: periodData } = useQuery({
+    queryKey: ['report-data', resolved?.start, resolved?.end],
+    queryFn: () => api.getReportData(resolved!.start, resolved!.end),
+    enabled: !!resolved,
+  });
 
-  // When period is active → use getReportData, else use getRecentTransactions
+  // Recent transactions — used for the riwayat list (delete-able).
   const { data: recentData, isLoading: loadingRecent } = useQuery({
     queryKey: ['recent-transactions', 30],
     queryFn: () => api.getRecentTransactions(30),
-    enabled: !resolvedPeriod,
+    enabled: !resolved,
   });
 
-  const { data: reportData, isLoading: loadingReport } = useQuery({
-    queryKey: ['report-data', resolvedPeriod?.start, resolvedPeriod?.end],
-    queryFn: () => api.getReportData(resolvedPeriod!.start, resolvedPeriod!.end),
-    enabled: !!resolvedPeriod,
-  });
+  const loadingTx = resolved ? !periodData : loadingRecent;
 
-  const loadingTx = resolvedPeriod ? loadingReport : loadingRecent;
-
-  // Unify transactions from either source
-  const transactions: UnifiedTx[] = useMemo(() => {
-    if (resolvedPeriod && reportData) {
-      return reportData.transactions.map((t: ReportTransaction) => {
-        // ReportTransaction doesn't have explicit ID — derive from title
-        // Format examples: "DP 1 · bunga", "Refund · bunga", etc.
-        // We need to look up actual ID from somewhere — for now, can't delete period-filtered without backend exposure
-        return {
-          type: t.type,
-          icon: t.icon,
-          id: '', // unknown — delete disabled for period-filtered
-          date: t.date,
-          title: t.title,
-          subtitle: t.subtitle,
-          nominal: t.nominal,
-          direction: t.direction,
-          bookingId: t.bookingId,
-          catatan: t.catatan,
-        };
-      });
-    }
-    if (!resolvedPeriod && recentData) {
-      return recentData.transactions.map((t: RecentTransaction) => ({
-        type: t.type,
-        icon: t.icon,
-        id: t.id,
-        date: t.date,
-        title: t.title,
-        subtitle: t.subtitle,
-        nominal: t.nominal,
-        direction: t.direction,
-        bookingId: t.bookingId,
-        catatan: t.catatan,
-      }));
-    }
-    return [];
-  }, [resolvedPeriod, reportData, recentData]);
-
-  // Summary
-  const summary = useMemo(() => {
-    if (resolvedPeriod && reportData) {
-      return {
-        totalPayment: reportData.summary.totalIn,
-        totalRefund: reportData.summary.totalRefund,
-        totalFee: reportData.summary.totalFee,
-        totalExpense: reportData.summary.totalExpense,
-        netCash: reportData.summary.netCash,
-      };
-    }
-    return recentData?.summary;
-  }, [resolvedPeriod, reportData, recentData]);
-
-  // Combine all booking lists for dropdown choices
+  // Booking choices for Pembayaran/Refund forms.
   const allBookings = useMemo(() => {
-    if (!initialData) return [];
+    if (!initialData) return [] as BookingItem[];
     const seen = new Set<string>();
     const combined: BookingItem[] = [];
     [
@@ -126,219 +86,209 @@ export default function KeuanganPage() {
     return combined;
   }, [initialData]);
 
-  async function handleDelete(tx: UnifiedTx) {
-    if (!tx.id) {
-      toast.error('Tidak bisa hapus dari mode periode — switch ke "Semua" dulu');
-      return;
+  // Riwayat list from either source (period → report rows have no id → delete disabled).
+  const transactions: RiwayatTx[] = useMemo(() => {
+    if (resolved && periodData) {
+      return periodData.transactions.map((t: ReportTransaction) => ({
+        type: t.type,
+        id: '',
+        title: t.title,
+        subtitle: t.subtitle,
+        nominal: t.nominal,
+        direction: t.direction,
+        date: t.date,
+      }));
     }
-    const label = tx.type === 'PAYMENT' ? 'pembayaran'
-                : tx.type === 'REFUND' ? 'refund'
-                : tx.type === 'FEE' ? 'fee'
-                : 'belanja';
-    const ok = confirm(
-      `Hapus ${label} berikut?\n\n` +
-      `${tx.title}\n` +
-      `${tx.subtitle}\n` +
-      `Nominal: ${formatRupiah(tx.nominal)}\n\n` +
-      `⚠️ Aksi ini tidak bisa di-undo. ` +
-      (tx.bookingId ? `Saldo booking ${tx.bookingId} akan otomatis di-recompute.` : '')
-    );
-    if (!ok) return;
+    if (!resolved && recentData) {
+      return recentData.transactions.map((t: RecentTransaction) => ({
+        type: t.type,
+        id: t.id,
+        title: t.title,
+        subtitle: t.subtitle,
+        nominal: t.nominal,
+        direction: t.direction,
+        date: t.date,
+      }));
+    }
+    return [];
+  }, [resolved, periodData, recentData]);
 
-    const key = `${tx.type}-${tx.id}`;
-    setDeletingTxKey(key);
-    try {
-      const result = await api.submitTransactionDelete({ type: tx.type, id: tx.id });
-      toast.success(result.message || `✓ ${label} dihapus`);
-      // Invalidate queries to refresh
-      queryClient.invalidateQueries({ queryKey: ['recent-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['initial-data'] });
-      queryClient.invalidateQueries({ queryKey: ['report-data'] });
-    } catch (e) {
-      toast.error('Gagal hapus: ' + (e as Error).message);
-    } finally {
-      setDeletingTxKey(null);
-    }
+  // Delete mutation — same api fn + invalidations as the old page.
+  const deleteMutation = useMutation({
+    mutationFn: (tx: RiwayatTx) =>
+      api.submitTransactionDelete({ type: tx.type, id: tx.id }),
+    onSuccess: (result) => {
+      toast.success(result.message || 'Catatan telah dihapus');
+      setHapusTarget(null);
+      qc.invalidateQueries({ queryKey: ['recent-transactions'] });
+      qc.invalidateQueries({ queryKey: ['initial-data'] });
+      qc.invalidateQueries({ queryKey: ['report-data'] });
+    },
+    onError: (e) => toast.error('Gagal hapus: ' + (e as Error).message),
+  });
+
+  useEffect(() => {
+    if (isError) toast.error('Gagal memuat data: ' + (error as Error).message);
+  }, [isError, error]);
+
+  if (isLoading) {
+    return (
+      <div className="py-20 text-center">
+        <div className="w-12 h-12 rounded-full border-4 border-kk-mauve border-t-kk-orange animate-spin mx-auto mb-4" />
+        <div className="text-body text-kk-ink">Memuat data…</div>
+      </div>
+    );
   }
+
+  if (isError || !initialData) {
+    return (
+      <KkCard className="text-center py-12">
+        <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
+          <KkIcon name="info" size={30} />
+        </div>
+        <h2 className="font-heading font-bold text-subhead mb-2">Gagal memuat data</h2>
+        <p className="text-body text-kk-ink mb-5">{(error as Error)?.message || 'Terjadi kesalahan'}</p>
+        <KkButton variant="primary" onClick={() => refetch()}>
+          Coba Lagi
+        </KkButton>
+      </KkCard>
+    );
+  }
+
+  const d = initialData.dashboard;
+
+  // Money summary — identical wiring to Beranda. "Sisa Uang" is all-time cash.
+  const money: MoneyData = resolved && periodData
+    ? {
+        masuk: periodData.summary.totalIn,
+        keluar: periodData.summary.totalOut,
+        sisa: d.netCash,
+        label: periodLabel(period),
+      }
+    : {
+        masuk: d.pendapatanKotor,
+        keluar: d.totalBelanja + d.totalFee + d.totalRefund,
+        sisa: d.netCash,
+        label: periodLabel(period),
+      };
+
+  const breakdown = periodData
+    ? {
+        keluar: [
+          { l: 'Belanja operasional', v: periodData.summary.totalExpense },
+          { l: 'Gaji penjaga', v: periodData.summary.totalFee },
+          { l: 'Refund', v: periodData.summary.totalRefund },
+        ].filter((r) => r.v > 0),
+      }
+    : undefined;
 
   return (
     <>
-      <Topbar />
+      <ScreenHead
+        title="Uang"
+        sub="Catat dan lihat uang masuk dan keluar."
+        onHelp={() => setHelpOpen(true)}
+      />
 
-      <div className="px-6 py-6 max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="mb-5">
-          <Link href="/" className="text-tx3 text-xs hover:text-ac inline-flex items-center gap-1 mb-1">
-            ← Beranda
-          </Link>
-          <h1 className="font-serif text-3xl tracking-tight">Keuangan</h1>
-          <p className="text-tx3 text-sm mt-1">
-            Catat pemasukan, pengeluaran, dan refund · klik 🗑️ untuk hapus
+      {/* ── Catat Transaksi Baru ── */}
+      <h2 className="font-heading font-bold text-subhead text-kk-navy mb-1">Catat Transaksi Baru</h2>
+      <p className="text-body text-kk-ink mt-0 mb-4">
+        Pilih jenis yang sesuai. Hijau berarti uang masuk, oranye berarti uang keluar.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mb-7">
+        {(Object.keys(JENIS) as JenisId[]).map((id) => (
+          <JenisCard key={id} jenis={JENIS[id]} onClick={() => setFormJenis(id)} />
+        ))}
+      </div>
+
+      {/* ── Ringkasan uang (period filter + KPI cards) ── */}
+      <KkPeriodFilter value={period} onChange={setPeriod} />
+      <MoneyKpiGrid data={money} onDetail={setDetailKpi} />
+
+      {/* ── Riwayat Transaksi ── */}
+      <div className="flex items-center justify-between mt-7 mb-3">
+        <h2 className="font-heading font-bold text-subhead text-kk-navy m-0">Riwayat Transaksi</h2>
+        <span className="text-body font-semibold text-kk-ink">
+          {loadingTx ? '…' : `${transactions.length} catatan`}
+        </span>
+      </div>
+
+      {resolved && (
+        <KkCard tone="mint" className="mb-3 flex items-start gap-3 !py-3">
+          <KkIcon name="info" size={22} className="text-kk-navy flex-shrink-0 mt-0.5" />
+          <p className="text-body text-kk-navy m-0 leading-snug">
+            Sedang melihat periode tertentu. Untuk menghapus catatan, pilih &quot;Hari Ini&quot;,
+            &quot;Minggu Ini&quot;, dll. lalu kembali ke daftar terbaru.
           </p>
-        </div>
+        </KkCard>
+      )}
 
-        {/* [B7] Period Filter */}
-        <div className="card mb-4 !p-3">
-          <PeriodFilter value={period} onChange={setPeriod} compact />
-        </div>
-
-        {/* Summary KPI strip */}
-        {summary && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
-            <KpiCard label="💵 Total Pembayaran" value={summary.totalPayment} accent="text-gr" />
-            <KpiCard label="↩️ Total Refund" value={summary.totalRefund} accent="text-rd" />
-            <KpiCard label="🧹 Fee Penjaga" value={summary.totalFee} accent="text-am" />
-            <KpiCard label="🛒 Belanja" value={summary.totalExpense} accent="text-bl" />
-          </div>
+      <div className="space-y-2.5">
+        {loadingTx ? (
+          <KkCard className="text-center text-body text-kk-ink py-8">Memuat…</KkCard>
+        ) : transactions.length === 0 ? (
+          <KkCard className="text-center text-body text-kk-ink py-8">Belum ada transaksi.</KkCard>
+        ) : (
+          transactions.map((tx, idx) => (
+            <RiwayatRow
+              key={`${tx.type}-${tx.id || idx}`}
+              tx={tx}
+              dateLabel={new Date(tx.date).toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'short',
+              })}
+              deleteDisabled={!tx.id}
+              onDelete={() => setHapusTarget(tx)}
+            />
+          ))
         )}
-
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* LEFT: Forms */}
-          <div className="bg-sf border border-bd rounded-md p-5">
-            <div className="flex gap-1 mb-5 border-b border-bd -mx-5 px-5 -mt-5 pt-5 overflow-x-auto">
-              <FormTab label="💵 Pembayaran" active={activeTab === 'pembayaran'} onClick={() => setActiveTab('pembayaran')} />
-              <FormTab label="↩️ Refund" active={activeTab === 'refund'} onClick={() => setActiveTab('refund')} />
-              <FormTab label="🧹 Fee" active={activeTab === 'fee'} onClick={() => setActiveTab('fee')} />
-              <FormTab label="🛒 Belanja" active={activeTab === 'belanja'} onClick={() => setActiveTab('belanja')} />
-            </div>
-
-            {activeTab === 'pembayaran' && <PaymentForm bookings={allBookings} />}
-            {activeTab === 'refund' && <RefundForm bookings={allBookings} />}
-            {activeTab === 'fee' && <FeeForm bookings={allBookings} />}
-            {activeTab === 'belanja' && <ExpenseForm />}
-          </div>
-
-          {/* RIGHT: Recent transactions */}
-          <div>
-            <div className="flex justify-between items-baseline mb-3">
-              <h2 className="font-bold text-sm">
-                {resolvedPeriod ? '📊 Transaksi Periode' : '📜 Transaksi Terbaru'}
-              </h2>
-              <span className="text-tx3 text-[11px] tabular-nums">
-                {loadingTx
-                  ? '...'
-                  : resolvedPeriod
-                  ? `${transactions.length} item`
-                  : recentData
-                  ? `${transactions.length} dari ${recentData.total}`
-                  : '...'}
-              </span>
-            </div>
-
-            {resolvedPeriod && (
-              <div className="bg-blb border border-bl rounded-md p-2 mb-2 text-[10px] text-bl">
-                ℹ️ Mode periode aktif. Delete button disabled — switch ke "Semua" untuk hapus transaksi.
-              </div>
-            )}
-
-            {loadingTx ? (
-              <div className="text-tx3 text-sm text-center py-8 bg-sf border border-bd rounded-md">
-                Loading...
-              </div>
-            ) : transactions.length === 0 ? (
-              <div className="bg-sf2 border border-bd border-dashed rounded-md p-8 text-center text-tx3 text-sm">
-                Belum ada transaksi
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
-                {transactions.map((tx, idx) => (
-                  <TransactionRow
-                    key={`${tx.type}-${tx.id || idx}`}
-                    tx={tx}
-                    onDelete={() => handleDelete(tx)}
-                    isDeleting={deletingTxKey === `${tx.type}-${tx.id}`}
-                    deleteDisabled={!tx.id}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
+
+      {/* ── Modals ── */}
+      {detailKpi && (
+        <MoneyKpiDetail
+          id={detailKpi}
+          data={money}
+          breakdown={breakdown}
+          onClose={() => setDetailKpi(null)}
+        />
+      )}
+
+      <TransaksiFormSheet
+        jenisId={formJenis}
+        bookings={allBookings}
+        onClose={() => setFormJenis(null)}
+      />
+
+      <DeleteConfirm
+        open={!!hapusTarget}
+        title="Hapus catatan ini?"
+        loading={deleteMutation.isPending}
+        message={
+          hapusTarget ? (
+            <>
+              Catatan{' '}
+              <b className="text-kk-navy">
+                {hapusTarget.type === 'PAYMENT'
+                  ? 'Pembayaran'
+                  : hapusTarget.type === 'REFUND'
+                    ? 'Refund'
+                    : hapusTarget.type === 'FEE'
+                      ? 'Fee Penjaga'
+                      : 'Belanja Operasional'}
+              </b>{' '}
+              sebesar <b className="text-kk-navy">{rupiah(hapusTarget.nominal)}</b> akan dihapus.
+              Tenang, catatan lain tidak terpengaruh.
+            </>
+          ) : (
+            ''
+          )
+        }
+        onConfirm={() => hapusTarget && deleteMutation.mutate(hapusTarget)}
+        onCancel={() => setHapusTarget(null)}
+      />
+
+      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
     </>
-  );
-}
-
-// ===========================================
-// Sub-components
-// ===========================================
-
-function KpiCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
-  return (
-    <div className="bg-sf border border-bd rounded-md p-3">
-      <div className="text-tx3 text-[10px] font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className={`font-bold text-sm tabular-nums ${accent || 'text-tx'}`}>{formatRupiah(value)}</div>
-    </div>
-  );
-}
-
-function FormTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={
-        active
-          ? 'px-3 py-2 text-xs font-semibold border-b-2 border-ac text-tx -mb-px whitespace-nowrap'
-          : 'px-3 py-2 text-xs font-medium text-tx3 hover:text-tx whitespace-nowrap'
-      }
-    >
-      {label}
-    </button>
-  );
-}
-
-function TransactionRow({
-  tx,
-  onDelete,
-  isDeleting,
-  deleteDisabled,
-}: {
-  tx: UnifiedTx;
-  onDelete: () => void;
-  isDeleting: boolean;
-  deleteDisabled: boolean;
-}) {
-  const isIn = tx.direction === 'IN';
-
-  return (
-    <div className="bg-sf border border-bd rounded-md p-2.5 hover:bg-sf2 transition-colors group">
-      <div className="flex justify-between items-start gap-2">
-        <div className="flex gap-2 flex-1 min-w-0">
-          <div className="text-base flex-shrink-0">{tx.icon}</div>
-          <div className="min-w-0 flex-1">
-            <div className="font-semibold text-xs truncate">{tx.title}</div>
-            <div className="text-tx3 text-[10px] truncate mt-0.5">{tx.subtitle}</div>
-            <div className="text-tx3 text-[10px] mt-0.5">{formatDate(tx.date)}</div>
-            {tx.catatan && (
-              <div className="text-tx3 text-[10px] italic mt-0.5 truncate">&quot;{tx.catatan}&quot;</div>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <div className={`font-bold text-xs tabular-nums whitespace-nowrap ${isIn ? 'text-gr' : 'text-rd'}`}>
-            {isIn ? '+' : '-'}
-            {formatRupiah(tx.nominal)}
-          </div>
-          <button
-            onClick={onDelete}
-            disabled={isDeleting || deleteDisabled}
-            className={
-              deleteDisabled
-                ? 'opacity-30 cursor-not-allowed p-1 text-[10px]'
-                : 'opacity-0 group-hover:opacity-100 hover:bg-rd/10 hover:text-rd p-1 rounded transition-all text-[10px]'
-            }
-            title={
-              deleteDisabled
-                ? 'Switch ke "Semua" untuk hapus'
-                : isDeleting
-                ? 'Menghapus...'
-                : 'Hapus transaksi ini'
-            }
-          >
-            {isDeleting ? '⏳' : '🗑️'}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

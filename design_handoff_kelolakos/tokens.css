@@ -1,0 +1,53 @@
+/* ============================================================
+   KelolaKos · Design Tokens (CSS custom properties)
+   Drop into your global stylesheet (e.g. app/globals.css :root).
+   These are the EXACT values used in the approved design.
+   ============================================================ */
+:root {
+  /* ---- Core palette ---- */
+  --kk-white:        #FFFFFF;  /* main background */
+  --kk-navy:         #0C2C47;  /* ALL text, headings, icons, active nav */
+  --kk-green:        #2E5749;  /* income, success, status "Lunas" */
+  --kk-orange:       #BF512C;  /* PRIMARY action buttons, "Belum Bayar", expense */
+  --kk-yellow:       #DA9B2B;  /* status "DP" (navy text on top) */
+  --kk-mauve:        #D6C9C5;  /* borders/dividers, status "Batal" — bg only */
+  --kk-mint:         #ABCBCA;  /* highlight bg, info badge — bg only */
+
+  /* ---- Derived ---- */
+  --kk-ink-soft:     #3B5063;  /* the ONLY gray — secondary text, 8.35:1 on white (AAA) */
+  --kk-paper:        #FAF8F7;  /* warm page background */
+  --kk-mauve-soft:   #EFE9E7;  /* soft section bg, icon tiles */
+  --kk-mint-soft:    #E4EFEE;  /* friendly card/banner bg, help "?" button */
+  --kk-orange-soft:  #FBEFE9;  /* "perlu perhatian" / expense soft bg */
+
+  /* ---- Button drop-shadows (the "pressable" look) ---- */
+  --kk-orange-shadow: #8F3C20;
+  --kk-green-shadow:  #1F3D32;
+
+  /* ---- Typography ---- */
+  --kk-font-heading: 'Lato', system-ui, sans-serif;     /* weights 700 / 900 */
+  --kk-font-body:    'Josefin Sans', system-ui, sans-serif; /* weights 400–600 */
+
+  /* Font sizes — NEVER put important text below 16px; body 18–19px */
+  --kk-fs-hero:     46px; /* Lato 900 */
+  --kk-fs-page:     32px; /* Lato 900 — page titles */
+  --kk-fs-subhead:  23px; /* Lato 700 */
+  --kk-fs-number:   34px; /* Lato 900 — big amounts (use 28–36) */
+  --kk-fs-body:     19px; /* Josefin 500 */
+  --kk-fs-button:   19px; /* Josefin 600 */
+  --kk-fs-caption:  16px; /* Josefin 500 — smallest allowed */
+
+  /* ---- Spacing scale (multiples of 4) ---- */
+  --kk-sp-1: 4px;  --kk-sp-2: 8px;  --kk-sp-3: 12px; --kk-sp-4: 16px;
+  --kk-sp-6: 24px; --kk-sp-8: 32px; --kk-sp-12: 48px; --kk-sp-16: 64px;
+
+  /* ---- Radius ---- */
+  --kk-r-card:   18px;
+  --kk-r-button: 14px;
+  --kk-r-pill:   12px;   /* filters/tabs */
+  --kk-r-badge:  999px;  /* status badges */
+
+  /* ---- Touch targets ---- */
+  --kk-touch-min:   48px; /* never smaller for interactive elements */
+  --kk-button-min:  56px; /* primary buttons (large = 64px) */
+}
