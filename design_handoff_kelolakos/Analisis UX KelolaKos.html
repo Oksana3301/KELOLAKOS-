@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KelolaKos · Analisis UX & Navigasi Baru</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Josefin+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --white:#FFFFFF; --navy:#0C2C47; --green:#2E5749; --orange:#BF512C;
+    --yellow:#DA9B2B; --mauve:#D6C9C5; --mint:#ABCBCA;
+    --paper:#FAF8F7; --mauve-soft:#EFE9E7; --mint-soft:#E4EFEE; --orange-soft:#FBEFE9; --ink-soft:#3B5063;
+    --heading:'Lato', system-ui, sans-serif; --body:'Josefin Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--navy);font-family:var(--body);font-weight:500;font-size:19px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,h4{font-family:var(--heading);font-weight:700;color:var(--navy);margin:0;line-height:1.1;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 28px;}
+  strong{color:var(--navy);font-weight:600;}
+
+  /* Masthead */
+  .masthead{background:var(--navy);color:#fff;padding:60px 0 52px;}
+  .masthead .kicker{font-weight:600;font-size:16px;letter-spacing:.18em;text-transform:uppercase;color:var(--mint);}
+  .masthead h1{color:#fff;font-size:44px;font-weight:900;margin:14px 0 0;letter-spacing:-.01em;}
+  .masthead p{font-size:21px;color:#D6E2EC;max-width:720px;margin:14px 0 0;}
+
+  section{padding:56px 0;border-bottom:2px solid var(--mauve-soft);}
+  .sec-num{font-family:var(--heading);font-weight:900;font-size:17px;color:var(--orange);letter-spacing:.12em;}
+  .sec-title{font-size:32px;margin:8px 0 10px;}
+  .sec-lead{font-size:20px;color:var(--ink-soft);max-width:760px;margin:0 0 32px;}
+
+  /* Persona */
+  .persona{display:flex;gap:22px;align-items:center;background:var(--mint-soft);border:2px solid var(--mint);border-radius:18px;padding:24px;}
+  .persona .ava{width:72px;height:72px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:30px;flex-shrink:0;}
+  .persona h3{font-size:22px;}
+  .persona p{margin:6px 0 0;font-size:18px;color:var(--ink-soft);}
+
+  /* Finding blocks */
+  .finding{background:#fff;border:2px solid var(--mauve);border-radius:18px;padding:26px;margin-bottom:20px;}
+  .finding .q{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+  .finding .qn{width:46px;height:46px;border-radius:12px;background:var(--navy);color:#fff;display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:22px;flex-shrink:0;}
+  .finding .q h3{font-size:23px;}
+  .issue{display:flex;gap:14px;padding:14px 0;border-top:1px solid var(--mauve-soft);}
+  .issue:first-of-type{border-top:none;}
+  .issue .x{width:28px;height:28px;border-radius:8px;background:var(--orange-soft);color:var(--orange);display:grid;place-items:center;font-family:var(--heading);font-weight:900;font-size:17px;flex-shrink:0;margin-top:2px;}
+  .issue .body b{font-family:var(--heading);font-weight:700;font-size:19px;display:block;margin-bottom:3px;}
+  .issue .body span{font-size:18px;color:var(--ink-soft);}
+  .evi{display:inline-block;font-family:'Lato';font-weight:700;font-size:13px;letter-spacing:.03em;color:var(--ink-soft);background:var(--mauve-soft);border-radius:6px;padding:3px 9px;margin-top:7px;}
+
+  /* Priority table */
+  .ptable{width:100%;border-collapse:separate;border-spacing:0;border:2px solid var(--mauve);border-radius:18px;overflow:hidden;background:#fff;}
+  .ptable th,.ptable td{text-align:left;padding:16px 18px;border-bottom:1px solid var(--mauve-soft);vertical-align:top;}
+  .ptable thead th{background:var(--mauve-soft);font-family:var(--heading);font-weight:700;font-size:16px;}
+  .ptable tbody tr:last-child td{border-bottom:none;}
+  .ptable .prob{font-family:var(--heading);font-weight:700;font-size:18px;}
+  .ptable .fix{font-size:17px;color:var(--ink-soft);}
+  .tag{display:inline-block;font-family:var(--heading);font-weight:700;font-size:14px;padding:5px 12px;border-radius:999px;white-space:nowrap;}
+  .p0{background:var(--orange);color:#fff;}
+  .p1{background:var(--yellow);color:var(--navy);}
+  .p2{background:var(--mint);color:var(--navy);}
+
+  /* Nav comparison */
+  .nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  .nav-card{border-radius:18px;padding:24px;border:2px solid;}
+  .nav-card.before{background:var(--orange-soft);border-color:#E7BCAD;}
+  .nav-card.after{background:var(--mint-soft);border-color:var(--mint);}
+  .nav-card h4{font-size:20px;display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .nav-card .lab{font-family:'Lato';font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;}
+  .nav-list{list-style:none;margin:0;padding:0;}
+  .nav-list li{font-size:18px;padding:9px 0;border-bottom:1px solid rgba(12,44,71,.08);display:flex;gap:10px;align-items:flex-start;}
+  .nav-list li:last-child{border-bottom:none;}
+
+  /* New nav diagram */
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;background:#fff;border:2px solid var(--mauve);border-radius:18px;padding:20px;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;}
+  .tab .ic{width:56px;height:56px;border-radius:16px;background:var(--mint-soft);display:grid;place-items:center;color:var(--navy);}
+  .tab .ic.pri{background:var(--orange);color:#fff;}
+  .tab b{font-family:var(--heading);font-weight:700;font-size:17px;}
+  .tab span{font-size:14px;color:var(--ink-soft);line-height:1.3;}
+
+  .group{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px;}
+  .gitem{background:#fff;border:2px solid var(--mauve);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;}
+  .gitem .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;}
+  .gitem b{font-family:var(--heading);font-weight:700;font-size:17px;}
+  .gitem span{font-size:14px;color:var(--ink-soft);}
+
+  .principle{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .pr{background:#fff;border:2px solid var(--mauve);border-radius:14px;padding:18px 20px;font-size:18px;}
+  .pr b{font-family:var(--heading);font-weight:700;display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:18px;}
+  .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+
+  .cta{background:var(--navy);color:#fff;border-radius:18px;padding:28px 30px;display:flex;gap:20px;align-items:center;}
+  .cta h3{color:#fff;font-size:22px;}
+  .cta p{margin:6px 0 0;font-size:18px;color:#D6E2EC;}
+  .cta .chk{width:54px;height:54px;border-radius:14px;background:var(--green);display:grid;place-items:center;flex-shrink:0;}
+
+  .footer{padding:40px 0 70px;color:var(--ink-soft);font-size:16px;}
+  svg{display:block;}
+  @media(max-width:760px){
+    .nav-grid,.principle{grid-template-columns:1fr;}
+    .group{grid-template-columns:1fr 1fr;}
+    .tabbar{grid-template-columns:repeat(5,1fr);padding:14px 8px;gap:4px;}
+    .tab .ic{width:44px;height:44px;}
+    .ptable{font-size:15px;}
+  }
+</style>
+</head>
+<body>
+
+  <header class="masthead">
+    <div class="wrap">
+      <div class="kicker">Analisis UX · Sudut Pandang Pengguna Lanjut Usia</div>
+      <h1>Kenapa KelolaKos Terasa Rumit — & Cara Menyederhanakannya</h1>
+      <p>Tinjauan aplikasi KelolaKos saat ini melalui mata pemilik & penjaga kos berusia 55+ yang bukan orang teknis: di mana mereka tersesat, kewalahan, dan ragu — lalu usulan struktur navigasi baru berdasarkan Panduan Desain yang sudah kita buat.</p>
+    </div>
+  </header>
+
+  <!-- PERSONA -->
+  <section>
+    <div class="wrap">
+      <div class="sec-num">00 — TITIK PANDANG</div>
+      <h2 class="sec-title">Siapa yang Kita Bela</h2>
+      <p class="sec-lead">Semua temuan dinilai dari kacamata satu orang ini. Jika sebuah layar tidak masuk akal untuknya, layar itu gagal.</p>
+      <div class="persona">
+        <div class="ava">E</div>
+        <div>
+          <h3>Bu Endang, 58 tahun · Pemilik kos 12 kamar</h3>
+          <p>Lancar pakai WhatsApp, tapi gugup dengan aplikasi yang "ramai". Penglihatan mulai berkurang, sering pakai HP sambil berdiri. Takut salah pencet dan menghapus data. Ingin tahu dengan cepat: <strong>siapa yang belum bayar</strong> dan <strong>berapa uang masuk bulan ini</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIAGNOSA -->
+  <section>
+    <div class="wrap">
+      <div class="sec-num">01 — DIAGNOSA</div>
+      <h2 class="sec-title">Empat Pertanyaan, Temuannya</h2>
+      <p class="sec-lead">Masalah dikelompokkan sesuai empat pertanyaan kunci. Setiap temuan menyertakan bukti dari aplikasi saat ini.</p>
+
+      <!-- Q1 -->
+      <div class="finding">
+        <div class="q"><div class="qn">1</div><h3>Di mana journey terlalu panjang / berbelit?</h3></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Tambah penyewa = satu formulir raksasa</b><span>Form booking dibuka sebagai modal berisi 5 bagian sekaligus (data tamu, kamar, harga, fasilitas dengan kotak centang, permintaan khusus, tag ekstra) plus hitung-ulang total otomatis. Bu Endang harus mengisi belasan kolom sebelum bisa menyimpan.</span><span class="evi">Bukti · booking-form-modal: 5 progressive sections, ~23&nbsp;KB</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Mengubah data butuh 2 pintu berbeda</b><span>Untuk edit, ia harus buka <strong>drawer detail</strong> dulu, tekan "Edit", baru muncul <strong>modal form</strong>. Dua lapisan jendela untuk satu niat sederhana: "ganti nama".</span><span class="evi">Bukti · drawer → "Edit" → form modal</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Menyaring sebelum melihat</b><span>Di Beranda & Booking ada "Period Filter" (kartu tersendiri) yang harus dipahami sebelum angka terasa relevan. Untuk lansia ini langkah ekstra yang membingungkan, bukan membantu.</span><span class="evi">Bukti · PeriodFilter di Beranda & Booking</span></div></div>
+      </div>
+
+      <!-- Q2 -->
+      <div class="finding">
+        <div class="q"><div class="qn">2</div><h3>Elemen mana yang terlalu kecil, padat, atau membingungkan?</h3></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Teks jauh di bawah batas aman</b><span>Label KPI, baris "Perlu Tindakan", dan detail finansial memakai ukuran 10–13px. Batas nyaman lansia adalah 18px. Teks abu-abu muda (tx3) di atas putih makin sulit terbaca.</span><span class="evi">Bukti · text-[10px], text-[11px], text-xs, warna tx3</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Beranda penuh sesak angka</b><span>Satu layar menampung 4 kartu KPI + filter periode + 3 kelompok "Perlu Tindakan" + 3 kartu status + 3 kolom rincian (belasan baris angka). Terlalu banyak untuk dicerna sekaligus — ini "data slop".</span><span class="evi">Bukti · Beranda: 4 KPI + 12 baris rincian dalam 1 layar</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Dua badge status per baris booking</b><span>Tiap penyewa menampilkan <strong>Status_Booking</strong> dan <strong>Status_Bayar</strong> sekaligus (mis. "AKTIF_LUNAS" + "DP/PARSIAL"). Dua label teknis berdampingan membuat bingung mana yang penting.</span><span class="evi">Bukti · BookingRow: 2 badge + istilah kode</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Tombol & menu mungil</b><span>Tab navigasi atas (6 menu) dan tombol ikon berukuran ~28–32px tinggi, di bawah target sentuh aman 48px. Mudah salah pencet.</span><span class="evi">Bukti · nav tabs py-1.5, icon button p-1.5</span></div></div>
+      </div>
+
+      <!-- Q3 -->
+      <div class="finding">
+        <div class="q"><div class="qn">3</div><h3>Di mana CRUD (tambah / ubah / hapus) tidak jelas?</h3></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>"Tambah" tersembunyi di pojok</b><span>Aksi terpenting (buat booking) muncul sebagai tombol kecil di kanan-atas, bersaing dengan ikon sinkron & logout. Tidak ada satu tombol besar yang jelas berkata "mulai di sini".</span><span class="evi">Bukti · tombol "+ Booking" kecil di Topbar</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Hapus & refund terasa menakutkan</b><span>Pembatalan/refund punya modal sendiri yang rumit, tanpa bahasa menenangkan. Lansia takut menekan apa pun yang terlihat "permanen".</span><span class="evi">Bukti · cancel-refund-modal (~16&nbsp;KB)</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Catat pembayaran tidak ada di tempat yang dilihat</b><span>Saat melihat "siapa belum bayar", tidak ada tombol langsung "Tagih / Tandai Lunas" di baris itu. Aksi terpisah dari informasi.</span><span class="evi">Bukti · ActionRow tanpa tombol aksi</span></div></div>
+      </div>
+
+      <!-- Q4 -->
+      <div class="finding">
+        <div class="q"><div class="qn">4</div><h3>Di mana user mungkin "tersesat"?</h3></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>8 fungsi, tapi 2 tersembunyi</b><span>Kwitansi & Layout Properti tidak punya menu sendiri — mereka "nyangkut" di balik tab Setting. Bu Endang tak akan menemukannya tanpa diberi tahu.</span><span class="evi">Bukti · nav match: /setting cocok juga /kwitansi & /layout3d</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Istilah teknis & bahasa campur</b><span>Status berupa kode (READY, AKTIF_DP, LEWAT_CHECKOUT, DP HANGUS) bercampur slang ("lo", "gak") dan Inggris ("Submit"). Tidak ada satu suara yang menenangkan.</span><span class="evi">Bukti · status codes + teks "lo/gak", "Submit"</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Tidak ada bantuan di layar</b><span>Saat bingung, tak ada tombol "?" atau penjelasan singkat. Satu-satunya jalan keluar adalah menelepon orang lain.</span><span class="evi">Bukti · tidak ada elemen bantuan kontekstual</span></div></div>
+        <div class="issue"><div class="x">!</div><div class="body"><b>Layar kosong yang membingungkan</b><span>Menu Keuangan & Layout sebagian masih placeholder; user mengira aplikasinya rusak.</span><span class="evi">Bukti · README: Keuangan/Layout "(placeholder)"</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRIORITAS -->
+  <section>
+    <div class="wrap">
+      <div class="sec-num">02 — PRIORITAS</div>
+      <h2 class="sec-title">Daftar Masalah UX Berdasarkan Prioritas</h2>
+      <p class="sec-lead">Diurutkan dari yang paling menghalangi Bu Endang menyelesaikan tugas. <span class="tag p0">P0 Kritis</span> &nbsp;<span class="tag p1">P1 Penting</span> &nbsp;<span class="tag p2">P2 Sebaiknya</span></p>
+
+      <table class="ptable">
+        <thead><tr><th style="width:90px">Level</th><th>Masalah</th><th>Usulan Perbaikan</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag p0">P0</span></td><td class="prob">Teks 10–13px & kontras lemah</td><td class="fix">Naikkan teks isi ke ≥18px, judul jauh lebih besar; teks selalu Navy di atas putih/mint.</td></tr>
+          <tr><td><span class="tag p0">P0</span></td><td class="prob">Beranda kelebihan informasi</td><td class="fix">Sisakan yang penting saja: 1 sapaan, 2 angka inti, daftar "Perlu Ditagih" dengan tombol aksi. Sembunyikan rincian di halaman terkait.</td></tr>
+          <tr><td><span class="tag p0">P0</span></td><td class="prob">Tambah penyewa = form raksasa</td><td class="fix">Pecah jadi 3 langkah pendek (nama → kamar → status bayar). Fasilitas & ekstra jadi opsional di akhir.</td></tr>
+          <tr><td><span class="tag p0">P0</span></td><td class="prob">Aksi utama tersembunyi</td><td class="fix">Satu tombol Oranye besar "Tambah Penyewa" di posisi paling menonjol tiap layar terkait.</td></tr>
+          <tr><td><span class="tag p1">P1</span></td><td class="prob">Dua badge status teknis per baris</td><td class="fix">Satu badge berbahasa biasa: Lunas / DP / Belum Bayar. Kode internal disembunyikan.</td></tr>
+          <tr><td><span class="tag p1">P1</span></td><td class="prob">Edit butuh 2 jendela; hapus menakutkan</td><td class="fix">Satu lembar detail dengan tombol Ubah & Hapus jelas; konfirmasi hapus berbahasa menenangkan.</td></tr>
+          <tr><td><span class="tag p1">P1</span></td><td class="prob">Kwitansi & Layout tersembunyi</td><td class="fix">Beri tempat tetap di menu "Lainnya" yang mudah ditemukan.</td></tr>
+          <tr><td><span class="tag p1">P1</span></td><td class="prob">Tidak ada bantuan di layar</td><td class="fix">Tombol "?" di tiap layar membuka panduan singkat 3 langkah + opsi chat WhatsApp.</td></tr>
+          <tr><td><span class="tag p2">P2</span></td><td class="prob">Bahasa campur (slang + Inggris + kode)</td><td class="fix">Satu suara: Bahasa Indonesia sopan & sederhana di seluruh aplikasi.</td></tr>
+          <tr><td><span class="tag p2">P2</span></td><td class="prob">Filter periode tampil lebih dulu</td><td class="fix">Default "bulan ini"; filter disembunyikan di balik satu tombol opsional.</td></tr>
+          <tr><td><span class="tag p2">P2</span></td><td class="prob">Target sentuh kecil</td><td class="fix">Semua tombol & menu minimal 48–56px tinggi.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- NAV BARU -->
+  <section>
+    <div class="wrap">
+      <div class="sec-num">03 — USULAN</div>
+      <h2 class="sec-title">Struktur Navigasi Baru yang Lebih Sederhana</h2>
+      <p class="sec-lead">Dari 6 tab atas yang mungil menjadi <strong>5 tombol besar di bawah</strong> (mudah dijangkau jempol), dengan tugas — bukan data — sebagai titik awal.</p>
+
+      <div class="nav-grid" style="margin-bottom:36px;">
+        <div class="nav-card before">
+          <div class="lab" style="color:var(--orange)">Sekarang</div>
+          <h4>6 tab kecil di atas + 2 menu tersembunyi</h4>
+          <ul class="nav-list">
+            <li>Beranda · Kamar · Booking · Keuangan · Laporan · Setting</li>
+            <li>Kwitansi & Layout "nyangkut" di balik Setting</li>
+            <li>Teks 13px, bersaing dengan ikon sinkron & logout</li>
+            <li>Letak di atas — sulit dijangkau di HP besar</li>
+          </ul>
+        </div>
+        <div class="nav-card after">
+          <div class="lab" style="color:var(--green)">Usulan</div>
+          <h4>5 tombol besar di bawah, semua fungsi punya rumah jelas</h4>
+          <ul class="nav-list">
+            <li>4 menu inti yang sering dipakai + 1 pintu "Lainnya"</li>
+            <li>Ikon garis + label, tinggi area sentuh besar</li>
+            <li>Setiap fungsi punya tempat tetap & mudah dicari</li>
+            <li>Letak di bawah — pas untuk jempol</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 style="font-size:22px;margin-bottom:14px;">Menu utama (selalu terlihat)</h3>
+      <div class="tabbar">
+        <div class="tab"><div class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg></div><b>Beranda</b><span>Ringkasan & tugas hari ini</span></div>
+        <div class="tab"><div class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></div><b>Booking</b><span>Daftar penyewa</span></div>
+        <div class="tab"><div class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M3 18h18M6 10V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3"/></svg></div><b>Kamar</b><span>Kondisi tiap kamar</span></div>
+        <div class="tab"><div class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg></div><b>Uang</b><span>Masuk & keluar</span></div>
+        <div class="tab"><div class="ic pri"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><path d="M10 6h10M10 12h10M10 18h10"/></svg></div><b>Lainnya</b><span>Menu selengkapnya</span></div>
+      </div>
+
+      <h3 style="font-size:22px;margin:30px 0 14px;">Di balik "Lainnya" (jarang dipakai, tapi mudah ditemukan)</h3>
+      <div class="group">
+        <div class="gitem"><div class="ic" style="background:var(--mint-soft)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2E5749" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="13" width="4.5" height="7" rx="1.2"/><rect x="9.7" y="8" width="4.5" height="12" rx="1.2"/><rect x="16.5" y="4" width="4.5" height="16" rx="1.2"/></svg></div><b>Laporan</b><span>Ringkasan bulanan</span></div>
+        <div class="gitem"><div class="ic" style="background:var(--orange-soft)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#BF512C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-2.5-1.7L13 21l-2.5-1.7L8 21l-2-1.7L6 3z"/><path d="M9.5 8.5h5M9.5 12.5h5"/></svg></div><b>Kwitansi</b><span>Bukti pembayaran</span></div>
+        <div class="gitem"><div class="ic" style="background:var(--mauve-soft)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9.5h18M9.5 9.5V21"/></svg></div><b>Layout Properti</b><span>Peta kamar</span></div>
+        <div class="gitem"><div class="ic" style="background:var(--mint-soft)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0C2C47" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="8" cy="17" r="2.1"/></svg></div><b>Pengaturan</b><span>Properti & akun</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRINSIP -->
+  <section>
+    <div class="wrap">
+      <div class="sec-num">04 — ATURAN MAIN</div>
+      <h2 class="sec-title">Prinsip yang Mengikat Navigasi Baru</h2>
+      <p class="sec-lead">Empat aturan turunan dari Panduan Desain yang membuat struktur ini tetap sederhana.</p>
+      <div class="principle">
+        <div class="pr"><b><span class="dot" style="background:var(--orange)"></span>Tugas dulu, bukan data dulu</b>Beranda membuka dengan "apa yang perlu dilakukan", bukan deretan angka. Satu tombol utama paling menonjol.</div>
+        <div class="pr"><b><span class="dot" style="background:var(--green)"></span>Satu pola untuk semua data</b>Setiap daftar → buka lembar detail → tombol Ubah / Hapus / aksi utama. "Tambah" selalu tombol Oranye besar di atas.</div>
+        <div class="pr"><b><span class="dot" style="background:var(--yellow)"></span>Tiga status, bahasa biasa</b>Lunas · DP · Belum Bayar untuk uang; Terisi · Tersedia · Perlu Perhatian untuk kamar. Tidak ada kode teknis.</div>
+        <div class="pr"><b><span class="dot" style="background:var(--navy)"></span>Bantuan tak pernah jauh</b>Tombol "?" di setiap layar; konfirmasi hapus yang menenangkan; jalur chat WhatsApp selalu tersedia.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section style="border-bottom:none;">
+    <div class="wrap">
+      <div class="cta">
+        <div class="chk"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div>
+          <h3>Sudah diterapkan di prototipe</h3>
+          <p>Struktur 5-menu, alur tambah 3 langkah, satu badge status, lembar detail dengan Ubah/Hapus, tombol bantuan, dan konfirmasi menenangkan semuanya sudah hidup di <strong style="color:#fff">KelolaKos Prototype.html</strong>. Dokumen ini menjelaskan alasan di baliknya.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    <div class="wrap">KelolaKos · Analisis UX & Usulan Navigasi — disusun dari kode aplikasi saat ini, dinilai dengan Panduan Desain ramah lansia.</div>
+  </div>
+
+</body>
+</html>
