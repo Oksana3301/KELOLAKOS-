@@ -4,10 +4,10 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type BookingItem } from '@/lib/api';
 import { toast } from 'sonner';
-import { ScreenHead, KkButton, KkCard, InfoRow, BayarBadge } from '@/components/kk/ui';
+import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { rupiah, tglPanjang, mapPayStatus } from '@/components/kk/status';
+import { rupiah, tglPanjang, mapPayStatus, type PayStatus } from '@/components/kk/status';
 import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 
 const HELP = {
@@ -65,6 +65,8 @@ export default function KwitansiPage() {
     if (!previewRef.current) return;
     const toastId = toast.loading('Menyiapkan kwitansi…');
     try {
+      // Make sure the custom fonts are ready so the capture isn't rendered with a fallback.
+      if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
       const result = await copyAsPNGToClipboard({
         element: previewRef.current,
         scale: 2,
@@ -84,6 +86,7 @@ export default function KwitansiPage() {
     if (!previewRef.current) return;
     const toastId = toast.loading('Menyiapkan berkas…');
     try {
+      if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
       const name = selected?.Nama_Customer || 'penyewa';
       const filename = `kwitansi-${name.replace(/\s+/g, '_')}-${Date.now()}`;
       await downloadAsPNG({
@@ -144,51 +147,53 @@ export default function KwitansiPage() {
       {selected && (
         <>
           <StepHeading n={2} title="Periksa kwitansi" className="mt-7" />
-          <div ref={previewRef}>
-            <KkCard className="bg-white">
-              {/* Header: logo + name + status badge */}
-              <div className="flex justify-between items-center gap-3 border-b-2 border-dashed border-kk-mauve pb-4 mb-1.5">
+          {/* Export target — styling tuned to render tidily via html2canvas
+              (fixed width, centered, no baseline-dependent alignment). */}
+          <div ref={previewRef} className="bg-white">
+            <div className="mx-auto w-full max-w-[480px] bg-white border-2 border-kk-mauve rounded-kk-card p-6">
+              {/* Header: logo + name + status chip */}
+              <div className="flex justify-between items-center gap-3 border-b-2 border-dashed border-kk-mauve pb-4 mb-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-[10px] bg-kk-orange text-white grid place-items-center font-heading font-black text-[22px] flex-shrink-0">
+                  <div className="w-10 h-10 rounded-[10px] bg-kk-orange text-white grid place-items-center font-heading font-black text-[22px] flex-shrink-0 leading-none">
                     K
                   </div>
-                  <div className="font-heading font-black text-[20px] text-kk-navy">KelolaKos</div>
+                  <div className="font-heading font-black text-[20px] text-kk-navy leading-none">KelolaKos</div>
                 </div>
-                <BayarBadge status={mapPayStatus(selected)} />
+                <ReceiptStatus status={mapPayStatus(selected)} />
               </div>
 
-              <InfoRow label="Nama penyewa" value={selected.Nama_Customer || '-'} />
-              <InfoRow label="Kamar" value={selected.Nama_Kamar || '-'} />
-              <InfoRow
+              <ReceiptRow label="Nama penyewa" value={selected.Nama_Customer || '-'} />
+              <ReceiptRow label="Kamar" value={selected.Nama_Kamar || '-'} />
+              <ReceiptRow
                 label="Periode sewa"
                 value={`${tglPanjang(selected.CheckIn)} – ${tglPanjang(selected.CheckOut)}`}
               />
-              <InfoRow label="Total sewa" value={rupiah(total)} />
-              <InfoRow label="Sudah dibayar" value={rupiah(dibayar)} accent="green" />
-              {sisa > 0 && <InfoRow label="Sisa tagihan" value={rupiah(sisa)} accent="orange" />}
+              <ReceiptRow label="Total sewa" value={rupiah(total)} />
+              <ReceiptRow label="Sudah dibayar" value={rupiah(dibayar)} valueClass="text-kk-green" />
+              {sisa > 0 && (
+                <ReceiptRow label="Sisa tagihan" value={rupiah(sisa)} valueClass="text-kk-orange" />
+              )}
 
               {/* Emphasized total box */}
               <div
                 className={
                   'rounded-[14px] border-2 px-[18px] py-3.5 mt-4 flex justify-between items-center gap-3 ' +
-                  (sisa > 0
-                    ? 'bg-kk-orange-soft border-[#E7BCAD]'
-                    : 'bg-kk-mint-soft border-kk-mint')
+                  (sisa > 0 ? 'bg-kk-orange-soft border-[#E7BCAD]' : 'bg-kk-mint-soft border-kk-mint')
                 }
               >
-                <span className="font-heading font-bold text-[18px] text-kk-navy">
+                <span className="font-heading font-bold text-[17px] text-kk-navy leading-tight">
                   {sisa > 0 ? 'Masih harus dibayar' : 'Lunas — tidak ada sisa'}
                 </span>
                 <span
                   className={
-                    'font-heading font-black text-[22px] whitespace-nowrap ' +
+                    'font-heading font-black text-[22px] whitespace-nowrap leading-none ' +
                     (sisa > 0 ? 'text-kk-orange' : 'text-kk-green')
                   }
                 >
                   {rupiah(sisa > 0 ? sisa : total)}
                 </span>
               </div>
-            </KkCard>
+            </div>
           </div>
 
           {/* 3. Kirim ke penyewa */}
@@ -217,5 +222,37 @@ function StepHeading({ n, title, className }: { n: number; title: string; classN
       </span>
       <h2 className="font-heading font-bold text-subhead text-kk-navy m-0">{title}</h2>
     </div>
+  );
+}
+
+// Export-safe receipt row: items-center (not baseline) so html2canvas keeps it tidy.
+function ReceiptRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex justify-between items-center gap-3 py-2.5 border-b border-kk-mauve-soft">
+      <span className="text-[17px] text-kk-ink leading-tight">{label}</span>
+      <span className={'font-heading font-bold text-[18px] text-right leading-tight text-kk-navy ' + (valueClass || '')}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// Export-safe status chip: inline-flex centered, solid fill, no fragile baseline.
+function ReceiptStatus({ status }: { status: PayStatus }) {
+  const map: Record<PayStatus, string> = {
+    Lunas: 'bg-kk-green text-white',
+    'Belum Bayar': 'bg-kk-orange text-white',
+    DP: 'bg-kk-yellow text-kk-navy',
+    Batal: 'bg-kk-mauve text-kk-navy',
+  };
+  return (
+    <span
+      className={
+        'inline-flex items-center justify-center rounded-full font-body font-semibold text-[15px] px-3.5 py-1.5 leading-none whitespace-nowrap ' +
+        map[status]
+      }
+    >
+      {status}
+    </span>
   );
 }

@@ -6,9 +6,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, type BookingItem } from '@/lib/api';
+import { api, type BookingItem, type BuktiFile } from '@/lib/api';
 import { rupiah } from './status';
 import { Sheet, SheetHead, KkButton } from './ui';
+import { FileUpload } from './file-upload';
 import { KkIcon, type KkIconName } from './icons';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -225,6 +226,7 @@ export function TransaksiFormSheet({
   const [jumlah, setJumlah] = useState('');
   const [tgl, setTgl] = useState(TODAY());
   const [bookingId, setBookingId] = useState('');
+  const [bukti, setBukti] = useState<BuktiFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -233,6 +235,7 @@ export function TransaksiFormSheet({
       setJumlah('');
       setTgl(TODAY());
       setBookingId('');
+      setBukti([]);
       setSubmitting(false);
     }
   }, [jenisId]);
@@ -262,6 +265,7 @@ export function TransaksiFormSheet({
           metode: 'CASH',
           diterimaOleh: nama.trim(),
           tanggalBayar: tgl,
+          buktiFiles: bukti,
         });
       } else if (jenisId === 'refund') {
         await api.submitRefund({
@@ -272,6 +276,7 @@ export function TransaksiFormSheet({
           dikembalikanOleh: nama.trim(),
           tanggalRefund: tgl,
           alasanRefund: 'Refund',
+          buktiFiles: bukti,
         });
       } else if (jenisId === 'fee') {
         await api.submitStaffFee({
@@ -280,6 +285,7 @@ export function TransaksiFormSheet({
           nominal,
           statusBayar: 'SUDAH DIBAYAR',
           tanggal: tgl,
+          buktiFiles: bukti,
         });
       } else {
         await api.submitExpense({
@@ -289,6 +295,7 @@ export function TransaksiFormSheet({
           nominal,
           metode: 'CASH',
           tanggal: tgl,
+          buktiFiles: bukti,
         });
       }
       toast.success(`✓ ${jenis!.label} berhasil dicatat`);
@@ -362,6 +369,8 @@ export function TransaksiFormSheet({
         <Field label="Tanggal">
           <input type="date" value={tgl} onChange={(e) => setTgl(e.target.value)} className="kk-input" />
         </Field>
+
+        <FileUpload value={bukti} onChange={setBukti} label="Bukti pembayaran" />
 
         {/* Live colored preview */}
         <div className={cn('flex justify-between items-center bg-white border-2 rounded-kk-btn px-[18px] py-3.5 mb-5', s.border)}>
