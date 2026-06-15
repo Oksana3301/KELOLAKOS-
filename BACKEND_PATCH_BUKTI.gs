@@ -17,9 +17,8 @@
  * STEP A — Tambahkan SELURUH blok helper di bawah ("BAGIAN 1") ke salah satu
  *          file .gs backend Anda (mis. TopHillsLogic.gs).
  *
- * STEP B — Di tiap fungsi submit yang ingin menerima bukti, panggil
- *          saveBuktiFiles_() lalu tulis hasilnya ke kolom Bukti_URLs.
- *          Lihat contoh integrasi di "BAGIAN 2".
+ * STEP B — Di tiap fungsi submit, tambahkan 1 BARIS handleBukti_(...) tepat
+ *          sebelum baris `return`. Daftar barisnya ada di "BAGIAN 2".
  *
  * STEP C — Pastikan sheet PAYMENTS/REFUNDS/FEES/EXPENSES/BOOKINGS punya kolom
  *          header bernama "Bukti_URLs" (kalau belum ada, tambahkan).
@@ -121,10 +120,9 @@ function saveBuktiFiles_(buktiFiles, subfolder, prefix) {
 
 /**
  * Tulis daftar URL ke kolom "Bukti_URLs" pada row dengan id tertentu.
- * Disimpan sebagai teks dipisah baris baru — sesuaikan dengan cara backend
- * Anda membaca kolom Bukti_URLs menjadi array (PaymentRecord.Bukti_URLs).
+ * Pakai SPREADSHEET_ID yang sama dengan backend Anda (lihat PATCH B7).
  *
- * @param {string} sheetName  nama sheet (mis. "PAYMENTS")
+ * @param {string} sheetName  nama sheet (mis. SHEETS.PAYMENTS)
  * @param {string} idColName  header kolom id (mis. "PaymentID")
  * @param {string} idValue    nilai id row yang baru dibuat
  * @param {string} urlColName header kolom bukti (default "Bukti_URLs")
@@ -134,7 +132,7 @@ function attachBuktiToSheet_(sheetName, idColName, idValue, urlColName, urls) {
   if (!urls || !urls.length) return;
   urlColName = urlColName || 'Bukti_URLs';
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID); // konstanta yang sudah ada di backend
   var sh = ss.getSheetByName(sheetName);
   if (!sh) throw new Error('Sheet tidak ditemukan: ' + sheetName);
 
@@ -154,68 +152,64 @@ function attachBuktiToSheet_(sheetName, idColName, idValue, urlColName, urls) {
   }
 }
 
+/**
+ * SATU PANGGILAN untuk semua: simpan bukti + tulis URL ke sheet yang benar.
+ * Cukup panggil 1 baris ini di tiap fungsi submit (lihat BAGIAN 2).
+ *
+ * @param {Object} data  payload submit (berisi data.bukti_files)
+ * @param {string} type  'BOOKING' | 'PAYMENT' | 'REFUND' | 'FEE' | 'EXPENSE'
+ * @param {string} id    id row yang baru dibuat (bookingId/paymentId/dst.)
+ */
+function handleBukti_(data, type, id) {
+  if (!data || !data.bukti_files || !data.bukti_files.length || !id) return;
+
+  // Mapping type -> sheet + kolom id + subfolder. Pakai SHEETS.* (sama spt B7).
+  var cfg = {
+    BOOKING: { sheet: SHEETS.BOOKINGS, idCol: 'BookingID', folder: 'Booking' },
+    PAYMENT: { sheet: SHEETS.PAYMENTS, idCol: 'PaymentID', folder: 'Pembayaran' },
+    REFUND:  { sheet: SHEETS.REFUNDS,  idCol: 'RefundID',  folder: 'Refund' },
+    FEE:     { sheet: SHEETS.FEES,     idCol: 'FeeID',     folder: 'FeePenjaga' },
+    EXPENSE: { sheet: SHEETS.EXPENSES, idCol: 'ExpenseID', folder: 'Belanja' }
+  }[String(type).toUpperCase()];
+
+  if (!cfg) throw new Error('handleBukti_: type tidak dikenal: ' + type);
+
+  var urls = saveBuktiFiles_(data.bukti_files, cfg.folder, id);
+  attachBuktiToSheet_(cfg.sheet, cfg.idCol, id, 'Bukti_URLs', urls);
+  return urls;
+}
+
 
 /* =====================================================================
- * BAGIAN 2 — CONTOH INTEGRASI (tempel potongan ini di fungsi submit Anda)
+ * BAGIAN 2 — INTEGRASI (cukup 1 BARIS per fungsi submit)
  *
- * Pola umum:
- *   1) buat row seperti biasa, dapatkan id-nya (paymentId/bookingId/dst).
- *   2) panggil saveBuktiFiles_(data.bukti_files, '<Kategori>', id).
- *   3) attachBuktiToSheet_('<SHEET>', '<IdCol>', id, 'Bukti_URLs', urls).
+ * Di tiap fungsi submit di TopHillsLogic.gs, cari baris `return ...` di paling
+ * akhir. Tepat SEBELUM return itu (saat id sudah dibuat), tambahkan 1 baris
+ * handleBukti_. Ganti paymentId/bookingId/dst dengan nama variabel id yang
+ * dipakai fungsi Anda (lihat apa yang di-return fungsi itu).
  *
- * Ganti nama sheet/kolom sesuai struktur spreadsheet Anda.
+ *   submitPayment(data):    handleBukti_(data, 'PAYMENT', paymentId);
+ *   submitBooking(data):    handleBukti_(data, 'BOOKING', bookingId);
+ *   submitRefund(data):     handleBukti_(data, 'REFUND',  refundId);
+ *   submitStaffFee(data):   handleBukti_(data, 'FEE',     feeId);
+ *   submitExpense(data):    handleBukti_(data, 'EXPENSE', expenseId);
+ *
+ * Contoh lengkap (submitPayment):
+ *
+ *   function submitPayment(data) {
+ *     // ... logika existing Anda yang membuat row & menghasilkan paymentId ...
+ *
+ *     handleBukti_(data, 'PAYMENT', paymentId);   // <-- TAMBAHKAN baris ini
+ *
+ *     return { paymentId: paymentId, message: 'Pembayaran dicatat' };
+ *   }
+ *
+ * CATATAN:
+ * - handleBukti_ aman dipanggil walau tidak ada bukti (langsung return).
+ * - Untuk BOOKING, cek konstanta SHEETS.BOOKINGS benar (lihat objek SHEETS di
+ *   backend; di B7 ada SHEETS.PAYMENTS/REFUNDS/FEES/EXPENSES). Kalau nama sheet
+ *   booking Anda beda, ganti baris BOOKING di config handleBukti_.
  * ===================================================================== */
-
-/* --- submitPayment(data) ---
-function submitPayment(data) {
-  // ... logika existing membuat row pembayaran, mis. menghasilkan paymentId ...
-  var paymentId = ...;
-
-  // >>> TAMBAHKAN: simpan bukti pembayaran <<<
-  if (data && data.bukti_files && data.bukti_files.length) {
-    var urls = saveBuktiFiles_(data.bukti_files, 'Pembayaran', paymentId);
-    attachBuktiToSheet_('PAYMENTS', 'PaymentID', paymentId, 'Bukti_URLs', urls);
-  }
-
-  return ok({ paymentId: paymentId, message: 'Pembayaran dicatat' });
-}
-*/
-
-/* --- submitBooking(data) ---
-function submitBooking(data) {
-  // ... logika existing membuat booking, menghasilkan bookingId ...
-  var bookingId = ...;
-
-  if (data && data.bukti_files && data.bukti_files.length) {
-    var urls = saveBuktiFiles_(data.bukti_files, 'Booking', bookingId);
-    // simpan di sheet BOOKINGS (atau ke PAYMENTS pertama kalau DP awal dicatat di sana)
-    attachBuktiToSheet_('BOOKINGS', 'BookingID', bookingId, 'Bukti_URLs', urls);
-  }
-
-  return ok({ bookingId: bookingId });
-}
-*/
-
-/* --- submitRefund(data) ---  (sheet REFUNDS, kolom RefundID)
-  if (data.bukti_files && data.bukti_files.length) {
-    var urls = saveBuktiFiles_(data.bukti_files, 'Refund', refundId);
-    attachBuktiToSheet_('REFUNDS', 'RefundID', refundId, 'Bukti_URLs', urls);
-  }
-*/
-
-/* --- submitStaffFee(data) ---  (sheet FEES, kolom FeeID)
-  if (data.bukti_files && data.bukti_files.length) {
-    var urls = saveBuktiFiles_(data.bukti_files, 'FeePenjaga', feeId);
-    attachBuktiToSheet_('FEES', 'FeeID', feeId, 'Bukti_URLs', urls);
-  }
-*/
-
-/* --- submitExpense(data) ---  (sheet EXPENSES, kolom ExpenseID)
-  if (data.bukti_files && data.bukti_files.length) {
-    var urls = saveBuktiFiles_(data.bukti_files, 'Belanja', expenseId);
-    attachBuktiToSheet_('EXPENSES', 'ExpenseID', expenseId, 'Bukti_URLs', urls);
-  }
-*/
 
 
 /* =====================================================================
