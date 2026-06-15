@@ -5,7 +5,7 @@
 // submit payloads the legacy modals used (api.submitBooking / submitBookingEdit
 // / submitStatusAction / submitRefund). Reuses the shared KK primitives.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -17,6 +17,7 @@ import {
 } from '@/lib/api';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
+import { ScrollFab } from './scroll-fab';
 import { KkIcon } from './icons';
 import { rupiah, tglPanjang, tglPendek, mapPayStatus, type PayStatus } from './status';
 
@@ -113,6 +114,14 @@ export interface RoomOption {
   harga: number;
 }
 
+// Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
+// Mirrors the logic on the Kelola Kamar page (src/app/kamar/page.tsx).
+function floorForRoom(room: RoomStatus): number | null {
+  const src = `${room.Tipe_Kamar} ${room.Catatan}`;
+  const m = src.match(/lantai\s*(\d+)/i) || src.match(/\b(\d+)\b/);
+  return m ? Number(m[1]) : null;
+}
+
 /** Build the list of pickable rooms (available + the current one when editing). */
 export function buildRoomOptions(
   rooms: RoomStatus[],
@@ -166,6 +175,17 @@ export function BookingFlow({
   const [dp, setDp] = useState('');
   const [bukti, setBukti] = useState<BuktiFile[]>([]);
 
+  // Step-2 room filters (UI only — never affects submit payload).
+  const [fLayanan, setFLayanan] = useState<'Semua' | 'Kos' | 'Penginapan'>('Semua');
+  const [fCari, setFCari] = useState('');
+  const [fGedung, setFGedung] = useState('Semua');
+  const [fLantai, setFLantai] = useState<'Semua' | number>('Semua');
+
+  // Scroll container for the floating scroll button: the bottom-sheet body
+  // (closest scrollable ancestor of the step-2 list). Resolved from a ref.
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
+
   // Reset / prefill whenever the sheet opens.
   useEffect(() => {
     if (!open) return;
@@ -190,6 +210,10 @@ export function BookingFlow({
       setDp('');
     }
     setBukti([]);
+    setFLayanan('Semua');
+    setFCari('');
+    setFGedung('Semua');
+    setFLantai('Semua');
     setStep(1);
   }, [open, editBooking]);
 
@@ -198,6 +222,61 @@ export function BookingFlow({
     [rooms, prices, editBooking],
   );
   const chosen = options.find((o) => o.room.RoomID === roomId) || null;
+
+  // Distinct buildings & floors across the pickable rooms (for the pill filters).
+  const gedungList = useMemo(() => {
+    const set = new Set<string>();
+    options.forEach((o) => {
+      const g = (o.room.Gedung || '').trim();
+      if (g) set.add(g);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'id'));
+  }, [options]);
+
+  const lantaiList = useMemo(() => {
+    const set = new Set<number>();
+    options.forEach((o) => {
+      const f = floorForRoom(o.room);
+      if (f != null) set.add(f);
+    });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [options]);
+
+  // Apply all step-2 filters together. UI-only: never touches the submit list.
+  const filteredOptions = useMemo(() => {
+    const cari = fCari.trim().toLowerCase();
+    return options.filter((o) => {
+      const r = o.room;
+      // Jenis layanan: rooms whose value isn't Kos/Penginapan show under any.
+      if (fLayanan !== 'Semua') {
+        const lay = (r.Layanan_Default || '').trim().toLowerCase();
+        const known = lay === 'kos' || lay === 'penginapan';
+        if (known && lay !== fLayanan.toLowerCase()) return false;
+      }
+      // Gedung
+      if (fGedung !== 'Semua' && (r.Gedung || '').trim() !== fGedung) return false;
+      // Lantai
+      if (fLantai !== 'Semua' && floorForRoom(r) !== fLantai) return false;
+      // Cari: nama kamar OR gedung, case-insensitive substring.
+      if (cari) {
+        const hay = `${r.Nama_Kamar || ''} ${r.Gedung || ''}`.toLowerCase();
+        if (!hay.includes(cari)) return false;
+      }
+      return true;
+    });
+  }, [options, fLayanan, fGedung, fLantai, fCari]);
+
+  // Resolve the scroll container (the bottom-sheet body) for the floating button.
+  useEffect(() => {
+    if (step !== 2) return;
+    let el: HTMLElement | null = listRef.current;
+    while (el && el !== document.body) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) break;
+      el = el.parentElement;
+    }
+    scrollRef.current = el && el !== document.body ? el : null;
+  }, [step, filteredOptions.length]);
 
   // Money math. In edit mode the existing total is authoritative for display.
   const hargaBulanan = chosen?.harga || 0;
@@ -340,7 +419,7 @@ export function BookingFlow({
 
         {/* LANGKAH 2 — PILIH KAMAR & LAMA SEWA */}
         {curStep === 2 && (
-          <div>
+          <div ref={listRef}>
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               2. Pilih kamar &amp; lama sewa
             </h3>
@@ -348,11 +427,121 @@ export function BookingFlow({
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">
               Kamar yang kosong
             </div>
+
+            {/* ── Pencarian & filter kamar (UI saja, tidak mengubah data) ── */}
+            {options.length > 0 && (
+              <div className="mb-4">
+                {/* Jenis layanan */}
+                <div className="text-caption font-semibold text-kk-ink mb-1.5">Jenis layanan</div>
+                <div className="flex gap-2 mb-3">
+                  {(['Semua', 'Kos', 'Penginapan'] as const).map((v) => {
+                    const active = fLayanan === v;
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setFLayanan(v)}
+                        className={`flex-1 min-h-[48px] rounded-kk-pill font-body font-semibold text-caption border-2 ${
+                          active
+                            ? 'border-kk-navy bg-kk-navy text-white'
+                            : 'border-kk-mauve bg-white text-kk-navy'
+                        }`}
+                      >
+                        {v}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Cari kamar / gedung */}
+                <div className="relative mb-3">
+                  <input
+                    value={fCari}
+                    onChange={(e) => setFCari(e.target.value)}
+                    placeholder="Cari kamar atau gedung… (contoh: A1)"
+                    className="kk-input text-body pr-12"
+                  />
+                  {fCari && (
+                    <button
+                      type="button"
+                      onClick={() => setFCari('')}
+                      aria-label="Hapus pencarian"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full text-kk-ink grid place-items-center"
+                    >
+                      <KkIcon name="silang" size={18} strokeWidth={2.4} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter gedung */}
+                {gedungList.length > 1 && (
+                  <div className="mb-3">
+                    <div className="text-caption font-semibold text-kk-ink mb-1.5">Gedung</div>
+                    <div className="flex flex-wrap gap-2">
+                      {(['Semua', ...gedungList] as string[]).map((g) => {
+                        const active = fGedung === g;
+                        return (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => setFGedung(g)}
+                            className={`min-h-[48px] px-4 rounded-kk-pill font-body font-semibold text-caption border-2 ${
+                              active
+                                ? 'border-kk-navy bg-kk-navy text-white'
+                                : 'border-kk-mauve bg-white text-kk-navy'
+                            }`}
+                          >
+                            {g}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Filter lantai */}
+                {lantaiList.length > 1 && (
+                  <div className="mb-3">
+                    <div className="text-caption font-semibold text-kk-ink mb-1.5">Lantai</div>
+                    <div className="flex flex-wrap gap-2">
+                      {(['Semua', ...lantaiList] as ('Semua' | number)[]).map((l) => {
+                        const active = fLantai === l;
+                        return (
+                          <button
+                            key={String(l)}
+                            type="button"
+                            onClick={() => setFLantai(l)}
+                            className={`min-h-[48px] px-4 rounded-kk-pill font-body font-semibold text-caption border-2 ${
+                              active
+                                ? 'border-kk-navy bg-kk-navy text-white'
+                                : 'border-kk-mauve bg-white text-kk-navy'
+                            }`}
+                          >
+                            {l === 'Semua' ? 'Semua' : `Lantai ${l}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Jumlah hasil */}
+                <div className="text-caption text-kk-ink">
+                  Menampilkan {filteredOptions.length} kamar
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3 mb-6">
               {options.length === 0 && (
                 <KkCard className="text-body text-kk-ink">Belum ada kamar kosong saat ini.</KkCard>
               )}
-              {options.map((o) => {
+              {options.length > 0 && filteredOptions.length === 0 && (
+                <KkCard className="text-body text-kk-ink">
+                  Tidak ada kamar yang cocok dengan pencarian atau filter.
+                </KkCard>
+              )}
+              {filteredOptions.map((o) => {
                 const sel = chosen?.room.RoomID === o.room.RoomID;
                 return (
                   <button
@@ -446,6 +635,9 @@ export function BookingFlow({
                 </div>
               </div>
             )}
+
+            {/* Tombol gulir cepat untuk daftar kamar yang panjang. */}
+            <ScrollFab containerRef={scrollRef} />
           </div>
         )}
 

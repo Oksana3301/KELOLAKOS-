@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, getStoredAccessCode, setStoredAccessCode, clearStoredAccessCode, LicenseError } from '@/lib/api';
+import { RoleProvider, roleFromTier } from '@/components/kk/role';
 
 type GateStatus = 'checking' | 'need_code' | 'verifying' | 'active' | 'error';
 
@@ -93,7 +94,7 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
 
   if (status === 'active') {
     return (
-      <>
+      <RoleProvider role={roleFromTier(tier)}>
         {/* Optional: license warning banner kalau hampir expire */}
         {daysRemaining !== null && daysRemaining <= 7 && daysRemaining > 0 && (
           <div className="bg-amb text-am text-center py-2 text-xs font-semibold">
@@ -101,7 +102,7 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
           </div>
         )}
         {children}
-      </>
+      </RoleProvider>
     );
   }
 

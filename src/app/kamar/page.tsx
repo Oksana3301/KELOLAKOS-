@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type RoomStatus, type SubmitRoomUpsertPayload } from '@/lib/api';
 import { toast } from 'sonner';
-import { ScreenHead, KkButton, KkCard, StickyCTA } from '@/components/kk/ui';
+import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { mapRoomStatus, rupiah } from '@/components/kk/status';
 import { HelpSheet } from '@/components/kk/help-sheet';
+import { useRole } from '@/components/kk/role';
+import { ScrollFab } from '@/components/kk/scroll-fab';
 import {
   KamarDetail,
   KamarForm,
@@ -20,7 +22,8 @@ const HELP = {
   title: 'Kelola Kamar',
   tips: [
     'Di sini Anda menambah, mengubah, atau menghapus kamar di properti Anda.',
-    'Tekan tombol oranye "Tambah Kamar Baru" untuk membuat kamar baru.',
+    'Tekan tombol "Tambah Kamar" di atas untuk membuat kamar baru.',
+    'Gunakan kotak pencarian dan filter untuk menemukan kamar dengan cepat.',
     'Tekan satu kartu kamar untuk membuka detailnya, lalu pilih Ubah atau Hapus.',
   ],
 };
@@ -50,12 +53,31 @@ function floorForRoom(room: RoomStatus): number {
   return m ? Number(m[1]) : 1;
 }
 
+// Display label for a room's type / service (used by the Tipe filter).
+function tipeLabel(room: RoomStatus): string {
+  const t = (room.Tipe_Kamar || '').trim();
+  if (t) return t;
+  const l = (room.Layanan_Default || '').toUpperCase();
+  if (l === 'KOS') return 'Kos';
+  if (l === 'PENGINAPAN') return 'Penginapan';
+  return l ? l.charAt(0) + l.slice(1).toLowerCase() : 'Lainnya';
+}
+
+const SEMUA = 'Semua';
+
 export default function KamarPage() {
   const qc = useQueryClient();
+  const role = useRole();
   const [helpOpen, setHelpOpen] = useState(false);
   const [detail, setDetail] = useState<KamarView | null>(null);
   const [form, setForm] = useState<{ edit: boolean; view: KamarView | null } | null>(null);
   const [hapus, setHapus] = useState<KamarView | null>(null);
+
+  // Filters
+  const [cari, setCari] = useState('');
+  const [fTipe, setFTipe] = useState<string>(SEMUA);
+  const [fGedung, setFGedung] = useState<string>(SEMUA);
+  const [fLantai, setFLantai] = useState<string>(SEMUA);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['initial-data'],
@@ -86,13 +108,44 @@ export default function KamarPage() {
     [rooms],
   );
 
+  // ── Filter options (distinct values + "Semua") ──
+  const tipeOptions = useMemo(
+    () => [SEMUA, ...Array.from(new Set(views.map((v) => tipeLabel(v.room)).filter(Boolean))).sort()],
+    [views],
+  );
+  const gedungOptions = useMemo(() => [SEMUA, ...buildings], [buildings]);
+  const lantaiOptions = useMemo(
+    () => [
+      SEMUA,
+      ...Array.from(new Set(views.map((v) => v.lantai)))
+        .sort((a, b) => a - b)
+        .map(String),
+    ],
+    [views],
+  );
+
+  // ── Apply all filters together ──
+  const filtered = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    return views.filter((v) => {
+      if (q) {
+        const hay = `${v.room.Nama_Kamar} ${v.room.Gedung}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (fTipe !== SEMUA && tipeLabel(v.room) !== fTipe) return false;
+      if (fGedung !== SEMUA && v.room.Gedung !== fGedung) return false;
+      if (fLantai !== SEMUA && String(v.lantai) !== fLantai) return false;
+      return true;
+    });
+  }, [views, cari, fTipe, fGedung, fLantai]);
+
   const byBuilding = useMemo(() => {
     const grouped: Record<string, KamarView[]> = {};
-    views.forEach((v) => {
+    filtered.forEach((v) => {
       (grouped[v.room.Gedung] ||= []).push(v);
     });
     return grouped;
-  }, [views]);
+  }, [filtered]);
 
   // ── Upsert mutation (real API; payload shape per SubmitRoomUpsertPayload) ──
   const upsert = useMutation({
@@ -174,16 +227,21 @@ export default function KamarPage() {
         onHelp={() => setHelpOpen(true)}
       />
 
-      <StickyCTA>
-        <KkButton variant="primary" size="lg" block onClick={() => setForm({ edit: false, view: null })}>
-          <KkIcon name="tambah" size={24} /> Tambah Kamar Baru
-        </KkButton>
-      </StickyCTA>
-
-      <p className="text-caption text-kk-ink mt-0 mb-6">
-        Tekan satu kamar untuk <b className="text-kk-navy">ubah</b> atau{' '}
-        <b className="text-kk-navy">hapus</b>.
-      </p>
+      {role === 'admin' && (
+        <div className="mb-6">
+          <KkButton
+            variant="secondary"
+            className="min-h-[48px]"
+            onClick={() => setForm({ edit: false, view: null })}
+          >
+            <KkIcon name="tambah" size={22} /> Tambah Kamar
+          </KkButton>
+          <p className="text-caption text-kk-ink mt-2 mb-0">
+            Tekan satu kamar untuk <b className="text-kk-navy">ubah</b> atau{' '}
+            <b className="text-kk-navy">hapus</b>.
+          </p>
+        </div>
+      )}
 
       {rooms.length === 0 ? (
         <KkCard tone="mint" className="text-center py-10">
@@ -191,30 +249,64 @@ export default function KamarPage() {
             <KkIcon name="kamar" size={30} />
           </div>
           <p className="text-body text-kk-navy m-0">
-            Belum ada kamar. Tekan tombol Tambah Kamar Baru di atas untuk memulai.
+            {role === 'admin'
+              ? 'Belum ada kamar. Tekan tombol Tambah Kamar di atas untuk memulai.'
+              : 'Belum ada kamar.'}
           </p>
         </KkCard>
       ) : (
-        <div className="space-y-6">
-          {buildings.map((g) => {
-            const list = byBuilding[g] || [];
-            return (
-              <div key={g}>
-                <div className="flex items-center gap-2.5 mb-3">
-                  <KkIcon name="properti" size={22} strokeWidth={2.2} className="text-kk-navy" />
-                  <h2 className="font-heading font-bold text-[21px] text-kk-navy m-0">{g}</h2>
-                  <span className="text-caption font-semibold text-kk-ink">· {list.length} kamar</span>
-                </div>
+        <>
+          {/* ── Filter bar ── */}
+          <div className="mb-5 space-y-3">
+            <input
+              value={cari}
+              onChange={(e) => setCari(e.target.value)}
+              placeholder="Cari nama kamar atau gedung…"
+              className="kk-input"
+            />
+            <FilterPills label="Tipe" options={tipeOptions} value={fTipe} onChange={setFTipe} />
+            <FilterPills label="Gedung" options={gedungOptions} value={fGedung} onChange={setFGedung} />
+            <FilterPills
+              label="Lantai"
+              options={lantaiOptions}
+              value={fLantai}
+              onChange={setFLantai}
+              render={(o) => (o === SEMUA ? o : `Lantai ${o}`)}
+            />
+          </div>
 
-                <div className="space-y-3">
-                  {list.map((v) => (
-                    <RoomRow key={v.room.RoomID} view={v} onClick={() => setDetail(v)} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          <p className="text-caption font-semibold text-kk-ink mt-0 mb-4">
+            Menampilkan {filtered.length} kamar
+          </p>
+
+          {filtered.length === 0 ? (
+            <KkCard className="text-center text-body text-kk-ink py-7">
+              Tidak ada kamar yang cocok dengan pencarian atau filter ini.
+            </KkCard>
+          ) : (
+            <div className="space-y-6">
+              {buildings.map((g) => {
+                const list = byBuilding[g] || [];
+                if (list.length === 0) return null;
+                return (
+                  <div key={g}>
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <KkIcon name="properti" size={22} strokeWidth={2.2} className="text-kk-navy" />
+                      <h2 className="font-heading font-bold text-[21px] text-kk-navy m-0">{g}</h2>
+                      <span className="text-caption font-semibold text-kk-ink">· {list.length} kamar</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {list.map((v) => (
+                        <RoomRow key={v.room.RoomID} view={v} onClick={() => setDetail(v)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Detail → Ubah / Hapus */}
@@ -248,7 +340,47 @@ export default function KamarPage() {
       />
 
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
+
+      <ScrollFab />
     </>
+  );
+}
+
+function FilterPills({
+  label,
+  options,
+  value,
+  onChange,
+  render,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  render?: (o: string) => string;
+}) {
+  if (options.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 -mx-1 px-1">
+      <span className="flex-shrink-0 text-caption font-semibold text-kk-ink">{label}</span>
+      {options.map((o) => {
+        const active = value === o;
+        return (
+          <button
+            key={o}
+            type="button"
+            onClick={() => onChange(o)}
+            className={`flex-shrink-0 min-h-[48px] px-[18px] rounded-kk-pill font-body font-semibold text-[16px] border-2 ${
+              active
+                ? 'border-kk-navy bg-kk-navy text-white'
+                : 'border-kk-mauve bg-white text-kk-navy'
+            }`}
+          >
+            {render ? render(o) : o}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard, Sheet, SheetHead, Dialog } from '@/components/kk/ui';
 import { KkIcon, type KkIconName } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
+import { useRole } from '@/components/kk/role';
 import {
   ProfilBisnisPanel,
   HargaUmumPanel,
@@ -81,10 +82,32 @@ const SECTIONS: Section[] = [
 ];
 
 export default function SettingPage() {
+  const role = useRole();
   const [helpOpen, setHelpOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null);
+
+  // Penjaga (caretaker) has no access to settings.
+  if (role === 'penjaga') {
+    return (
+      <>
+        <ScreenHead title="Pengaturan" sub="Khusus pemilik / admin." />
+        <KkCard tone="mint" className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-full bg-white text-kk-navy grid place-items-center flex-shrink-0">
+            <KkIcon name="info" size={26} />
+          </div>
+          <div>
+            <h2 className="font-heading font-bold text-subhead m-0 mb-1">Akses terbatas</h2>
+            <p className="text-body text-kk-navy m-0">
+              Menu Pengaturan hanya bisa dibuka oleh pemilik / admin. Hubungi pemilik kos kalau ada
+              yang perlu diubah di sini.
+            </p>
+          </div>
+        </KkCard>
+      </>
+    );
+  }
 
   function handleLogout() {
     setLoggingOut(true);

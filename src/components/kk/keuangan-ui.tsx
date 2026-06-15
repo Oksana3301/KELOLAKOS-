@@ -240,12 +240,20 @@ export function TransaksiFormSheet({
     }
   }, [jenisId]);
 
-  // Booking choices relevant per type (matches the original forms' filters).
+  // Booking choices: show ALL penyewa so the list isn't empty when everyone is
+  // already Lunas (Sisa_Bayar = 0). Those still owing / already paid are sorted
+  // to the top per type, but the full tenant list stays selectable.
   const bookingChoices = useMemo(() => {
-    if (jenisId === 'pembayaran') return bookings.filter((b) => b.Sisa_Bayar > 0);
-    if (jenisId === 'refund') return bookings.filter((b) => b.Net_Diterima > 0);
-    return [];
-  }, [jenisId, bookings]);
+    if (!needsBooking) return [];
+    const sorted = [...bookings].sort((a, b) => {
+      const key = jenisId === 'refund' ? 'Net_Diterima' : 'Sisa_Bayar';
+      const da = (b[key as 'Sisa_Bayar' | 'Net_Diterima'] || 0) > 0 ? 1 : 0;
+      const db = (a[key as 'Sisa_Bayar' | 'Net_Diterima'] || 0) > 0 ? 1 : 0;
+      if (da !== db) return da - db;
+      return (a.Nama_Customer || '').localeCompare(b.Nama_Customer || '');
+    });
+    return sorted;
+  }, [jenisId, bookings, needsBooking]);
 
   if (!jenis) return null;
   const s = arahStyle(jenis.arah);
@@ -327,18 +335,30 @@ export function TransaksiFormSheet({
         </div>
 
         {needsBooking && (
-          <Field label="Booking penyewa" hint="Pilih penyewa yang sesuai dengan catatan ini.">
+          <Field
+            label="Booking penyewa"
+            hint={
+              bookingChoices.length === 0
+                ? 'Belum ada penyewa. Tambahkan booking dulu di menu Booking.'
+                : 'Pilih penyewa yang sesuai dengan catatan ini.'
+            }
+          >
             <select
               value={bookingId}
               onChange={(e) => setBookingId(e.target.value)}
               className="kk-input"
             >
               <option value="">— Pilih penyewa —</option>
-              {bookingChoices.map((b) => (
-                <option key={b.BookingID} value={b.BookingID}>
-                  {b.Nama_Customer} · {b.Nama_Kamar}
-                </option>
-              ))}
+              {bookingChoices.map((b) => {
+                const sisa = b.Sisa_Bayar || 0;
+                const tail = sisa > 0 ? ` · sisa ${rupiah(sisa)}` : ' · Lunas';
+                return (
+                  <option key={b.BookingID} value={b.BookingID}>
+                    {b.Nama_Customer} · {b.Nama_Kamar}
+                    {tail}
+                  </option>
+                );
+              })}
             </select>
           </Field>
         )}
