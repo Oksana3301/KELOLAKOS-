@@ -31,6 +31,16 @@ function addMonths(iso: string, n: number): string {
   return d.toISOString().split('T')[0];
 }
 
+function addDays(iso: string, n: number): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + Number(n || 0));
+  return d.toISOString().split('T')[0];
+}
+
+export type Satuan = 'Bulanan' | 'Harian';
+
 // ───────────────────────── Field (label + example + hint) ─────────────────────────
 export function BookingField({
   label,
@@ -122,22 +132,34 @@ function floorForRoom(room: RoomStatus): number | null {
   return m ? Number(m[1]) : null;
 }
 
-/** Build the list of pickable rooms (available + the current one when editing). */
+/** Build the list of pickable rooms (available + the current one when editing).
+ *  Price is resolved for the chosen unit: monthly, or daily (with a /30 fallback
+ *  when no explicit daily price row exists). */
 export function buildRoomOptions(
   rooms: RoomStatus[],
   prices: PriceItem[],
-  paket: string,
+  satuan: Satuan,
   currentRoomId?: string,
 ): RoomOption[] {
-  function priceFor(r: RoomStatus): number {
-    const match = prices.find(
-      (p) =>
-        p.Layanan === r.Layanan_Default &&
-        p.Gedung === r.Gedung &&
-        p.Tipe_Kamar === r.Tipe_Kamar &&
-        p.Paket === paket,
+  function rowsFor(r: RoomStatus): PriceItem[] {
+    return prices.filter(
+      (p) => p.Layanan === r.Layanan_Default && p.Gedung === r.Gedung && p.Tipe_Kamar === r.Tipe_Kamar,
     );
-    return match?.Harga_Satuan || 0;
+  }
+  function monthlyPrice(r: RoomStatus): number {
+    const rows = rowsFor(r);
+    const m = rows.find((p) => /BULAN/i.test(p.Paket));
+    return (m || rows[0])?.Harga_Satuan || 0;
+  }
+  function dailyPrice(r: RoomStatus): number {
+    const rows = rowsFor(r);
+    const d = rows.find((p) => /HARI/i.test(p.Paket));
+    if (d) return d.Harga_Satuan;
+    const monthly = monthlyPrice(r);
+    return monthly ? Math.round(monthly / 30) : 0;
+  }
+  function priceFor(r: RoomStatus): number {
+    return satuan === 'Harian' ? dailyPrice(r) : monthlyPrice(r);
   }
   const available = rooms.filter((r) => r.Status_Code === 'READY');
   if (currentRoomId && !available.some((r) => r.RoomID === currentRoomId)) {
@@ -163,7 +185,9 @@ export function BookingFlow({
 }) {
   const qc = useQueryClient();
   const isEdit = !!editBooking;
-  const PAKET = 'Bulanan';
+  const [satuan, setSatuan] = useState<Satuan>('Bulanan');
+  const unit = satuan === 'Harian' ? 'hari' : 'bulan';
+  const maxLama = satuan === 'Harian' ? 90 : 24;
 
   const [step, setStep] = useState<number | 'sukses'>(1);
   const [nama, setNama] = useState('');
@@ -194,6 +218,7 @@ export function BookingFlow({
       setHp(editBooking.WhatsApp || '');
       setRoomId(editBooking.RoomID || '');
       setLama(editBooking.Jumlah_Periode || 1);
+      setSatuan(/HARI/i.test(editBooking.Paket || '') ? 'Harian' : 'Bulanan');
       setMasuk(
         editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : TODAY(),
       );
@@ -205,6 +230,7 @@ export function BookingFlow({
       setHp('');
       setRoomId('');
       setLama(1);
+      setSatuan('Bulanan');
       setMasuk(TODAY());
       setBayar('Lunas');
       setDp('');
@@ -218,8 +244,8 @@ export function BookingFlow({
   }, [open, editBooking]);
 
   const options = useMemo(
-    () => buildRoomOptions(rooms, prices, PAKET, editBooking?.RoomID),
-    [rooms, prices, editBooking],
+    () => buildRoomOptions(rooms, prices, satuan, editBooking?.RoomID),
+    [rooms, prices, satuan, editBooking],
   );
   const chosen = options.find((o) => o.room.RoomID === roomId) || null;
 
@@ -279,13 +305,13 @@ export function BookingFlow({
   }, [step, filteredOptions.length]);
 
   // Money math. In edit mode the existing total is authoritative for display.
-  const hargaBulanan = chosen?.harga || 0;
+  const hargaSatuan = chosen?.harga || 0;
   const total = isEdit
-    ? editBooking!.Harga_Total_Net || hargaBulanan * lama
-    : hargaBulanan * lama;
+    ? editBooking!.Harga_Total_Net || hargaSatuan * lama
+    : hargaSatuan * lama;
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Number(dp || 0) : 0;
   const sisa = Math.max(total - dibayar, 0);
-  const keluar = addMonths(masuk, lama);
+  const keluar = satuan === 'Harian' ? addDays(masuk, lama) : addMonths(masuk, lama);
 
   const bisaLanjut =
     step === 1
@@ -319,9 +345,9 @@ export function BookingFlow({
         whatsapp: hp,
         checkIn: masuk,
         checkOut: keluar,
-        paket: PAKET,
+        paket: satuan,
         jumlahPeriode: lama,
-        hargaKamar: hargaBulanan,
+        hargaKamar: hargaSatuan,
         dpAwal: dibayar,
         buktiFiles: bukti,
       });
@@ -556,7 +582,7 @@ export function BookingFlow({
                         {o.room.Nama_Kamar}
                       </div>
                       <div className="text-caption text-kk-ink">
-                        {o.room.Gedung} · {rupiah(o.harga)}/bulan
+                        {o.room.Gedung} · {o.harga > 0 ? `${rupiah(o.harga)}/${unit}` : 'harga belum diatur'}
                       </div>
                     </div>
                     {sel && (
@@ -569,6 +595,27 @@ export function BookingFlow({
               })}
             </div>
 
+            {/* Satuan sewa: per bulan (kos) atau per hari (penginapan/harian) */}
+            <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">Jenis sewa</div>
+            <div className="flex gap-2.5 mb-5">
+              {(['Bulanan', 'Harian'] as Satuan[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    setSatuan(s);
+                    setLama(1);
+                  }}
+                  className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
+                    satuan === s
+                      ? 'border-kk-navy bg-kk-navy text-white'
+                      : 'border-kk-mauve bg-white text-kk-navy'
+                  }`}
+                >
+                  {s === 'Bulanan' ? 'Per Bulan' : 'Per Hari'}
+                </button>
+              ))}
+            </div>
+
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">Lama sewa</div>
             <div className="flex items-center gap-4 mb-3.5">
               <button
@@ -579,10 +626,10 @@ export function BookingFlow({
                 −
               </button>
               <div className="flex-1 text-center font-heading font-black text-[26px] text-kk-navy">
-                {lama} bulan
+                {lama} {unit}
               </div>
               <button
-                onClick={() => setLama(Math.min(24, lama + 1))}
+                onClick={() => setLama(Math.min(maxLama, lama + 1))}
                 aria-label="Tambah"
                 className="w-14 h-14 rounded-kk-card border-2 border-kk-navy bg-white text-kk-navy text-[30px] leading-none flex-shrink-0 grid place-items-center"
               >
@@ -590,7 +637,7 @@ export function BookingFlow({
               </button>
             </div>
             <div className="flex gap-2 mb-6">
-              {[1, 3, 6, 12].map((m) => (
+              {(satuan === 'Harian' ? [1, 3, 7, 14, 30] : [1, 3, 6, 12]).map((m) => (
                 <button
                   key={m}
                   onClick={() => setLama(m)}
@@ -600,7 +647,7 @@ export function BookingFlow({
                       : 'border-kk-mauve bg-white text-kk-navy'
                   }`}
                 >
-                  {m} bln
+                  {m} {satuan === 'Harian' ? 'hr' : 'bln'}
                 </button>
               ))}
             </div>
@@ -621,7 +668,7 @@ export function BookingFlow({
                 </div>
                 <div className="flex justify-between items-baseline text-body mb-1.5">
                   <span className="text-kk-navy">
-                    {rupiah(hargaBulanan)} × {lama} bulan
+                    {rupiah(hargaSatuan)} × {lama} {unit}
                   </span>
                   <span className="text-caption text-kk-ink">
                     sampai {keluar ? tglPendek(keluar) : '—'}

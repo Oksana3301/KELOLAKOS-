@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type RoomStatus, type SubmitRoomUpsertPayload } from '@/lib/api';
+import { api, type RoomStatus, type BookingItem, type SubmitRoomUpsertPayload } from '@/lib/api';
 import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
@@ -63,6 +63,37 @@ function tipeLabel(room: RoomStatus): string {
   return l ? l.charAt(0) + l.slice(1).toLowerCase() : 'Lainnya';
 }
 
+// First occupant name from "Penghuni_Text" (may hold several, comma-separated).
+function penghuniName(room: RoomStatus): string {
+  return (room.Penghuni_Text || '').trim();
+}
+
+const MS_DAY = 86400000;
+
+// Stay info derived from the room's active booking (dates aren't on RoomStatus).
+interface StayInfo {
+  durasi: string; // "3 bulan" / "14 hari"
+  sisaHari: number | null; // days left until checkout (negative = past)
+}
+function stayInfoFor(b: BookingItem | undefined): StayInfo | null {
+  if (!b) return null;
+  const periode = Number(b.Jumlah_Periode) || 0;
+  const paket = (b.Paket || '').toUpperCase();
+  const satuan = /HARI/.test(paket) ? 'hari' : 'bulan';
+  const durasi = periode > 0 ? `${periode} ${satuan}` : '';
+  let sisaHari: number | null = null;
+  if (b.CheckOut) {
+    const out = new Date(b.CheckOut);
+    if (!isNaN(out.getTime())) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      out.setHours(0, 0, 0, 0);
+      sisaHari = Math.round((out.getTime() - today.getTime()) / MS_DAY);
+    }
+  }
+  return { durasi, sisaHari };
+}
+
 const SEMUA = 'Semua';
 
 export default function KamarPage() {
@@ -91,6 +122,24 @@ export default function KamarPage() {
   const rooms = useMemo(() => data?.roomStatus || [], [data]);
   const rules = useMemo(() => data?.roomPriceRules || [], [data]);
   const prices = useMemo(() => data?.prices || [], [data]);
+
+  // Map RoomID → its active booking (for stay duration / days left). Prefer a
+  // non-cancelled booking; later lists don't override an earlier match.
+  const bookingByRoom = useMemo(() => {
+    const m = new Map<string, BookingItem>();
+    if (!data) return m;
+    [
+      ...(data.paymentBookings || []),
+      ...(data.statusActionBookings || []),
+      ...(data.closingBookings || []),
+      ...(data.feeBookingOptions || []),
+    ].forEach((b) => {
+      const code = (b.Status_Booking || '').toUpperCase();
+      if (code.includes('CANCEL') || code.includes('BATAL')) return;
+      if (b.RoomID && !m.has(b.RoomID)) m.set(b.RoomID, b);
+    });
+    return m;
+  }, [data]);
 
   // Build enriched views (room + derived harga + lantai).
   const views: KamarView[] = useMemo(
@@ -129,7 +178,7 @@ export default function KamarPage() {
     const q = cari.trim().toLowerCase();
     return views.filter((v) => {
       if (q) {
-        const hay = `${v.room.Nama_Kamar} ${v.room.Gedung}`.toLowerCase();
+        const hay = `${v.room.Nama_Kamar} ${v.room.Gedung} ${penghuniName(v.room)}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       if (fTipe !== SEMUA && tipeLabel(v.room) !== fTipe) return false;
@@ -261,7 +310,7 @@ export default function KamarPage() {
             <input
               value={cari}
               onChange={(e) => setCari(e.target.value)}
-              placeholder="Cari nama kamar atau gedung…"
+              placeholder="Cari nomor kamar, gedung, atau nama penghuni…"
               className="kk-input"
             />
             <FilterPills label="Tipe" options={tipeOptions} value={fTipe} onChange={setFTipe} />
@@ -298,7 +347,12 @@ export default function KamarPage() {
 
                     <div className="space-y-3">
                       {list.map((v) => (
-                        <RoomRow key={v.room.RoomID} view={v} onClick={() => setDetail(v)} />
+                        <RoomRow
+                          key={v.room.RoomID}
+                          view={v}
+                          booking={bookingByRoom.get(v.room.RoomID)}
+                          onClick={() => setDetail(v)}
+                        />
                       ))}
                     </div>
                   </div>
@@ -384,7 +438,15 @@ function FilterPills({
   );
 }
 
-function RoomRow({ view, onClick }: { view: KamarView; onClick: () => void }) {
+function RoomRow({
+  view,
+  booking,
+  onClick,
+}: {
+  view: KamarView;
+  booking?: BookingItem;
+  onClick: () => void;
+}) {
   const { room, harga, lantai } = view;
   const status = mapRoomStatus(room);
   const tint =
@@ -394,6 +456,26 @@ function RoomRow({ view, onClick }: { view: KamarView; onClick: () => void }) {
         ? 'bg-kk-orange-soft border-kk-orange'
         : 'bg-kk-mauve-soft border-kk-mauve';
 
+  const nama = penghuniName(room);
+  const terisi = status !== 'Tersedia';
+  const stay = terisi ? stayInfoFor(booking) : null;
+
+  // "sisa" chip text + color
+  let sisaText = '';
+  let sisaClass = 'text-kk-ink';
+  if (stay && stay.sisaHari !== null) {
+    if (stay.sisaHari < 0) {
+      sisaText = `lewat ${Math.abs(stay.sisaHari)} hari`;
+      sisaClass = 'text-kk-orange';
+    } else if (stay.sisaHari === 0) {
+      sisaText = 'habis hari ini';
+      sisaClass = 'text-kk-orange';
+    } else {
+      sisaText = `sisa ${stay.sisaHari} hari`;
+      sisaClass = stay.sisaHari <= 7 ? 'text-kk-orange' : 'text-kk-green';
+    }
+  }
+
   return (
     <KkCard onClick={onClick} className="flex items-center gap-3.5 py-4">
       <div
@@ -402,12 +484,27 @@ function RoomRow({ view, onClick }: { view: KamarView; onClick: () => void }) {
         <KkIcon name="kamar" size={24} strokeWidth={2.2} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-heading font-bold text-[19px] text-kk-navy truncate">
-          {room.Nama_Kamar}
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="font-heading font-bold text-[19px] text-kk-navy">{room.Nama_Kamar}</span>
+          {terisi && nama && (
+            <span className="text-caption text-kk-ink truncate">· {nama}</span>
+          )}
         </div>
         <div className="text-caption text-kk-ink">
           Lantai {lantai} · {harga > 0 ? `${rupiah(harga)}/bulan` : 'Harga belum diatur'}
         </div>
+        {terisi ? (
+          <div className="mt-1 flex items-center gap-2 flex-wrap text-caption">
+            {stay?.durasi && (
+              <span className="inline-flex items-center gap-1.5 font-semibold text-kk-navy">
+                <KkIcon name="kalender" size={15} strokeWidth={2.2} /> Sewa {stay.durasi}
+              </span>
+            )}
+            {sisaText && <span className={`font-semibold ${sisaClass}`}>· {sisaText}</span>}
+          </div>
+        ) : (
+          <div className="mt-1 text-caption font-semibold text-kk-green">Siap disewa</div>
+        )}
       </div>
       <KkIcon name="chevron" size={22} strokeWidth={2.4} className="text-kk-mauve flex-shrink-0" />
     </KkCard>
