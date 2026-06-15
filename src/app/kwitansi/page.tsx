@@ -149,17 +149,22 @@ export default function KwitansiPage() {
           <StepHeading n={2} title="Periksa kwitansi" className="mt-7" />
           {/* Export target — styling tuned to render tidily via html2canvas
               (fixed width, centered, no baseline-dependent alignment). */}
-          <div ref={previewRef} className="bg-white">
-            <div className="mx-auto w-full max-w-[480px] bg-white border-2 border-kk-mauve rounded-kk-card p-6">
-              {/* Header: logo + name + status chip */}
-              <div className="flex justify-between items-center gap-3 border-b-2 border-dashed border-kk-mauve pb-4 mb-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-[10px] bg-kk-orange text-white grid place-items-center font-heading font-black text-[22px] flex-shrink-0 leading-none">
+          <div ref={previewRef} className="bg-white p-3">
+            <div className="mx-auto w-full max-w-[480px] bg-white border-2 border-kk-mauve rounded-kk-card px-6 pt-7 pb-6">
+              {/* Header: centered logo + title + status — tidy & clip-safe on export */}
+              <div className="text-center border-b-2 border-dashed border-kk-mauve pb-5 mb-2">
+                <div className="flex items-center justify-center gap-2.5 mb-2.5">
+                  <div className="w-11 h-11 rounded-[12px] bg-kk-orange text-white grid place-items-center font-heading font-black text-[24px] flex-shrink-0 leading-none">
                     K
                   </div>
-                  <div className="font-heading font-black text-[20px] text-kk-navy leading-none">KelolaKos</div>
+                  <div className="font-heading font-black text-[22px] text-kk-navy leading-none">KelolaKos</div>
                 </div>
-                <ReceiptStatus status={mapPayStatus(selected)} />
+                <div className="font-body font-semibold text-caption text-kk-ink tracking-wide mb-3">
+                  KWITANSI PEMBAYARAN
+                </div>
+                <div className="flex justify-center">
+                  <ReceiptStatus status={mapPayStatus(selected)} />
+                </div>
               </div>
 
               <ReceiptRow label="Nama penyewa" value={selected.Nama_Customer || '-'} />

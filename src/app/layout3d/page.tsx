@@ -8,6 +8,21 @@ import { ScreenHead, KkButton, KkCard, Sheet, SheetHead, InfoRow, RoomBadge } fr
 import { KkIcon } from '@/components/kk/icons';
 import { mapRoomStatus, type RoomDisplayStatus } from '@/components/kk/status';
 import { HelpSheet } from '@/components/kk/help-sheet';
+import { ScrollFab } from '@/components/kk/scroll-fab';
+
+const SEMUA = 'Semua';
+
+// Plain status filter values (the page maps Tersedia→Kosong, Perlu Perhatian→Perhatian).
+type StatusFilter = 'Semua' | 'Terisi' | 'Kosong' | 'Perhatian';
+const STATUS_FILTERS: StatusFilter[] = ['Semua', 'Terisi', 'Kosong', 'Perhatian'];
+
+// Map a room to its plain filter bucket using the existing status mapping.
+function statusBucket(room: RoomStatus): Exclude<StatusFilter, 'Semua'> {
+  const s = mapRoomStatus(room);
+  if (s === 'Terisi') return 'Terisi';
+  if (s === 'Tersedia') return 'Kosong';
+  return 'Perhatian';
+}
 
 const HELP = {
   title: 'Layout Properti',
@@ -49,6 +64,12 @@ export default function LayoutPropertiPage() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [selected, setSelected] = useState<RoomStatus | null>(null);
 
+  // Filters
+  const [cari, setCari] = useState('');
+  const [fGedung, setFGedung] = useState<string>(SEMUA);
+  const [fLantai, setFLantai] = useState<string>(SEMUA);
+  const [fStatus, setFStatus] = useState<StatusFilter>('Semua');
+
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['initial-data'],
     queryFn: api.getInitialData,
@@ -76,10 +97,40 @@ export default function LayoutPropertiPage() {
     [rooms],
   );
 
-  // Group rooms per building, then per floor (ordered).
+  // ── Filter options (distinct values + "Semua") ──
+  const gedungOptions = useMemo(
+    () => [SEMUA, ...Array.from(new Set(rooms.map((r) => r.Gedung).filter(Boolean))).sort()],
+    [rooms],
+  );
+  const lantaiOptions = useMemo(
+    () => [
+      SEMUA,
+      ...Array.from(new Set(rooms.map((r) => floorForRoom(r))))
+        .sort((a, b) => a - b)
+        .map(String),
+    ],
+    [rooms],
+  );
+
+  // ── Apply all filters together (before grouping) ──
+  const filtered = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    return rooms.filter((r) => {
+      if (q) {
+        const hay = `${r.Nama_Kamar} ${r.Gedung} ${firstName(r.Penghuni_Text) || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (fGedung !== SEMUA && r.Gedung !== fGedung) return false;
+      if (fLantai !== SEMUA && String(floorForRoom(r)) !== fLantai) return false;
+      if (fStatus !== 'Semua' && statusBucket(r) !== fStatus) return false;
+      return true;
+    });
+  }, [rooms, cari, fGedung, fLantai, fStatus]);
+
+  // Group filtered rooms per building, then per floor (ordered).
   const buildings = useMemo(() => {
     const byGedung = new Map<string, RoomStatus[]>();
-    rooms.forEach((r) => {
+    filtered.forEach((r) => {
       const g = r.Gedung || 'Tanpa Gedung';
       const list = byGedung.get(g) || [];
       list.push(r);
@@ -101,7 +152,7 @@ export default function LayoutPropertiPage() {
           .map(([lantai, fRooms]) => ({ lantai, rooms: fRooms }));
         return { gedung, floors };
       });
-  }, [rooms]);
+  }, [filtered]);
 
   if (isLoading) {
     return (
@@ -176,7 +227,41 @@ export default function LayoutPropertiPage() {
           </p>
         </KkCard>
       ) : (
-        <div className="space-y-7">
+        <>
+          {/* ── Cari & filter ── */}
+          <div className="mb-5 space-y-3">
+            <input
+              value={cari}
+              onChange={(e) => setCari(e.target.value)}
+              placeholder="Cari nama kamar, gedung, atau penghuni…"
+              className="kk-input"
+            />
+            <FilterPills label="Gedung" options={gedungOptions} value={fGedung} onChange={setFGedung} />
+            <FilterPills
+              label="Lantai"
+              options={lantaiOptions}
+              value={fLantai}
+              onChange={setFLantai}
+              render={(o) => (o === SEMUA ? o : `Lantai ${o}`)}
+            />
+            <FilterPills
+              label="Status"
+              options={STATUS_FILTERS}
+              value={fStatus}
+              onChange={(v) => setFStatus(v as StatusFilter)}
+            />
+          </div>
+
+          <p className="text-caption font-semibold text-kk-ink mt-0 mb-4">
+            Menampilkan {filtered.length} kamar
+          </p>
+
+          {filtered.length === 0 ? (
+            <KkCard className="text-center text-body text-kk-ink py-7">
+              Tidak ada kamar yang cocok dengan pencarian atau filter ini.
+            </KkCard>
+          ) : (
+            <div className="space-y-7">
           {buildings.map((b) => (
             <div key={b.gedung}>
               <div className="flex items-center gap-2.5 mb-3.5">
@@ -198,12 +283,54 @@ export default function LayoutPropertiPage() {
               ))}
             </div>
           ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       <RoomDetailSheet room={selected} onClose={() => setSelected(null)} />
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
+
+      <ScrollFab />
     </>
+  );
+}
+
+function FilterPills({
+  label,
+  options,
+  value,
+  onChange,
+  render,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  render?: (o: string) => string;
+}) {
+  if (options.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 -mx-1 px-1">
+      <span className="flex-shrink-0 text-caption font-semibold text-kk-ink">{label}</span>
+      {options.map((o) => {
+        const active = value === o;
+        return (
+          <button
+            key={o}
+            type="button"
+            onClick={() => onChange(o)}
+            className={`flex-shrink-0 min-h-[48px] px-[18px] rounded-kk-pill font-body font-semibold text-[16px] border-2 ${
+              active
+                ? 'border-kk-navy bg-kk-navy text-white'
+                : 'border-kk-mauve bg-white text-kk-navy'
+            }`}
+          >
+            {render ? render(o) : o}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

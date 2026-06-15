@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { KkIcon, type KkIconName } from './icons';
 import { Sheet, SheetHead, Dialog, KkButton } from './ui';
 import { clearStoredAccessCode } from '@/lib/api';
+import { useRole } from './role';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -42,9 +43,13 @@ function isActive(pathname: string, href: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const role = useRole();
   const [moreOpen, setMoreOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const supportWa = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
+
+  // Penjaga (caretaker) can't access Pengaturan.
+  const moreItems = role === 'penjaga' ? MORE.filter((m) => m.href !== '/setting') : MORE;
 
   function doLogout() {
     clearStoredAccessCode();
@@ -52,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setTimeout(() => window.location.reload(), 600);
   }
 
-  const moreActive = MORE.some((m) => isActive(pathname, m.href));
+  const moreActive = moreItems.some((m) => isActive(pathname, m.href));
 
   return (
     <div className="min-h-screen bg-kk-paper text-kk-navy">
@@ -83,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SidebarGroup>
 
         <SidebarGroup label="Lainnya">
-          {MORE.map((e) => (
+          {moreItems.map((e) => (
             <SidebarItem key={e.href} entry={e} active={isActive(pathname, e.href)} />
           ))}
         </SidebarGroup>
@@ -135,7 +140,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sheet open={moreOpen} onClose={() => setMoreOpen(false)}>
         <SheetHead title="Menu Lainnya" onClose={() => setMoreOpen(false)} />
         <div className="px-5 pb-7 space-y-3">
-          {MORE.map((e) => (
+          {moreItems.map((e) => (
             <Link
               key={e.href}
               href={e.href}
