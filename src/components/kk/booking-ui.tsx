@@ -17,7 +17,6 @@ import {
 } from '@/lib/api';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
-import { ScrollFab } from './scroll-fab';
 import { KkIcon } from './icons';
 import { rupiah, tglPanjang, tglPendek, mapPayStatus, type PayStatus } from './status';
 
@@ -40,6 +39,16 @@ function addDays(iso: string, n: number): string {
 }
 
 export type Satuan = 'Bulanan' | 'Harian';
+
+function daysBetween(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const da = new Date(a);
+  const db = new Date(b);
+  if (isNaN(da.getTime()) || isNaN(db.getTime())) return 0;
+  da.setHours(0, 0, 0, 0);
+  db.setHours(0, 0, 0, 0);
+  return Math.round((db.getTime() - da.getTime()) / 86400000);
+}
 
 // ───────────────────────── Field (label + example + hint) ─────────────────────────
 export function BookingField({
@@ -186,7 +195,13 @@ export function BookingFlow({
   const qc = useQueryClient();
   const isEdit = !!editBooking;
   const [satuan, setSatuan] = useState<Satuan>('Bulanan');
-  const unit = satuan === 'Harian' ? 'hari' : 'bulan';
+  // "Atur tanggal sendiri" mode: pick check-in/check-out, bill per day.
+  const [customDate, setCustomDate] = useState(false);
+  const [keluarDate, setKeluarDate] = useState('');
+  const durasiRef = useRef<HTMLDivElement>(null);
+  // When picking custom dates we always bill per day.
+  const effSatuan: Satuan = customDate ? 'Harian' : satuan;
+  const unit = effSatuan === 'Harian' ? 'hari' : 'bulan';
   const maxLama = satuan === 'Harian' ? 90 : 24;
 
   const [step, setStep] = useState<number | 'sukses'>(1);
@@ -205,11 +220,6 @@ export function BookingFlow({
   const [fGedung, setFGedung] = useState('Semua');
   const [fLantai, setFLantai] = useState<'Semua' | number>('Semua');
 
-  // Scroll container for the floating scroll button: the bottom-sheet body
-  // (closest scrollable ancestor of the step-2 list). Resolved from a ref.
-  const listRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLElement | null>(null);
-
   // Reset / prefill whenever the sheet opens.
   useEffect(() => {
     if (!open) return;
@@ -222,6 +232,10 @@ export function BookingFlow({
       setMasuk(
         editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : TODAY(),
       );
+      setCustomDate(false);
+      setKeluarDate(
+        editBooking.CheckOut ? new Date(editBooking.CheckOut).toISOString().split('T')[0] : '',
+      );
       const ps = mapPayStatus(editBooking);
       setBayar(ps === 'Batal' ? 'Lunas' : ps);
       setDp(ps === 'DP' ? String(editBooking.Net_Diterima || 0) : '');
@@ -232,6 +246,8 @@ export function BookingFlow({
       setLama(1);
       setSatuan('Bulanan');
       setMasuk(TODAY());
+      setCustomDate(false);
+      setKeluarDate('');
       setBayar('Lunas');
       setDp('');
     }
@@ -244,8 +260,8 @@ export function BookingFlow({
   }, [open, editBooking]);
 
   const options = useMemo(
-    () => buildRoomOptions(rooms, prices, satuan, editBooking?.RoomID),
-    [rooms, prices, satuan, editBooking],
+    () => buildRoomOptions(rooms, prices, effSatuan, editBooking?.RoomID),
+    [rooms, prices, effSatuan, editBooking],
   );
   const chosen = options.find((o) => o.room.RoomID === roomId) || null;
 
@@ -292,33 +308,31 @@ export function BookingFlow({
     });
   }, [options, fLayanan, fGedung, fLantai, fCari]);
 
-  // Resolve the scroll container (the bottom-sheet body) for the floating button.
-  useEffect(() => {
-    if (step !== 2) return;
-    let el: HTMLElement | null = listRef.current;
-    while (el && el !== document.body) {
-      const oy = getComputedStyle(el).overflowY;
-      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) break;
-      el = el.parentElement;
-    }
-    scrollRef.current = el && el !== document.body ? el : null;
-  }, [step, filteredOptions.length]);
+  // Effective duration: from the custom date range, or the stepper.
+  const customHari = customDate ? daysBetween(masuk, keluarDate) : 0;
+  const lamaEff = customDate ? Math.max(0, customHari) : lama;
 
   // Money math. In edit mode the existing total is authoritative for display.
   const hargaSatuan = chosen?.harga || 0;
   const total = isEdit
-    ? editBooking!.Harga_Total_Net || hargaSatuan * lama
-    : hargaSatuan * lama;
-  const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Number(dp || 0) : 0;
+    ? editBooking!.Harga_Total_Net || hargaSatuan * lamaEff
+    : hargaSatuan * lamaEff;
+  const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
-  const keluar = satuan === 'Harian' ? addDays(masuk, lama) : addMonths(masuk, lama);
+  const keluar = customDate
+    ? keluarDate
+    : effSatuan === 'Harian'
+    ? addDays(masuk, lama)
+    : addMonths(masuk, lama);
 
   const bisaLanjut =
     step === 1
       ? nama.trim().length > 0
       : step === 2
-      ? !!chosen && lama >= 1 && !!masuk
-      : bayar !== 'DP' || (Number(dp) > 0 && Number(dp) < total);
+      ? !!chosen && !!masuk && (customDate ? customHari >= 1 : lama >= 1)
+      : // Step 3: DP only needs a positive amount (sisa is computed). Lunas/Belum
+        // Bayar always valid.
+        bayar !== 'DP' || Number(dp) > 0;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -345,8 +359,8 @@ export function BookingFlow({
         whatsapp: hp,
         checkIn: masuk,
         checkOut: keluar,
-        paket: satuan,
-        jumlahPeriode: lama,
+        paket: effSatuan,
+        jumlahPeriode: lamaEff,
         hargaKamar: hargaSatuan,
         dpAwal: dibayar,
         buktiFiles: bukti,
@@ -403,8 +417,20 @@ export function BookingFlow({
   const curStep = step as number;
 
   return (
-    <Sheet open={open} onClose={onClose}>
-      <SheetHead title={judul} onClose={onClose} />
+    <>
+      {/* Floating "jump to duration" button — only on step 2, above the sheet. */}
+      {open && curStep === 2 && (
+        <button
+          onClick={() => durasiRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          aria-label="Langsung ke pilihan lama sewa"
+          className="fixed z-[80] right-5 bottom-6 min-h-[52px] px-5 rounded-full bg-kk-orange text-white shadow-[0_8px_22px_rgba(143,60,32,.5)] font-body font-semibold text-body inline-flex items-center gap-2 active:translate-y-0.5"
+        >
+          Pilih lama sewa
+          <KkIcon name="chevron" size={22} strokeWidth={2.6} className="rotate-90" />
+        </button>
+      )}
+      <Sheet open={open} onClose={onClose}>
+        <SheetHead title={judul} onClose={onClose} />
       <div className="px-6 pb-8 pt-2">
         <StepHead step={curStep} />
 
@@ -445,7 +471,7 @@ export function BookingFlow({
 
         {/* LANGKAH 2 — PILIH KAMAR & LAMA SEWA */}
         {curStep === 2 && (
-          <div ref={listRef}>
+          <div>
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               2. Pilih kamar &amp; lama sewa
             </h3>
@@ -595,71 +621,132 @@ export function BookingFlow({
               })}
             </div>
 
-            {/* Satuan sewa: per bulan (kos) atau per hari (penginapan/harian) */}
-            <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">Jenis sewa</div>
-            <div className="flex gap-2.5 mb-5">
-              {(['Bulanan', 'Harian'] as Satuan[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => {
-                    setSatuan(s);
-                    setLama(1);
-                  }}
-                  className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
-                    satuan === s
-                      ? 'border-kk-navy bg-kk-navy text-white'
-                      : 'border-kk-mauve bg-white text-kk-navy'
-                  }`}
-                >
-                  {s === 'Bulanan' ? 'Per Bulan' : 'Per Hari'}
-                </button>
-              ))}
-            </div>
+            {/* Anchor target for the floating "ke pemilihan lama sewa" button */}
+            <div ref={durasiRef} />
 
+            {/* Mode: pilihan cepat (per bulan/hari) atau atur tanggal sendiri */}
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">Lama sewa</div>
-            <div className="flex items-center gap-4 mb-3.5">
+            <div className="flex gap-2.5 mb-5">
               <button
-                onClick={() => setLama(Math.max(1, lama - 1))}
-                aria-label="Kurangi"
-                className="w-14 h-14 rounded-kk-card border-2 border-kk-navy bg-white text-kk-navy text-[30px] leading-none flex-shrink-0 grid place-items-center"
+                onClick={() => setCustomDate(false)}
+                className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
+                  !customDate ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+                }`}
               >
-                −
+                Pilihan cepat
               </button>
-              <div className="flex-1 text-center font-heading font-black text-[26px] text-kk-navy">
-                {lama} {unit}
-              </div>
               <button
-                onClick={() => setLama(Math.min(maxLama, lama + 1))}
-                aria-label="Tambah"
-                className="w-14 h-14 rounded-kk-card border-2 border-kk-navy bg-white text-kk-navy text-[30px] leading-none flex-shrink-0 grid place-items-center"
+                onClick={() => {
+                  setCustomDate(true);
+                  if (!keluarDate) setKeluarDate(addDays(masuk, 1));
+                }}
+                className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
+                  customDate ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+                }`}
               >
-                +
+                Atur tanggal
               </button>
-            </div>
-            <div className="flex gap-2 mb-6">
-              {(satuan === 'Harian' ? [1, 3, 7, 14, 30] : [1, 3, 6, 12]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setLama(m)}
-                  className={`flex-1 min-h-[48px] rounded-kk-pill font-body font-semibold text-caption border-2 ${
-                    lama === m
-                      ? 'border-kk-navy bg-kk-navy text-white'
-                      : 'border-kk-mauve bg-white text-kk-navy'
-                  }`}
-                >
-                  {m} {satuan === 'Harian' ? 'hr' : 'bln'}
-                </button>
-              ))}
             </div>
 
-            <BookingField label="Tanggal Mulai Masuk" hint="Tanggal penyewa mulai menempati kamar.">
-              <input
-                type="date"
-                value={masuk}
-                onChange={(e) => setMasuk(e.target.value)}
-                className="kk-input"
-              />
-            </BookingField>
+            {!customDate ? (
+              <>
+                {/* Per bulan (kos) atau per hari (penginapan) */}
+                <div className="flex gap-2.5 mb-4">
+                  {(['Bulanan', 'Harian'] as Satuan[]).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setSatuan(s);
+                        setLama(1);
+                      }}
+                      className={`flex-1 min-h-[48px] rounded-kk-pill font-body font-semibold text-body border-2 ${
+                        satuan === s
+                          ? 'border-kk-navy bg-kk-navy text-white'
+                          : 'border-kk-mauve bg-white text-kk-navy'
+                      }`}
+                    >
+                      {s === 'Bulanan' ? 'Per Bulan' : 'Per Hari'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-4 mb-3.5">
+                  <button
+                    onClick={() => setLama(Math.max(1, lama - 1))}
+                    aria-label="Kurangi"
+                    className="w-14 h-14 rounded-kk-card border-2 border-kk-navy bg-white text-kk-navy text-[30px] leading-none flex-shrink-0 grid place-items-center"
+                  >
+                    −
+                  </button>
+                  <div className="flex-1 text-center font-heading font-black text-[26px] text-kk-navy">
+                    {lama} {unit}
+                  </div>
+                  <button
+                    onClick={() => setLama(Math.min(maxLama, lama + 1))}
+                    aria-label="Tambah"
+                    className="w-14 h-14 rounded-kk-card border-2 border-kk-navy bg-white text-kk-navy text-[30px] leading-none flex-shrink-0 grid place-items-center"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="flex gap-2 mb-6">
+                  {(satuan === 'Harian' ? [1, 3, 7, 14, 30] : [1, 3, 6, 12]).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setLama(m)}
+                      className={`flex-1 min-h-[48px] rounded-kk-pill font-body font-semibold text-caption border-2 ${
+                        lama === m
+                          ? 'border-kk-navy bg-kk-navy text-white'
+                          : 'border-kk-mauve bg-white text-kk-navy'
+                      }`}
+                    >
+                      {m} {satuan === 'Harian' ? 'hr' : 'bln'}
+                    </button>
+                  ))}
+                </div>
+
+                <BookingField label="Tanggal Mulai Masuk" hint="Tanggal penyewa mulai menempati kamar.">
+                  <input
+                    type="date"
+                    value={masuk}
+                    onChange={(e) => setMasuk(e.target.value)}
+                    className="kk-input"
+                  />
+                </BookingField>
+              </>
+            ) : (
+              <>
+                {/* Atur tanggal sendiri: dari–sampai, ditagih per hari */}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <BookingField label="Dari tanggal">
+                    <input
+                      type="date"
+                      value={masuk}
+                      onChange={(e) => setMasuk(e.target.value)}
+                      className="kk-input"
+                    />
+                  </BookingField>
+                  <BookingField label="Sampai tanggal">
+                    <input
+                      type="date"
+                      value={keluarDate}
+                      min={masuk}
+                      onChange={(e) => setKeluarDate(e.target.value)}
+                      className="kk-input"
+                    />
+                  </BookingField>
+                </div>
+                {customHari >= 1 ? (
+                  <div className="text-body text-kk-navy mb-6">
+                    Lama menginap: <b>{customHari} hari</b> (dihitung per hari)
+                  </div>
+                ) : (
+                  <div className="text-caption text-kk-orange font-semibold mb-6">
+                    Pastikan tanggal &quot;sampai&quot; setelah tanggal &quot;dari&quot;.
+                  </div>
+                )}
+              </>
+            )}
 
             {chosen && (
               <div className="bg-kk-mint-soft border-2 border-kk-mint rounded-kk-card p-[18px]">
@@ -668,7 +755,7 @@ export function BookingFlow({
                 </div>
                 <div className="flex justify-between items-baseline text-body mb-1.5">
                   <span className="text-kk-navy">
-                    {rupiah(hargaSatuan)} × {lama} {unit}
+                    {rupiah(hargaSatuan)} × {lamaEff} {unit}
                   </span>
                   <span className="text-caption text-kk-ink">
                     sampai {keluar ? tglPendek(keluar) : '—'}
@@ -682,9 +769,6 @@ export function BookingFlow({
                 </div>
               </div>
             )}
-
-            {/* Tombol gulir cepat untuk daftar kamar yang panjang. */}
-            <ScrollFab containerRef={scrollRef} />
           </div>
         )}
 
@@ -807,7 +891,8 @@ export function BookingFlow({
           )}
         </div>
       </div>
-    </Sheet>
+      </Sheet>
+    </>
   );
 }
 
