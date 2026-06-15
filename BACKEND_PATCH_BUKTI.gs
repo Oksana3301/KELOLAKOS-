@@ -20,8 +20,9 @@
  * STEP B — Di file router (Api.js / dispatchV1_), ganti 5 baris `case 'submit...'`
  *          agar memanggil versi *_bukti (cara wrapper). Detail di "BAGIAN 2".
  *
- * STEP C — Pastikan sheet PAYMENTS/REFUNDS/FEES/EXPENSES/BOOKINGS punya kolom
- *          header bernama "Bukti_URLs" (kalau belum ada, tambahkan).
+ * STEP C — Kolom "Bukti_URLs" dibuat OTOMATIS oleh script saat pertama dipakai
+ *          (tidak perlu menambah header manual). Kalau mau langsung dibuat di
+ *          semua sheet sekaligus, jalankan fungsi setupBuktiColumns() sekali.
  *
  * STEP D — Deploy ulang web app (Deploy → Manage deployments → Edit → Deploy)
  *          supaya versi /exec ikut terupdate (yang /dev otomatis ikut).
@@ -120,7 +121,8 @@ function saveBuktiFiles_(buktiFiles, subfolder, prefix) {
 
 /**
  * Tulis daftar URL ke kolom "Bukti_URLs" pada row dengan id tertentu.
- * Pakai SPREADSHEET_ID yang sama dengan backend Anda (lihat PATCH B7).
+ * Kolom Bukti_URLs dibuat OTOMATIS kalau belum ada — tidak perlu menambah
+ * header manual di sheet. Pakai SPREADSHEET_ID yang sama dengan backend (B7).
  *
  * @param {string} sheetName  nama sheet (mis. SHEETS.PAYMENTS)
  * @param {string} idColName  header kolom id (mis. "PaymentID")
@@ -137,17 +139,42 @@ function attachBuktiToSheet_(sheetName, idColName, idValue, urlColName, urls) {
   if (!sh) throw new Error('Sheet tidak ditemukan: ' + sheetName);
 
   var values = sh.getDataRange().getValues();
-  var header = values[0];
+  var header = values[0] || [];
   var idCol = header.indexOf(idColName);
-  var urlCol = header.indexOf(urlColName);
   if (idCol < 0) throw new Error('Kolom ' + idColName + ' tidak ada di ' + sheetName);
-  if (urlCol < 0) throw new Error('Kolom ' + urlColName + ' tidak ada di ' + sheetName +
-    ' — tambahkan header "' + urlColName + '" dulu.');
+
+  // Buat kolom Bukti_URLs otomatis kalau belum ada (di kolom kosong berikutnya).
+  var urlCol = header.indexOf(urlColName);
+  if (urlCol < 0) {
+    urlCol = header.length;
+    sh.getRange(1, urlCol + 1).setValue(urlColName);
+  }
 
   for (var r = 1; r < values.length; r++) {
     if (String(values[r][idCol]) === String(idValue)) {
       sh.getRange(r + 1, urlCol + 1).setValue(urls.join('\n'));
       return;
+    }
+  }
+}
+
+/**
+ * (OPSIONAL, jalankan sekali dari editor) Buat kolom "Bukti_URLs" di semua
+ * sheet sekaligus, supaya langsung ada tanpa menunggu upload pertama.
+ * Tidak wajib — attachBuktiToSheet_ juga sudah membuatnya otomatis saat dipakai.
+ */
+function setupBuktiColumns() {
+  var sheets = [SHEETS.BOOKINGS, SHEETS.PAYMENTS, SHEETS.REFUNDS, SHEETS.FEES, SHEETS.EXPENSES];
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  for (var i = 0; i < sheets.length; i++) {
+    var sh = ss.getSheetByName(sheets[i]);
+    if (!sh) { Logger.log('Lewati (tidak ada): ' + sheets[i]); continue; }
+    var header = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0] || [];
+    if (header.indexOf('Bukti_URLs') < 0) {
+      sh.getRange(1, header.length + 1).setValue('Bukti_URLs');
+      Logger.log('Tambah kolom Bukti_URLs di: ' + sheets[i]);
+    } else {
+      Logger.log('Sudah ada Bukti_URLs di: ' + sheets[i]);
     }
   }
 }
