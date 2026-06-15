@@ -17,8 +17,8 @@
  * STEP A — Tambahkan SELURUH blok helper di bawah ("BAGIAN 1") ke salah satu
  *          file .gs backend Anda (mis. TopHillsLogic.gs).
  *
- * STEP B — Di tiap fungsi submit, tambahkan 1 BARIS handleBukti_(...) tepat
- *          sebelum baris `return`. Daftar barisnya ada di "BAGIAN 2".
+ * STEP B — Di file router (Api.js / dispatchV1_), ganti 5 baris `case 'submit...'`
+ *          agar memanggil versi *_bukti (cara wrapper). Detail di "BAGIAN 2".
  *
  * STEP C — Pastikan sheet PAYMENTS/REFUNDS/FEES/EXPENSES/BOOKINGS punya kolom
  *          header bernama "Bukti_URLs" (kalau belum ada, tambahkan).
@@ -181,34 +181,92 @@ function handleBukti_(data, type, id) {
 
 
 /* =====================================================================
- * BAGIAN 2 — INTEGRASI (cukup 1 BARIS per fungsi submit)
+ * BAGIAN 1B — WRAPPER (REKOMENDASI: tidak perlu mengedit isi fungsi submit)
  *
- * Di tiap fungsi submit di TopHillsLogic.gs, cari baris `return ...` di paling
- * akhir. Tepat SEBELUM return itu (saat id sudah dibuat), tambahkan 1 baris
- * handleBukti_. Ganti paymentId/bookingId/dst dengan nama variabel id yang
- * dipakai fungsi Anda (lihat apa yang di-return fungsi itu).
+ * Tempel SEMUA fungsi di bawah ini juga ke paling bawah TopHillsLogic.gs.
+ * Tiap wrapper memanggil fungsi asli Anda, lalu menyimpan bukti pakai id yang
+ * dikembalikan fungsi itu. Dibungkus try/catch supaya — kalau penyimpanan bukti
+ * gagal — pencatatan utama (booking/bayar/dst) TIDAK ikut gagal.
+ * ===================================================================== */
+
+// Ambil id dari hasil return fungsi (cek beberapa kemungkinan key).
+function _buktiPickId_(res, keys) {
+  if (!res) return '';
+  var d = (res && res.data) ? res.data : res; // jaga2 kalau dibungkus {data:...}
+  for (var i = 0; i < keys.length; i++) {
+    if (d && d[keys[i]]) return String(d[keys[i]]);
+  }
+  return '';
+}
+
+function submitBooking_bukti(data) {
+  var res = submitBooking(data);
+  try { handleBukti_(data, 'BOOKING', _buktiPickId_(res, ['bookingId', 'BookingID'])); }
+  catch (e) { Logger.log('handleBukti_ BOOKING gagal: ' + e); }
+  return res;
+}
+
+function submitPayment_bukti(data) {
+  var res = submitPayment(data);
+  try { handleBukti_(data, 'PAYMENT', _buktiPickId_(res, ['paymentId', 'PaymentID'])); }
+  catch (e) { Logger.log('handleBukti_ PAYMENT gagal: ' + e); }
+  return res;
+}
+
+function submitRefund_bukti(data) {
+  var res = submitRefund(data);
+  try { handleBukti_(data, 'REFUND', _buktiPickId_(res, ['refundId', 'RefundID'])); }
+  catch (e) { Logger.log('handleBukti_ REFUND gagal: ' + e); }
+  return res;
+}
+
+function submitStaffFee_bukti(data) {
+  var res = submitStaffFee(data);
+  try { handleBukti_(data, 'FEE', _buktiPickId_(res, ['feeId', 'FeeID'])); }
+  catch (e) { Logger.log('handleBukti_ FEE gagal: ' + e); }
+  return res;
+}
+
+function submitExpense_bukti(data) {
+  var res = submitExpense(data);
+  try { handleBukti_(data, 'EXPENSE', _buktiPickId_(res, ['expenseId', 'ExpenseID'])); }
+  catch (e) { Logger.log('handleBukti_ EXPENSE gagal: ' + e); }
+  return res;
+}
+
+
+/* =====================================================================
+ * BAGIAN 2 — AKTIFKAN (REKOMENDASI: cara wrapper, tanpa edit isi fungsi)
  *
- *   submitPayment(data):    handleBukti_(data, 'PAYMENT', paymentId);
- *   submitBooking(data):    handleBukti_(data, 'BOOKING', bookingId);
- *   submitRefund(data):     handleBukti_(data, 'REFUND',  refundId);
- *   submitStaffFee(data):   handleBukti_(data, 'FEE',     feeId);
- *   submitExpense(data):    handleBukti_(data, 'EXPENSE', expenseId);
+ * Di file ROUTER Anda (Api.js → function dispatchV1_, blok ===== WRITES =====),
+ * ada baris-baris seperti:  case 'submitPayment': return submitPayment(data);
+ * GANTI 5 baris ini supaya memanggil versi *_bukti:
  *
- * Contoh lengkap (submitPayment):
+ *   SEBELUM                                           SESUDAH
+ *   case 'submitBooking':   return submitBooking(data);   -> return submitBooking_bukti(data);
+ *   case 'submitPayment':   return submitPayment(data);   -> return submitPayment_bukti(data);
+ *   case 'submitRefund':    return submitRefund(data);    -> return submitRefund_bukti(data);
+ *   case 'submitStaffFee':  return submitStaffFee(data);  -> return submitStaffFee_bukti(data);
+ *   case 'submitExpense':   return submitExpense(data);   -> return submitExpense_bukti(data);
  *
- *   function submitPayment(data) {
- *     // ... logika existing Anda yang membuat row & menghasilkan paymentId ...
+ * Cukup ubah bagian setelah "return" (nama action di 'case' biarkan sama).
+ * Selesai — tidak perlu menyentuh isi fungsi submit yang asli.
  *
- *     handleBukti_(data, 'PAYMENT', paymentId);   // <-- TAMBAHKAN baris ini
- *
- *     return { paymentId: paymentId, message: 'Pembayaran dicatat' };
- *   }
+ * ---------------------------------------------------------------------
+ * CARA B (alternatif) — kalau lebih suka tanpa wrapper:
+ * Di tiap fungsi submit, tambahkan 1 baris tepat sebelum `return`-nya:
+ *   submitPayment   : handleBukti_(data, 'PAYMENT', paymentId);
+ *   submitBooking   : handleBukti_(data, 'BOOKING', bookingId);
+ *   submitRefund    : handleBukti_(data, 'REFUND',  refundId);
+ *   submitStaffFee  : handleBukti_(data, 'FEE',     feeId);
+ *   submitExpense   : handleBukti_(data, 'EXPENSE', expenseId);
+ * (ganti paymentId/bookingId/dst sesuai variabel id di fungsi Anda)
  *
  * CATATAN:
- * - handleBukti_ aman dipanggil walau tidak ada bukti (langsung return).
- * - Untuk BOOKING, cek konstanta SHEETS.BOOKINGS benar (lihat objek SHEETS di
- *   backend; di B7 ada SHEETS.PAYMENTS/REFUNDS/FEES/EXPENSES). Kalau nama sheet
- *   booking Anda beda, ganti baris BOOKING di config handleBukti_.
+ * - Semua aman dipanggil walau tidak ada bukti (langsung return).
+ * - Untuk BOOKING, pastikan SHEETS.BOOKINGS benar (lihat objek SHEETS; di B7 ada
+ *   SHEETS.PAYMENTS/REFUNDS/FEES/EXPENSES). Kalau nama sheet booking beda, ubah
+ *   baris BOOKING di config handleBukti_.
  * ===================================================================== */
 
 
