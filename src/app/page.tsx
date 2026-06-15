@@ -182,8 +182,8 @@ export default function BerandaPage() {
           <div className="space-y-3">
             {perluTindakan.map((b) => (
               <KkCard key={b.BookingID} className="flex items-center gap-3 flex-wrap">
-                <div className="min-w-0 flex-1">
-                  <div className="font-heading font-bold text-[20px] truncate">
+                <div className="basis-full sm:flex-1 sm:basis-0 min-w-0">
+                  <div className="font-heading font-bold text-[20px] break-words">
                     {b.Nama_Customer || '(tanpa nama)'}
                   </div>
                   <div className="text-caption text-kk-ink mt-0.5">
@@ -193,7 +193,7 @@ export default function BerandaPage() {
                 <BayarBadge status={mapPayStatus(b)} />
                 <KkButton
                   variant="success"
-                  className="min-h-[50px] px-5 text-[18px]"
+                  className="min-h-[50px] px-5 text-[18px] ml-auto sm:ml-0"
                   onClick={() => setTagih(b)}
                 >
                   Tagih

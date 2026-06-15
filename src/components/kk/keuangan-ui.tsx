@@ -179,13 +179,17 @@ export function RiwayatRow({
         <KkIcon name={TYPE_ICON[tx.type]} size={24} strokeWidth={2.2} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-heading font-bold text-[18px] text-kk-navy truncate">{tx.title}</div>
+        <div className="font-heading font-bold text-[18px] text-kk-navy break-words">{tx.title}</div>
         <div className="text-caption text-kk-ink truncate">
           {tx.subtitle ? `${tx.subtitle} · ` : ''}
           {dateLabel}
         </div>
+        {/* amount drops below on phone so the title keeps full width */}
+        <div className={cn('sm:hidden font-heading font-bold text-[17px] whitespace-nowrap mt-1', s.text)}>
+          {s.tanda} {rupiah(tx.nominal)}
+        </div>
       </div>
-      <div className={cn('font-heading font-bold text-[18px] whitespace-nowrap', s.text)}>
+      <div className={cn('hidden sm:block font-heading font-bold text-[18px] whitespace-nowrap', s.text)}>
         {s.tanda} {rupiah(tx.nominal)}
       </div>
       <button
