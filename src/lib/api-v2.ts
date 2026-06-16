@@ -20,6 +20,8 @@ export interface Fasilitas {
   nama: string;
   emoji: string;
   price_adjust: number;
+  /** Satuan harga fasilitas: per bulan atau per hari. Default 'per_bulan'. */
+  satuan?: 'per_bulan' | 'per_hari';
   is_active: boolean;
   description: string;
   updated_at: string;

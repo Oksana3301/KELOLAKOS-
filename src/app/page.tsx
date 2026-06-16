@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type BookingItem } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { api, type BookingItem, type BookingFullData } from '@/lib/api';
+import { kwitansiApi } from '@/lib/api-v2';
 import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard, BayarBadge } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
+import { TagihWa } from '@/components/kk/booking-ui';
 import {
   KkPeriodFilter,
   MoneyKpiGrid,
@@ -17,7 +19,6 @@ import {
   type MoneyData,
 } from '@/components/kk/money';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { PaymentConfirm } from '@/components/kk/confirm';
 import { mapRoomStatus, mapPayStatus, rupiah } from '@/components/kk/status';
 
 const HELP = {
@@ -25,12 +26,11 @@ const HELP = {
   tips: [
     'Di sini Anda melihat ringkasan uang dan kamar properti Anda hari ini.',
     'Gunakan tombol periode (Bulan Ini, dll.) untuk melihat angka pada rentang waktu lain.',
-    'Bagian "Perlu Tindakan" menampilkan penyewa yang belum lunas — tekan "Tagih" untuk mencatat pembayaran.',
+    'Bagian "Perlu Tindakan" menampilkan penyewa yang belum lunas — tekan "Tagih" untuk mengirim pengingat lewat WhatsApp.',
   ],
 };
 
 export default function BerandaPage() {
-  const qc = useQueryClient();
   const [period, setPeriod] = useState<PeriodValue>({ preset: 'this_month' });
   const [detailKpi, setDetailKpi] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -48,17 +48,9 @@ export default function BerandaPage() {
     enabled: !!resolved,
   });
 
-  const payMutation = useMutation({
-    mutationFn: (b: BookingItem) =>
-      api.submitPayment({ bookingId: b.BookingID, nominal: b.Sisa_Bayar, jenisBayar: 'PELUNASAN' }),
-    onSuccess: () => {
-      toast.success('✓ Pembayaran tercatat');
-      setTagih(null);
-      qc.invalidateQueries({ queryKey: ['initial-data'] });
-      qc.invalidateQueries({ queryKey: ['recent-transactions'] });
-      qc.invalidateQueries({ queryKey: ['report-data'] });
-    },
-    onError: (e) => toast.error('Gagal mencatat: ' + (e as Error).message),
+  const { data: bizSettings } = useQuery({
+    queryKey: ['kwitansi-settings'],
+    queryFn: kwitansiApi.get,
   });
 
   useEffect(() => {
@@ -223,14 +215,13 @@ export default function BerandaPage() {
         />
       )}
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
-      <PaymentConfirm
-        open={!!tagih}
-        name={tagih?.Nama_Customer || ''}
-        amount={tagih?.Sisa_Bayar || 0}
-        loading={payMutation.isPending}
-        onConfirm={() => tagih && payMutation.mutate(tagih)}
-        onCancel={() => setTagih(null)}
-      />
+      {tagih && (
+        <TagihWa
+          booking={tagih as BookingFullData}
+          businessName={bizSettings?.business_name}
+          onClose={() => setTagih(null)}
+        />
+      )}
     </>
   );
 }
