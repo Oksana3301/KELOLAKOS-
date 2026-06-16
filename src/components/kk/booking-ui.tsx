@@ -331,7 +331,7 @@ export function BookingFlow({
     if (!open) return;
     if (editBooking) {
       setNama(editBooking.Nama_Customer || '');
-      setHp(editBooking.WhatsApp || '');
+      setHp(String(editBooking.WhatsApp || ''));
       setRoomId(editBooking.RoomID || '');
       setLama(editBooking.Jumlah_Periode || 1);
       setSatuan(/HARI/i.test(editBooking.Paket || '') ? 'Harian' : 'Bulanan');
@@ -1476,8 +1476,10 @@ export function RefundForm({
 // ═════════════════════════ TAGIH LEWAT WHATSAPP ═════════════════════════
 // Normalize an Indonesian phone to wa.me format (no "+", country code 62):
 //   0812…  → 62812…   ·   812…  → 62812…   ·   620812… → 62812…   ·   +62… → 62…
-function waPhone(raw: string): string {
-  let p = (raw || '').replace(/[^0-9]/g, '');
+function waPhone(raw: string | number | null | undefined): string {
+  // Coerce first: Google Sheets often returns the phone as a NUMBER, and
+  // calling .replace on a number throws (client-side exception on Tagih).
+  let p = String(raw ?? '').replace(/[^0-9]/g, '');
   if (!p) return '';
   if (p.startsWith('620')) p = '62' + p.slice(3); // "62" typed then a local "0…"
   else if (p.startsWith('0')) p = '62' + p.slice(1);
