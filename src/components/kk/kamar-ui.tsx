@@ -16,6 +16,8 @@ import type { RoomStatus } from '@/lib/api';
 export interface KamarView {
   room: RoomStatus;
   harga: number;
+  /** Unit label for `harga` (e.g. "bulan", "hari") from the room's primary paket. */
+  hargaUnit?: string;
   lantai: number;
 }
 
@@ -62,7 +64,7 @@ export function KamarDetail({
   onDelete: (v: KamarView) => void;
 }) {
   if (!view) return null;
-  const { room, harga, lantai } = view;
+  const { room, harga, lantai, hargaUnit } = view;
   const status: RoomDisplayStatus = mapRoomStatus(room);
   const occupied = status !== 'Tersedia';
   const penyewa = (room.Penghuni_Text || '').trim();
@@ -83,7 +85,7 @@ export function KamarDetail({
         <KkCard className="mb-5 py-1">
           <InfoRow label="Gedung" value={room.Gedung} />
           <InfoRow label="Lantai" value={`Lantai ${lantai}`} />
-          <InfoRow label="Harga sewa" value={harga > 0 ? `${rupiah(harga)} / bulan` : 'Belum diatur'} />
+          <InfoRow label="Harga sewa" value={harga > 0 ? `${rupiah(harga)} / ${hargaUnit || 'bulan'}` : 'Belum diatur'} />
           <InfoRow label="Penyewa" value={penyewa || 'Belum ada'} />
         </KkCard>
 
