@@ -153,6 +153,10 @@ export interface RiwayatTx {
   nominal: number;
   direction: 'IN' | 'OUT';
   date: string;
+  /** Booking this money belongs to (PAYMENT/REFUND) — enables "buka booking". */
+  bookingId?: string;
+  /** Human rincian: room + tenant for the linked booking, if resolved. */
+  rincian?: string;
 }
 
 const TYPE_ICON: Record<RiwayatTx['type'], KkIconName> = {
@@ -166,31 +170,47 @@ export function RiwayatRow({
   tx,
   dateLabel,
   onDelete,
+  onOpen,
   deleteDisabled,
 }: {
   tx: RiwayatTx;
   dateLabel: string;
   onDelete: () => void;
+  /** When set (booking-linked tx), the info area is tappable to open the booking. */
+  onOpen?: () => void;
   deleteDisabled?: boolean;
 }) {
   const masuk = tx.direction === 'IN';
   const s = arahStyle(masuk ? 'masuk' : 'keluar');
+  // Rincian line: prefer the resolved "room · tenant", else backend subtitle.
+  const rincian = tx.rincian || tx.subtitle;
   return (
     <div className="kk-card !p-3.5 flex items-center gap-3.5">
       <div className={cn('w-[46px] h-[46px] rounded-xl flex-shrink-0 grid place-items-center', s.soft, s.text)}>
         <KkIcon name={TYPE_ICON[tx.type]} size={24} strokeWidth={2.2} />
       </div>
-      <div className="flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={!onOpen}
+        className={cn(
+          'flex-1 min-w-0 text-left',
+          onOpen ? 'cursor-pointer' : 'cursor-default',
+        )}
+      >
         <div className="font-heading font-bold text-[18px] text-kk-navy break-words">{tx.title}</div>
-        <div className="text-caption text-kk-ink truncate">
-          {tx.subtitle ? `${tx.subtitle} · ` : ''}
-          {dateLabel}
-        </div>
+        {rincian && <div className="text-caption text-kk-ink truncate">{rincian}</div>}
+        <div className="text-caption text-kk-ink truncate">{dateLabel}</div>
+        {onOpen && (
+          <div className="inline-flex items-center gap-1 mt-0.5 text-caption font-semibold text-kk-navy">
+            <KkIcon name="kamar" size={14} strokeWidth={2.4} /> Lihat booking
+          </div>
+        )}
         {/* amount drops below on phone so the title keeps full width */}
         <div className={cn('sm:hidden font-heading font-bold text-[17px] whitespace-nowrap mt-1', s.text)}>
           {s.tanda} {rupiah(tx.nominal)}
         </div>
-      </div>
+      </button>
       <div className={cn('hidden sm:block font-heading font-bold text-[18px] whitespace-nowrap', s.text)}>
         {s.tanda} {rupiah(tx.nominal)}
       </div>

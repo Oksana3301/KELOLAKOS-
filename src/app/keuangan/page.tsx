@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type BookingItem, type RecentTransaction, type ReportTransaction } from '@/lib/api';
 import { toast } from 'sonner';
@@ -38,6 +39,7 @@ const HELP = {
 
 export default function KeuanganPage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const [period, setPeriod] = useState<PeriodValue>({ preset: 'this_month' });
   const [detailKpi, setDetailKpi] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -86,6 +88,21 @@ export default function KeuanganPage() {
     return combined;
   }, [initialData]);
 
+  // BookingID → booking, so each money row can show "kamar · penyewa" and link
+  // back to the exact booking it came from.
+  const bookingById = useMemo(() => {
+    const m = new Map<string, BookingItem>();
+    allBookings.forEach((b) => m.set(b.BookingID, b));
+    return m;
+  }, [allBookings]);
+
+  // Build a readable rincian (room · tenant) for a booking-linked transaction.
+  function rincianFor(bookingId: string, fallback: string): string {
+    const b = bookingId ? bookingById.get(bookingId) : undefined;
+    if (b) return [b.Nama_Kamar, b.Nama_Customer].filter(Boolean).join(' · ');
+    return fallback;
+  }
+
   // Riwayat list from either source (period → report rows have no id → delete disabled).
   const transactions: RiwayatTx[] = useMemo(() => {
     if (resolved && periodData) {
@@ -97,6 +114,8 @@ export default function KeuanganPage() {
         nominal: t.nominal,
         direction: t.direction,
         date: t.date,
+        bookingId: t.bookingId,
+        rincian: t.bookingId ? rincianFor(t.bookingId, t.subtitle) : t.subtitle,
       }));
     }
     if (!resolved && recentData) {
@@ -108,10 +127,13 @@ export default function KeuanganPage() {
         nominal: t.nominal,
         direction: t.direction,
         date: t.date,
+        bookingId: t.bookingId,
+        rincian: t.bookingId ? rincianFor(t.bookingId, t.subtitle) : t.subtitle,
       }));
     }
     return [];
-  }, [resolved, periodData, recentData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved, periodData, recentData, bookingById]);
 
   // Delete mutation — same api fn + invalidations as the old page.
   const deleteMutation = useMutation({
@@ -239,6 +261,7 @@ export default function KeuanganPage() {
               })}
               deleteDisabled={!tx.id}
               onDelete={() => setHapusTarget(tx)}
+              onOpen={tx.bookingId ? () => router.push(`/booking?open=${tx.bookingId}`) : undefined}
             />
           ))
         )}
