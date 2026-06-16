@@ -390,10 +390,13 @@ export function BookingFlow({
     0,
   );
 
-  // Money math. In edit mode the existing total is authoritative for display.
+  // Money math. Total is ALWAYS recomputed = (room price + facilities) × periode,
+  // so adding/removing a facility or changing duration updates it live — in both
+  // create and edit mode. In edit we keep the booking's stored per-period room
+  // price so the base price doesn't shift from the live price list.
   const hargaSatuan = chosen?.harga || 0;
-  const baseTotal = (hargaSatuan + fasTotalPerPeriode) * lamaEff;
-  const total = isEdit ? editBooking!.Harga_Total_Net || baseTotal : baseTotal;
+  const hargaKamarEff = isEdit ? Number(editBooking!.Harga_Kamar) || hargaSatuan : hargaSatuan;
+  const total = (hargaKamarEff + fasTotalPerPeriode) * lamaEff;
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
   const keluar = customDate
@@ -940,7 +943,7 @@ export function BookingFlow({
                 </div>
                 <div className="flex justify-between items-baseline text-body mb-1.5">
                   <span className="text-kk-navy">
-                    Kamar {rupiah(hargaSatuan)} × {lamaEff} {unit}
+                    Kamar {rupiah(hargaKamarEff)} × {lamaEff} {unit}
                   </span>
                   <span className="text-caption text-kk-ink">
                     sampai {keluar ? tglPendek(keluar) : '—'}
