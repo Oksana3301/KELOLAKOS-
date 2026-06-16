@@ -11,11 +11,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // [B7] Latency improvements:
-            staleTime: 60 * 1000, // 1 min — data dianggap fresh, gak auto-refetch
+            // Freshness vs. load balance. Data is "fresh" for 30s; after that,
+            // returning to the app/tab (focus) refetches automatically — so a
+            // booking made on one device shows up on another without hard reload.
+            staleTime: 30 * 1000,
             gcTime: 10 * 60 * 1000, // 10 min — cache data setelah komponen unmount
-            refetchOnWindowFocus: false, // jangan refetch saat user balik ke tab
-            refetchOnReconnect: 'always', // tapi refetch kalau internet reconnect
+            refetchOnWindowFocus: true, // balik ke app → muat data terbaru
+            refetchOnReconnect: 'always', // refetch kalau internet reconnect
             retry: 1, // cuma retry 1x kalau gagal (default 3x bikin slow)
           },
           mutations: {

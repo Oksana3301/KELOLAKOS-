@@ -38,6 +38,7 @@ export type KkIconName =
   | 'silang'
   | 'panahAtas'
   | 'tambah'
+  | 'muat'
   | 'cari';
 
 interface KkIconProps {
@@ -223,6 +224,12 @@ export function KkIcon({ name, size = 26, className, strokeWidth = 2 }: KkIconPr
     ),
     panahAtas: <path {...p} d="M12 20V5M6 11l6-6 6 6" />,
     tambah: <path {...p} d="M12 5v14M5 12h14" />,
+    muat: (
+      <>
+        <path {...p} d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <path {...p} d="M21 3v6h-6" />
+      </>
+    ),
     cari: (
       <>
         <circle {...p} cx="11" cy="11" r="7" />
