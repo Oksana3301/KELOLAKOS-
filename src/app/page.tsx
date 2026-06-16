@@ -55,6 +55,8 @@ export default function BerandaPage() {
       toast.success('✓ Pembayaran tercatat');
       setTagih(null);
       qc.invalidateQueries({ queryKey: ['initial-data'] });
+      qc.invalidateQueries({ queryKey: ['recent-transactions'] });
+      qc.invalidateQueries({ queryKey: ['report-data'] });
     },
     onError: (e) => toast.error('Gagal mencatat: ' + (e as Error).message),
   });

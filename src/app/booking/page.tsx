@@ -119,14 +119,18 @@ function BookingPageInner() {
   }, [allBookings, tab, cari]);
 
   // Open the detail sheet — fetch full data first so all fields are present.
-  async function openDetail(b: BookingItem) {
-    try {
-      const d = await api.getBookingDetail(b.BookingID);
-      setDetail(d.booking);
-      setEditFacilityIds((d.facilities || []).map((f) => f.id));
-    } catch (e) {
-      toast.error('Gagal memuat detail: ' + (e as Error).message);
-    }
+  function openDetail(b: BookingItem) {
+    // Open immediately with the list data so the tap feels instant, then
+    // enrich with the full detail (and facilities) in the background.
+    setDetail(b as BookingFullData);
+    setEditFacilityIds([]);
+    api
+      .getBookingDetail(b.BookingID)
+      .then((d) => {
+        setDetail(d.booking);
+        setEditFacilityIds((d.facilities || []).map((f) => f.id));
+      })
+      .catch((e) => toast.error('Gagal memuat detail lengkap: ' + (e as Error).message));
   }
 
   function openEdit(b: BookingFullData) {
@@ -370,6 +374,10 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
         <span className="font-heading font-bold text-[19px] text-kk-navy">
           {rupiah(b.Harga_Total_Net)}
         </span>
+      </div>
+      <div className="flex items-center justify-end gap-1 mt-2.5 text-caption font-semibold text-kk-orange">
+        Ketuk untuk detail &amp; ubah
+        <KkIcon name="chevron" size={16} strokeWidth={2.6} />
       </div>
     </KkCard>
   );
