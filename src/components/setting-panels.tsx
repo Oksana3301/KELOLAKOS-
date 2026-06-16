@@ -980,7 +980,12 @@ export function FasilitasPanel() {
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-sm truncate">{f.nama}</div>
                   <div className="text-tx3 text-[10px] truncate">
-                    {f.kode} · {f.price_adjust > 0 ? `+${formatRupiahShort(f.price_adjust)}` : 'Free'}
+                    {f.kode} ·{' '}
+                    {f.price_adjust > 0
+                      ? `+${formatRupiahShort(f.price_adjust)}/${
+                          f.satuan === 'per_hari' ? 'hari' : f.satuan === 'per_tahun' ? 'tahun' : 'bulan'
+                        }`
+                      : 'Free'}
                     {!f.is_active && <span className="text-rd ml-1">· NONAKTIF</span>}
                   </div>
                 </div>
@@ -1012,7 +1017,9 @@ function FasilitasModal({
   const [nama, setNama] = useState(existing?.nama || '');
   const [emoji, setEmoji] = useState(existing?.emoji || '⭐');
   const [priceAdjust, setPriceAdjust] = useState(existing?.price_adjust || 0);
-  const [satuan, setSatuan] = useState<'per_bulan' | 'per_hari'>(existing?.satuan || 'per_bulan');
+  const [satuan, setSatuan] = useState<'per_bulan' | 'per_hari' | 'per_tahun'>(
+    existing?.satuan || 'per_bulan',
+  );
   const [isActive, setIsActive] = useState(existing?.is_active ?? true);
   const [description, setDescription] = useState(existing?.description || '');
   const [submitting, setSubmitting] = useState(false);
@@ -1075,9 +1082,9 @@ function FasilitasModal({
             <RupiahInput value={priceAdjust} onChange={setPriceAdjust} />
           </FormField>
 
-          <FormField label="Satuan Harga">
+          <FormField label="Satuan Harga" hint="Per hari, per bulan, atau per tahun — dipakai untuk menghitung saat booking.">
             <div className="flex gap-2">
-              {(['per_bulan', 'per_hari'] as const).map((u) => (
+              {(['per_hari', 'per_bulan', 'per_tahun'] as const).map((u) => (
                 <button
                   key={u}
                   type="button"
@@ -1087,7 +1094,7 @@ function FasilitasModal({
                     (satuan === u ? 'bg-ac text-inv border-ac' : 'bg-sf text-tx2 border-bd')
                   }
                 >
-                  {u === 'per_bulan' ? 'Per Bulan' : 'Per Hari'}
+                  {u === 'per_hari' ? 'Per Hari' : u === 'per_bulan' ? 'Per Bulan' : 'Per Tahun'}
                 </button>
               ))}
             </div>
