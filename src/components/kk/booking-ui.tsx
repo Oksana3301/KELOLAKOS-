@@ -14,6 +14,7 @@ import {
   type PriceItem,
   type BookingFullData,
   type BuktiFile,
+  type PaymentRecord,
 } from '@/lib/api';
 import { type Fasilitas } from '@/lib/api-v2';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
@@ -1135,18 +1136,24 @@ export function BookingFlow({
 // ═════════════════════════ DETAIL BOOKING ═════════════════════════
 export function BookingDetail({
   booking,
+  payments = [],
   onClose,
   onPay,
   onEdit,
   onCancel,
   onDelete,
+  onDeletePayment,
+  deletingPaymentId,
 }: {
   booking: BookingFullData;
+  payments?: PaymentRecord[];
   onClose: () => void;
   onPay: () => void;
   onEdit: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onDeletePayment?: (paymentId: string) => void;
+  deletingPaymentId?: string | null;
 }) {
   const status = mapPayStatus(booking);
   const batal = status === 'Batal';
@@ -1178,6 +1185,49 @@ export function BookingDetail({
             <InfoRow label="Sisa tagihan" value={rupiah(sisa)} accent="orange" />
           )}
         </KkCard>
+
+        {/* Riwayat pembayaran — bisa dihapus untuk koreksi status (mis. Lunas → ada sisa) */}
+        {payments.length > 0 && (
+          <div className="mb-5">
+            <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">
+              Riwayat Pembayaran
+            </div>
+            <div className="space-y-2.5">
+              {payments.map((p) => (
+                <div
+                  key={p.PaymentID}
+                  className="flex items-center gap-3 bg-white border-2 border-kk-mauve rounded-kk-card p-3.5"
+                >
+                  <div className="w-10 h-10 rounded-[11px] bg-kk-mint-soft text-kk-green grid place-items-center flex-shrink-0">
+                    <KkIcon name="pembayaran" size={22} strokeWidth={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-heading font-bold text-[18px] text-kk-green">
+                      + {rupiah(p.Nominal)}
+                    </div>
+                    <div className="text-caption text-kk-ink truncate">
+                      {(p.Jenis_Bayar || 'Pembayaran') + ' · ' + tglPanjang(p.Tanggal_Bayar)}
+                    </div>
+                  </div>
+                  {onDeletePayment && (
+                    <button
+                      onClick={() => onDeletePayment(p.PaymentID)}
+                      disabled={!!deletingPaymentId}
+                      aria-label="Hapus pembayaran ini"
+                      className="w-11 h-11 flex-shrink-0 rounded-[11px] border-2 border-kk-mauve bg-white text-kk-ink grid place-items-center disabled:opacity-40 hover:text-kk-orange hover:border-kk-orange"
+                    >
+                      <KkIcon name="hapus" size={20} strokeWidth={2.2} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="kk-help mt-2">
+              Hapus pembayaran untuk mengoreksi status (mis. dari Lunas kembali ada sisa). Daftar
+              booking & kwitansi ikut terupdate otomatis.
+            </p>
+          </div>
+        )}
 
         {batal ? (
           <div>

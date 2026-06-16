@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api, type BookingItem, type BookingFullData } from '@/lib/api';
+import { api, type BookingItem, type BookingFullData, type PaymentRecord } from '@/lib/api';
 import { facilityApi } from '@/lib/api-v2';
 import { ScreenHead, KkButton, KkCard, BayarBadge, StickyCTA } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
@@ -56,6 +56,8 @@ function BookingPageInner() {
 
   // Detail sheet + its derived dialogs
   const [detail, setDetail] = useState<BookingFullData | null>(null);
+  const [detailPayments, setDetailPayments] = useState<PaymentRecord[]>([]);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [payTarget, setPayTarget] = useState<BookingFullData | null>(null);
   const [cancelTarget, setCancelTarget] = useState<BookingFullData | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BookingFullData | null>(null);
@@ -121,16 +123,39 @@ function BookingPageInner() {
   // Open the detail sheet — fetch full data first so all fields are present.
   function openDetail(b: BookingItem) {
     // Open immediately with the list data so the tap feels instant, then
-    // enrich with the full detail (and facilities) in the background.
+    // enrich with the full detail (payments + facilities) in the background.
     setDetail(b as BookingFullData);
+    setDetailPayments([]);
     setEditFacilityIds([]);
+    refreshDetail(b.BookingID);
+  }
+
+  // (Re)load the open booking's full detail — used on open and after a payment
+  // is deleted, so the sheet reflects the recomputed status/sisa immediately.
+  function refreshDetail(bookingId: string) {
     api
-      .getBookingDetail(b.BookingID)
+      .getBookingDetail(bookingId)
       .then((d) => {
         setDetail(d.booking);
+        setDetailPayments(d.payments || []);
         setEditFacilityIds((d.facilities || []).map((f) => f.id));
       })
       .catch((e) => toast.error('Gagal memuat detail lengkap: ' + (e as Error).message));
+  }
+
+  async function handleDeletePayment(paymentId: string) {
+    if (!detail) return;
+    setDeletingPaymentId(paymentId);
+    try {
+      await api.submitTransactionDelete({ type: 'PAYMENT', id: paymentId });
+      toast.success('Pembayaran dihapus. Status booking diperbarui.');
+      invalidateAll(detail.BookingID); // daftar booking, kwitansi (initial-data), uang, laporan
+      refreshDetail(detail.BookingID); // perbarui sheet detail yang sedang terbuka
+    } catch (e) {
+      toast.error('Gagal menghapus pembayaran: ' + (e as Error).message);
+    } finally {
+      setDeletingPaymentId(null);
+    }
   }
 
   function openEdit(b: BookingFullData) {
@@ -310,11 +335,17 @@ function BookingPageInner() {
       {detail && (
         <BookingDetail
           booking={detail}
-          onClose={() => setDetail(null)}
+          payments={detailPayments}
+          deletingPaymentId={deletingPaymentId}
+          onClose={() => {
+            setDetail(null);
+            setDetailPayments([]);
+          }}
           onPay={() => setPayTarget(detail)}
           onEdit={() => openEdit(detail)}
           onCancel={() => setCancelTarget(detail)}
           onDelete={() => setDeleteTarget(detail)}
+          onDeletePayment={handleDeletePayment}
         />
       )}
 
