@@ -518,11 +518,16 @@ export function BookingFlow({
     const rate = f.price_adjust || 0;
     const fUnit = f.satuan || 'per_bulan';
     if (fUnit === 'per_hari') return Math.round(rate * actualDays);
-    // per_bulan fasilitas pada paket bulanan/6 bulan/setahun → × total bulan.
-    if (!customDate && PAKET_META[paketKind].months >= 1) {
-      return Math.round(rate * PAKET_META[paketKind].months * lamaEff);
+    // Jumlah bulan sewa (paket bulanan/6 bulan/setahun bila bukan custom).
+    const totalBulan =
+      !customDate && PAKET_META[paketKind].months >= 1 ? PAKET_META[paketKind].months * lamaEff : 0;
+    if (fUnit === 'per_tahun') {
+      // Per tahun → prorate: × (jumlah bulan ÷ 12), atau pakai hari nyata ÷ 365.
+      if (totalBulan > 0) return Math.round((rate * totalBulan) / 12);
+      return Math.round((rate / 365) * actualDays);
     }
-    // sewa harian/mingguan/custom → prorate pakai jumlah hari kalender nyata.
+    // per_bulan: × total bulan; sewa harian/mingguan/custom → prorate per hari.
+    if (totalBulan > 0) return Math.round(rate * totalBulan);
     return Math.round((rate / daysInMonth(masuk)) * actualDays);
   }
   const fasTotal = activeFas.reduce((s, f) => (selFas.has(f.id) ? s + facCost(f) : s), 0);
@@ -1081,7 +1086,8 @@ export function BookingFlow({
                         <span className="flex-1 min-w-0">
                           <span className="block font-heading font-bold text-[18px] text-kk-navy">{f.nama}</span>
                           <span className="text-caption text-kk-ink">
-                            {rupiah(f.price_adjust)}/{f.satuan === 'per_hari' ? 'hari' : 'bulan'}
+                            {rupiah(f.price_adjust)}/
+                            {f.satuan === 'per_hari' ? 'hari' : f.satuan === 'per_tahun' ? 'tahun' : 'bulan'}
                             {on ? ` · total + ${rupiah(facCost(f))}` : ''}
                           </span>
                         </span>
