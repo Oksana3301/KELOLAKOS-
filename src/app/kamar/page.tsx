@@ -17,6 +17,7 @@ import {
   type KamarView,
   type KamarFormValue,
 } from '@/components/kk/kamar-ui';
+import { buildRoomOptions } from '@/components/kk/booking-ui';
 
 const HELP = {
   title: 'Kelola Kamar',
@@ -28,24 +29,6 @@ const HELP = {
     'Tekan satu kartu kamar untuk membuka detailnya, lalu pilih Ubah atau Hapus.',
   ],
 };
-
-// Pull the monthly price for a room from the price rules (display only).
-function priceForRoom(
-  room: RoomStatus,
-  rules: { RoomID: string; Harga_Satuan: number }[],
-  prices: { Layanan: string; Gedung: string; Tipe_Kamar: string; Paket: string; Harga_Satuan: number }[],
-): number {
-  const rule = rules.find((r) => r.RoomID === room.RoomID && r.Harga_Satuan > 0);
-  if (rule) return rule.Harga_Satuan;
-  const match = prices.find(
-    (p) =>
-      p.Layanan === room.Layanan_Default &&
-      p.Gedung === room.Gedung &&
-      p.Tipe_Kamar === room.Tipe_Kamar &&
-      (p.Paket === 'BULANAN' || p.Paket === '1_BULAN' || true),
-  );
-  return match?.Harga_Satuan || 0;
-}
 
 // Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
 function floorForRoom(room: RoomStatus): number {
@@ -143,15 +126,23 @@ export default function KamarPage() {
     return m;
   }, [data]);
 
+  // Monthly price per room — reuse the SAME resolver the Booking flow uses so the
+  // Kamar list and the booking screen never disagree (type-first match, per-room
+  // override, penginapan name-as-type).
+  const hargaByRoom = useMemo(() => {
+    const opts = buildRoomOptions(rooms, prices, 'Bulanan', undefined, rules);
+    return new Map(opts.map((o) => [o.room.RoomID, o.harga]));
+  }, [rooms, prices, rules]);
+
   // Build enriched views (room + derived harga + lantai).
   const views: KamarView[] = useMemo(
     () =>
       rooms.map((room) => ({
         room,
-        harga: priceForRoom(room, rules, prices),
+        harga: hargaByRoom.get(room.RoomID) || 0,
         lantai: floorForRoom(room),
       })),
-    [rooms, rules, prices],
+    [rooms, hargaByRoom],
   );
 
   const buildings = useMemo(
