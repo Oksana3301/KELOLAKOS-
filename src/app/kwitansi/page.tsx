@@ -162,10 +162,10 @@ export default function KwitansiPage() {
       {selected && (
         <>
           <StepHeading n={2} title="Periksa kwitansi" className="mt-7" />
-          {/* Export target — styling tuned to render tidily via html2canvas
-              (fixed width, centered, no baseline-dependent alignment). */}
-          <div ref={previewRef} className="bg-white p-3">
-            <div className="mx-auto w-full max-w-[480px] bg-white border-2 border-kk-mauve rounded-kk-card px-6 pt-7 pb-6">
+          {/* Export target — a TIGHT fixed-width card (so the exported PNG/PDF
+              isn't a wide page with the receipt floating in the middle). */}
+          <div ref={previewRef} className="bg-white mx-auto w-full max-w-[460px] p-3">
+            <div className="w-full bg-white border-2 border-kk-mauve rounded-kk-card px-6 pt-7 pb-6">
               {/* Header: centered logo + business name + (optional) tagline/contact + status.
                   Uses the saved Profil Bisnis settings — tidy & clip-safe on export. */}
               <div className="text-center border-b-2 border-dashed border-kk-mauve pb-5 mb-2">
