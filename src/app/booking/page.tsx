@@ -113,6 +113,16 @@ function BookingPageInner() {
     return combined;
   }, [data]);
 
+  // Deep-link from the Uang menu: ?open=<BookingID> opens that booking's detail.
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || !data) return;
+    const found = allBookings.find((b) => b.BookingID === openId);
+    if (found) openDetail(found);
+    router.replace('/booking');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, data, allBookings]);
+
   const filtered = useMemo(() => {
     let list = allBookings;
     if (tab !== 'semua') {

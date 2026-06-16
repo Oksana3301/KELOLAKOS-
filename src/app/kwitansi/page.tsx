@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { rupiah, tglPanjang, mapPayStatus, type PayStatus } from '@/components/kk/status';
+import { rupiah, tglPanjang, mapPayStatus } from '@/components/kk/status';
 import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 
 const HELP = {
@@ -75,6 +75,7 @@ export default function KwitansiPage() {
   const total = Number(selected?.Harga_Total_Net) || 0;
   const dibayar = Number(selected?.Net_Diterima ?? selected?.Total_Bayar) || 0;
   const sisa = Number(selected?.Sisa_Bayar) || 0;
+  const statusText = selected ? mapPayStatus(selected) : '-';
 
   async function handleSendWhatsApp() {
     if (!previewRef.current) return;
@@ -183,14 +184,22 @@ export default function KwitansiPage() {
                 {contactLine && (
                   <div className="text-caption text-kk-ink leading-snug mb-2">{contactLine}</div>
                 )}
-                <div className="font-body font-semibold text-caption text-kk-ink tracking-wide mb-3">
+                <div className="font-body font-semibold text-caption text-kk-ink tracking-wide">
                   KWITANSI PEMBAYARAN
-                </div>
-                <div className="flex items-center justify-center">
-                  <ReceiptStatus status={mapPayStatus(selected)} />
                 </div>
               </div>
 
+              <ReceiptRow
+                label="Status"
+                value={statusText}
+                valueClass={
+                  statusText === 'Lunas'
+                    ? 'text-kk-green'
+                    : statusText === 'Batal'
+                      ? 'text-kk-mauve'
+                      : 'text-kk-orange'
+                }
+              />
               <ReceiptRow label="Nama penyewa" value={selected.Nama_Customer || '-'} />
               <ReceiptRow label="Kamar" value={selected.Nama_Kamar || '-'} />
               <ReceiptRow
@@ -263,30 +272,5 @@ function ReceiptRow({ label, value, valueClass }: { label: string; value: string
         {value}
       </span>
     </div>
-  );
-}
-
-// Export-safe status chip: inline-flex centered, solid fill, no fragile baseline.
-function ReceiptStatus({ status }: { status: PayStatus }) {
-  const map: Record<PayStatus, string> = {
-    Lunas: 'bg-kk-green text-white',
-    'Belum Bayar': 'bg-kk-orange text-white',
-    DP: 'bg-kk-yellow text-kk-navy',
-    Batal: 'bg-kk-mauve text-kk-navy',
-  };
-  return (
-    <span
-      className={
-        'inline-block rounded-full font-heading font-bold text-[15px] px-5 text-center align-middle whitespace-nowrap ' +
-        map[status]
-      }
-      // Vertical centering that survives html2canvas (PNG/PDF): a single-line
-      // pill whose line-height EQUALS its height. font-heading (Lato) has
-      // symmetric metrics so the glyphs sit dead-center — unlike font-body
-      // (Josefin) which sits low and rendered the text below center on export.
-      style={{ height: '32px', lineHeight: '32px' }}
-    >
-      {status}
-    </span>
   );
 }

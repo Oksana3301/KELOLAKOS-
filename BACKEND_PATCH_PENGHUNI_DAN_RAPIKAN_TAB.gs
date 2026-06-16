@@ -14,10 +14,23 @@ var PENGHUNI_SHEET = 'PENGHUNI';
 /*******************************************************
  * BAGIAN 1 - AUTO ISI PENGHUNI
  *
- * Panggil SATU baris ini di dalam submitBooking Anda, SETELAH bookingId &
- * data kamar (room) didapat dan SEBELUM return:
+ * PENTING (penyebab error "upsertPenghuni_ is not defined"):
+ *   Error itu muncul kalau fungsi upsertPenghuni_ BELUM ADA di project yang
+ *   sama saat submitBooking dipanggil. Pastikan:
+ *     1) File .gs ini sudah di-PASTE ke project Apps Script yang SAMA, lalu
+ *        SAVE (Ctrl+S). Satu project boleh banyak file .gs - semua fungsinya
+ *        saling kenal.
+ *     2) Setelah itu DEPLOY ULANG (Deploy > Manage deployments > Edit > Deploy)
+ *        supaya Web App memakai kode terbaru.
  *
- *     upsertPenghuni_(data, bookingId, room);
+ * Panggil SATU baris ini di dalam submitBooking Anda, SETELAH bookingId &
+ * data kamar (room) didapat dan SEBELUM return. PAKAI bentuk AMAN di bawah ini
+ * supaya kalaupun fungsinya belum ada, booking TIDAK gagal:
+ *
+ *     if (typeof upsertPenghuni_ === 'function') upsertPenghuni_(data, bookingId, room);
+ *
+ * (Boleh juga langsung "upsertPenghuni_(data, bookingId, room);" kalau Anda
+ *  yakin file ini sudah kepasang dan ke-save.)
  *
  * Keterangan argumen:
  *   data      = payload booking (punya .nama, .noHp, .checkIn, .checkOut, dst.)
