@@ -17,8 +17,10 @@ const HELP = {
   title: 'Booking',
   tips: [
     'Di sini Anda melihat semua penyewa dan mengelola booking mereka.',
-    'Tekan tombol oranye "Tambah Penyewa Baru" untuk mencatat penyewa baru — cukup ikuti 3 langkah.',
-    'Tekan satu kartu penyewa untuk melihat rincian, mencatat pembayaran, mengubah, atau membatalkan booking.',
+    'Tekan tombol oranye "Tambah Penyewa Baru" untuk mencatat penyewa baru — cukup ikuti langkahnya.',
+    'Saat memilih kamar, harga mengikuti tipe & gedung kamar itu. Kalau tertulis "harga belum diatur", set dulu di menu Kamar / Pengaturan → Harga.',
+    'Untuk penyewa yang baru bayar sebagian (DP), kartunya menampilkan jumlah Dibayar dan Sisa langsung — tidak perlu buka detail.',
+    'Tekan satu kartu penyewa untuk melihat rincian, mencatat pembayaran, menagih lewat WhatsApp, mengubah, refund, atau membatalkan booking.',
   ],
 };
 
@@ -366,6 +368,7 @@ function BookingPageInner() {
         }}
         rooms={data.roomStatus || []}
         prices={data.prices || []}
+        roomPriceRules={data.roomPriceRules || []}
         editBooking={editBooking}
         facilities={facilities || []}
         editFacilityIds={editFacilityIds}

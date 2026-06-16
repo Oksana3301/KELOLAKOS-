@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { Sheet, SheetHead, KkButton, KkCard, InfoRow, RoomBadge } from './ui';
+import { MoneyInput } from './money-input';
 import { KkIcon } from './icons';
 import { DeleteConfirm } from './confirm';
 import { mapRoomStatus, rupiah, type RoomDisplayStatus } from './status';
@@ -234,14 +235,13 @@ export function KamarForm({
 
         <KamarField
           label="Harga Sewa per Bulan"
-          contoh="Contoh: 850000"
-          hint="Tulis angka saja, tanpa titik atau Rp."
+          contoh="Contoh: 850.000"
+          hint="Titik ribuan otomatis."
         >
-          <input
+          <MoneyInput
             value={harga}
-            onChange={(e) => setHarga(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="0"
-            inputMode="numeric"
+            onChange={(n) => setHarga(n ? String(n) : '')}
+            placeholder="850.000"
             className={inputClass}
           />
         </KamarField>

@@ -22,8 +22,9 @@ const HELP = {
   title: 'Kelola Kamar',
   tips: [
     'Di sini Anda menambah, mengubah, atau menghapus kamar di properti Anda.',
-    'Tekan tombol "Tambah Kamar" di atas untuk membuat kamar baru.',
-    'Gunakan kotak pencarian dan filter untuk menemukan kamar dengan cepat.',
+    'Tekan tombol "Tambah Kamar" di atas untuk membuat kamar baru. Harga sewa otomatis pakai titik ribuan.',
+    'Gunakan filter Status (Terisi / Kosong / Perlu Perhatian) dan pencarian — bisa cari juga lewat nama penghuni.',
+    'Harga yang Anda set di sini langsung dipakai saat booking untuk kamar tersebut.',
     'Tekan satu kartu kamar untuk membuka detailnya, lalu pilih Ubah atau Hapus.',
   ],
 };

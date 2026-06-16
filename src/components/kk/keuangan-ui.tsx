@@ -10,6 +10,7 @@ import { api, type BookingItem, type BuktiFile } from '@/lib/api';
 import { rupiah } from './status';
 import { Sheet, SheetHead, KkButton } from './ui';
 import { FileUpload } from './file-upload';
+import { MoneyInput } from './money-input';
 import { KkIcon, type KkIconName } from './icons';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -393,18 +394,8 @@ export function TransaksiFormSheet({
           />
         </Field>
 
-        <Field
-          label={jenis.judulJumlah}
-          contoh={jenis.contohJumlah}
-          hint="Tulis angka saja, tanpa titik atau Rp."
-        >
-          <input
-            value={jumlah}
-            onChange={(e) => setJumlah(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="0"
-            inputMode="numeric"
-            className="kk-input tabular-nums"
-          />
+        <Field label={jenis.judulJumlah} contoh={jenis.contohJumlah} hint="Titik ribuan otomatis.">
+          <MoneyInput value={jumlah} onChange={(n) => setJumlah(n ? String(n) : '')} placeholder="0" />
         </Field>
 
         <Field label="Tanggal">
