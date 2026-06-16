@@ -460,6 +460,8 @@ export function BookingFlow({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['initial-data'] });
+      qc.invalidateQueries({ queryKey: ['recent-transactions'] });
+      qc.invalidateQueries({ queryKey: ['report-data'] });
       if (editBooking) {
         qc.invalidateQueries({ queryKey: ['booking-detail', editBooking.BookingID] });
       }
@@ -976,6 +978,16 @@ export function BookingFlow({
                 {rupiah(total)}
               </div>
             </div>
+
+            {isEdit && (
+              <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-card p-4 mb-5 flex items-start gap-3">
+                <KkIcon name="info" size={24} className="text-kk-orange flex-shrink-0 mt-0.5" />
+                <p className="text-body text-kk-navy m-0 leading-snug">
+                  Mengubah status di sini <b>tidak mencatat uang masuk</b>. Untuk mencatat pembayaran,
+                  tutup lalu tekan <b>&quot;Catat Pembayaran&quot;</b> di detail booking.
+                </p>
+              </div>
+            )}
 
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">
               Status pembayaran
