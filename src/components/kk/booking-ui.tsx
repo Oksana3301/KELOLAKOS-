@@ -12,6 +12,7 @@ import {
   api,
   type RoomStatus,
   type PriceItem,
+  type RoomPriceRule,
   type BookingFullData,
   type BuktiFile,
   type PaymentRecord,
@@ -19,6 +20,7 @@ import {
 import { type Fasilitas } from '@/lib/api-v2';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
+import { MoneyInput } from './money-input';
 import { KkIcon } from './icons';
 import { rupiah, tglPanjang, tglPendek, mapPayStatus, mapRoomStatus, type PayStatus, type RoomDisplayStatus } from './status';
 
@@ -178,34 +180,49 @@ export function buildRoomOptions(
   prices: PriceItem[],
   satuan: Satuan,
   currentRoomId?: string,
+  roomRules: RoomPriceRule[] = [],
 ): RoomOption[] {
-  // Find matching price rows for a room. Lenient: try the exact
-  // (Layanan + Gedung + Tipe) match first, then progressively relax so a
-  // configured "Harga Umum" still shows up even if Tipe_Kamar/Layanan differ
-  // slightly. (Avoids "harga belum diatur" when the data keys don't align.)
+  // Price rows for a room, matched TYPE-FIRST so a Superior never borrows a
+  // Deluxe price. We narrow on Tipe_Kamar and never fall back to a *different*
+  // type — if no type match exists, the room shows "harga belum diatur" so the
+  // owner knows to set it (instead of silently using the wrong type's price).
   function rowsFor(r: RoomStatus): PriceItem[] {
     const exact = prices.filter(
       (p) => p.Layanan === r.Layanan_Default && p.Gedung === r.Gedung && p.Tipe_Kamar === r.Tipe_Kamar,
     );
     if (exact.length) return exact;
-    const byLayananGedung = prices.filter(
-      (p) => p.Layanan === r.Layanan_Default && p.Gedung === r.Gedung,
+    const byGedungTipe = prices.filter((p) => p.Gedung === r.Gedung && p.Tipe_Kamar === r.Tipe_Kamar);
+    if (byGedungTipe.length) return byGedungTipe;
+    const byLayananTipe = prices.filter(
+      (p) => p.Layanan === r.Layanan_Default && p.Tipe_Kamar === r.Tipe_Kamar,
     );
-    if (byLayananGedung.length) return byLayananGedung;
-    const byGedung = prices.filter((p) => p.Gedung === r.Gedung);
-    if (byGedung.length) return byGedung;
-    const byLayanan = prices.filter((p) => p.Layanan === r.Layanan_Default);
-    return byLayanan;
+    if (byLayananTipe.length) return byLayananTipe;
+    const byTipe = prices.filter((p) => p.Tipe_Kamar === r.Tipe_Kamar);
+    return byTipe; // may be empty → "harga belum diatur" (intentional)
+  }
+  // Per-room override rows (set via Kelola Kamar / Harga Massal), keyed by RoomID.
+  function ruleRowsFor(r: RoomStatus): RoomPriceRule[] {
+    return roomRules.filter((rule) => rule.RoomID === r.RoomID && Number(rule.Harga_Satuan) > 0);
+  }
+  function pickByPaket<T extends { Paket: string; Harga_Satuan: number }>(
+    rows: T[],
+    daily: boolean,
+  ): number {
+    if (!rows.length) return 0;
+    const want = rows.find((p) => (daily ? /HARI/i : /BULAN/i).test(p.Paket));
+    return (want || rows[0]).Harga_Satuan || 0;
   }
   function monthlyPrice(r: RoomStatus): number {
-    const rows = rowsFor(r);
-    const m = rows.find((p) => /BULAN/i.test(p.Paket));
-    return (m || rows[0])?.Harga_Satuan || 0;
+    // Per-room rule wins over the generic type table.
+    const ruleM = pickByPaket(ruleRowsFor(r), false);
+    if (ruleM > 0) return ruleM;
+    return pickByPaket(rowsFor(r), false);
   }
   function dailyPrice(r: RoomStatus): number {
-    const rows = rowsFor(r);
-    const d = rows.find((p) => /HARI/i.test(p.Paket));
-    if (d) return d.Harga_Satuan;
+    const ruleD = pickByPaket(ruleRowsFor(r), true);
+    if (ruleD > 0) return ruleD;
+    const tableD = pickByPaket(rowsFor(r), true);
+    if (tableD > 0) return tableD;
     const monthly = monthlyPrice(r);
     return monthly ? Math.round(monthly / 30) : 0;
   }
@@ -240,6 +257,7 @@ export function BookingFlow({
   onClose,
   rooms,
   prices,
+  roomPriceRules = [],
   editBooking,
   facilities = [],
   editFacilityIds,
@@ -248,6 +266,8 @@ export function BookingFlow({
   onClose: () => void;
   rooms: RoomStatus[];
   prices: PriceItem[];
+  /** Per-room price overrides (Kelola Kamar / Harga Massal). */
+  roomPriceRules?: RoomPriceRule[];
   editBooking?: BookingFullData | null;
   /** Active facilities (with per-period price_adjust). */
   facilities?: Fasilitas[];
@@ -337,8 +357,8 @@ export function BookingFlow({
   }, [step, open]);
 
   const options = useMemo(
-    () => buildRoomOptions(rooms, prices, effSatuan, editBooking?.RoomID),
-    [rooms, prices, effSatuan, editBooking],
+    () => buildRoomOptions(rooms, prices, effSatuan, editBooking?.RoomID, roomPriceRules),
+    [rooms, prices, effSatuan, editBooking, roomPriceRules],
   );
   const chosen = options.find((o) => o.room.RoomID === roomId) || null;
 
@@ -1051,12 +1071,10 @@ export function BookingFlow({
                 contoh={'Maksimal ' + rupiah(total)}
                 hint="Sisanya akan ditagih kemudian."
               >
-                <input
+                <MoneyInput
                   value={dp}
-                  onChange={(e) => setDp(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="Contoh: 400000"
-                  inputMode="numeric"
-                  className="kk-input"
+                  onChange={(n) => setDp(n ? String(n) : '')}
+                  placeholder="Contoh: 400.000"
                 />
               </BookingField>
             )}
@@ -1379,12 +1397,7 @@ export function RefundForm({
       </p>
 
       <BookingField label="Jumlah refund" contoh={'Maksimal ' + rupiah(dibayar)}>
-        <input
-          value={nominal}
-          onChange={(e) => setNominal(e.target.value.replace(/[^0-9]/g, ''))}
-          inputMode="numeric"
-          className="kk-input"
-        />
+        <MoneyInput value={nominal} onChange={(n) => setNominal(n ? String(n) : '')} />
       </BookingField>
       <div className="flex gap-2 mb-4 -mt-2">
         {[

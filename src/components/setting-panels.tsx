@@ -43,18 +43,22 @@ function RupiahInput({
   onChange: (v: number) => void;
   placeholder?: string;
 }) {
+  // type=text so Indonesian thousand separators (titik) show while typing.
   return (
     <div className="relative">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tx3 text-xs font-semibold pointer-events-none">
         Rp
       </span>
       <input
-        type="number"
-        value={value || ''}
+        type="text"
+        inputMode="numeric"
+        value={value ? new Intl.NumberFormat('id-ID').format(value) : ''}
         placeholder={placeholder}
-        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/[^0-9]/g, '');
+          onChange(digits ? parseInt(digits, 10) : 0);
+        }}
         className="input pl-9 tabular-nums"
-        min={0}
       />
     </div>
   );

@@ -32,8 +32,9 @@ const HELP = {
   title: 'Uang',
   tips: [
     'Tekan salah satu dari 4 kotak di atas untuk mencatat uang masuk atau keluar. Hijau berarti uang masuk, oranye berarti uang keluar.',
+    'Saat mengisi nominal, titik ribuan muncul otomatis (mis. 2.000.000) jadi mudah dibaca.',
     'Bagian ringkasan menunjukkan total uang Anda pada periode yang dipilih. Ganti periode dengan tombol Bulan Ini, dll.',
-    'Di "Riwayat Transaksi" Anda bisa melihat catatan terbaru. Tekan tombol tempat sampah untuk menghapus satu catatan.',
+    'Di "Riwayat Transaksi", catatan dari sewa kamar menampilkan kamar & penyewanya — tekan "Lihat booking" untuk membuka bookingnya. Tekan tombol tempat sampah untuk menghapus satu catatan.',
   ],
 };
 
