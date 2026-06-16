@@ -3,7 +3,8 @@
 // KelolaKos · design-system primitives (ported from app/ui.jsx).
 // Big touch targets, navy-on-light, line icons + text. Elderly-friendly.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { KkIcon } from './icons';
 import { PAY_BADGE, ROOM_BADGE, type PayStatus, type RoomDisplayStatus } from './status';
 import { cn } from '@/lib/utils';
@@ -103,21 +104,48 @@ export function ScreenHead({
   sub?: string;
   onHelp?: () => void;
 }) {
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Manual refresh: refetch every active query so the screen reflects the latest
+  // data without a hard browser reload (which elderly users mistake for an error).
+  async function handleRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await qc.refetchQueries({ type: 'active' });
+    } finally {
+      // Keep the spin visible briefly so the tap feels acknowledged.
+      setTimeout(() => setRefreshing(false), 400);
+    }
+  }
+
   return (
     <div className="flex justify-between items-start gap-3 mb-6">
       <div>
         <h1 className="font-heading font-bold text-page text-kk-navy m-0 leading-[1.05]">{title}</h1>
         {sub && <p className="mt-2 text-body text-kk-ink m-0">{sub}</p>}
       </div>
-      {onHelp && (
+      <div className="flex items-center gap-2 flex-shrink-0">
         <button
-          onClick={onHelp}
-          aria-label="Bantuan"
-          className="flex-shrink-0 w-12 h-12 rounded-full bg-kk-mint-soft border-2 border-kk-mint text-kk-navy font-heading font-black text-[22px] grid place-items-center cursor-pointer"
+          onClick={handleRefresh}
+          aria-label="Muat ulang data"
+          title="Muat ulang"
+          disabled={refreshing}
+          className="w-12 h-12 rounded-full bg-white border-2 border-kk-mauve text-kk-navy grid place-items-center cursor-pointer disabled:opacity-60"
         >
-          ?
+          <KkIcon name="muat" size={24} strokeWidth={2.2} className={refreshing ? 'animate-spin' : ''} />
         </button>
-      )}
+        {onHelp && (
+          <button
+            onClick={onHelp}
+            aria-label="Bantuan"
+            className="w-12 h-12 rounded-full bg-kk-mint-soft border-2 border-kk-mint text-kk-navy font-heading font-black text-[22px] grid place-items-center cursor-pointer"
+          >
+            ?
+          </button>
+        )}
+      </div>
     </div>
   );
 }
