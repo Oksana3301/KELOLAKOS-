@@ -453,6 +453,7 @@ export function BookingFlow({
         paket: effSatuan,
         jumlahPeriode: lamaEff,
         hargaKamar: hargaSatuan,
+        hargaTotal: total,
         dpAwal: dibayar,
         fasilitasIds: Array.from(selFas),
         buktiFiles: bukti,

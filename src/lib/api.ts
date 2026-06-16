@@ -171,6 +171,8 @@ export interface SubmitBookingPayload {
   hargaKamar: number; extraCharge?: number; diskon?: number; dpAwal?: number;
   dpMetode?: string; catatan?: string; extraRequest?: string;
   isEkstra?: boolean; fasilitasIds?: string[];
+  /** Full computed total (periode × harga + fasilitas). Authoritative on the backend. */
+  hargaTotal?: number;
   buktiFiles?: BuktiFile[];
 }
 
@@ -313,6 +315,8 @@ export const api = {
       paket_durasi: data.paket,
       jumlah_periode: data.jumlahPeriode,
       harga_kamar: data.hargaKamar,
+      harga_total: data.hargaTotal,
+      hargaTotal: data.hargaTotal,
       extra_charge: data.extraCharge || 0,
       extra_charge_final: data.extraCharge || 0,
       dp_awal: data.dpAwal || 0,
