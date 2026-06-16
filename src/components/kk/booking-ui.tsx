@@ -40,6 +40,13 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().split('T')[0];
 }
 
+// Real number of days in the calendar month of `iso` (akurat, bukan 30 tetap).
+function daysInMonth(iso: string): number {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 30;
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
 export type Satuan = 'Bulanan' | 'Harian';
 
 function daysBetween(a: string, b: string): number {
@@ -382,28 +389,36 @@ export function BookingFlow({
   const customHari = customDate ? daysBetween(masuk, keluarDate) : 0;
   const lamaEff = customDate ? Math.max(0, customHari) : lama;
 
-  // Extra facilities add their price_adjust PER PERIOD (same contract as the
-  // legacy form: base hargaKamar + fasilitasIds → backend totals it).
-  const activeFas = facilities.filter((f) => f.is_active);
-  const fasTotalPerPeriode = activeFas.reduce(
-    (s, f) => (selFas.has(f.id) ? s + (f.price_adjust || 0) : s),
-    0,
-  );
-
-  // Money math. Total is ALWAYS recomputed = (room price + facilities) × periode,
-  // so adding/removing a facility or changing duration updates it live — in both
-  // create and edit mode. In edit we keep the booking's stored per-period room
-  // price so the base price doesn't shift from the live price list.
-  const hargaSatuan = chosen?.harga || 0;
-  const hargaKamarEff = isEdit ? Number(editBooking!.Harga_Kamar) || hargaSatuan : hargaSatuan;
-  const total = (hargaKamarEff + fasTotalPerPeriode) * lamaEff;
-  const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
-  const sisa = Math.max(total - dibayar, 0);
+  // Tanggal keluar (untuk menghitung jumlah hari kalender ASLI).
   const keluar = customDate
     ? keluarDate
     : effSatuan === 'Harian'
     ? addDays(masuk, lama)
     : addMonths(masuk, lama);
+  const actualDays = Math.max(1, daysBetween(masuk, keluar) || lamaEff);
+
+  // Biaya fasilitas — pakai satuan tiap fasilitas (per bulan / per hari),
+  // dikonversi memakai jumlah hari kalender nyata (bukan 30 tetap).
+  const activeFas = facilities.filter((f) => f.is_active);
+  function facCost(f: Fasilitas): number {
+    const rate = f.price_adjust || 0;
+    const unit = f.satuan || 'per_bulan';
+    if (unit === 'per_hari') return Math.round(rate * actualDays);
+    // per_bulan
+    if (!customDate && effSatuan === 'Bulanan') return Math.round(rate * lamaEff); // n bulan penuh
+    // sewa harian / custom → prorate pakai jumlah hari di bulan masuk
+    return Math.round((rate / daysInMonth(masuk)) * actualDays);
+  }
+  const fasTotal = activeFas.reduce((s, f) => (selFas.has(f.id) ? s + facCost(f) : s), 0);
+
+  // Money math. Total selalu dihitung ulang = (harga kamar × periode) + fasilitas,
+  // jadi menambah/menghapus fasilitas atau mengubah durasi langsung mengubah total
+  // — di mode buat maupun edit. Di edit, harga kamar pakai nilai tersimpan booking.
+  const hargaSatuan = chosen?.harga || 0;
+  const hargaKamarEff = isEdit ? Number(editBooking!.Harga_Kamar) || hargaSatuan : hargaSatuan;
+  const total = hargaKamarEff * lamaEff + fasTotal;
+  const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
+  const sisa = Math.max(total - dibayar, 0);
 
   const bisaLanjut =
     step === 1
@@ -923,11 +938,15 @@ export function BookingFlow({
                         >
                           <KkIcon name="cek" size={16} strokeWidth={2.8} />
                         </span>
-                        <span className="flex-1 min-w-0 font-heading font-bold text-[18px] text-kk-navy">
-                          {f.nama}
+                        <span className="flex-1 min-w-0">
+                          <span className="block font-heading font-bold text-[18px] text-kk-navy">{f.nama}</span>
+                          <span className="text-caption text-kk-ink">
+                            {rupiah(f.price_adjust)}/{f.satuan === 'per_hari' ? 'hari' : 'bulan'}
+                            {on ? ` · total + ${rupiah(facCost(f))}` : ''}
+                          </span>
                         </span>
                         <span className="font-heading font-bold text-[17px] text-kk-green whitespace-nowrap">
-                          + {rupiah(f.price_adjust)}/{unit}
+                          + {rupiah(facCost(f))}
                         </span>
                       </button>
                     );
@@ -949,14 +968,10 @@ export function BookingFlow({
                     sampai {keluar ? tglPendek(keluar) : '—'}
                   </span>
                 </div>
-                {fasTotalPerPeriode > 0 && (
+                {fasTotal > 0 && (
                   <div className="flex justify-between items-baseline text-body mb-1.5">
-                    <span className="text-kk-navy">
-                      Fasilitas {rupiah(fasTotalPerPeriode)} × {lamaEff} {unit}
-                    </span>
-                    <span className="text-caption font-semibold text-kk-green">
-                      + {rupiah(fasTotalPerPeriode * lamaEff)}
-                    </span>
+                    <span className="text-kk-navy">Fasilitas tambahan</span>
+                    <span className="text-caption font-semibold text-kk-green">+ {rupiah(fasTotal)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-baseline border-t-2 border-dashed border-kk-mint pt-2.5 mt-1.5">

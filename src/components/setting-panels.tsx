@@ -1008,6 +1008,7 @@ function FasilitasModal({
   const [nama, setNama] = useState(existing?.nama || '');
   const [emoji, setEmoji] = useState(existing?.emoji || '⭐');
   const [priceAdjust, setPriceAdjust] = useState(existing?.price_adjust || 0);
+  const [satuan, setSatuan] = useState<'per_bulan' | 'per_hari'>(existing?.satuan || 'per_bulan');
   const [isActive, setIsActive] = useState(existing?.is_active ?? true);
   const [description, setDescription] = useState(existing?.description || '');
   const [submitting, setSubmitting] = useState(false);
@@ -1026,6 +1027,7 @@ function FasilitasModal({
         nama: nama.trim(),
         emoji,
         price_adjust: priceAdjust,
+        satuan,
         is_active: isActive,
         description,
       });
@@ -1065,8 +1067,26 @@ function FasilitasModal({
             <input type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="AC Split Standard / WiFi Cepat" className="input" required />
           </FormField>
 
-          <FormField label="Tambahan Harga (per booking)" hint="Set 0 untuk fasilitas gratis">
+          <FormField label="Tambahan Harga" hint="Set 0 untuk fasilitas gratis. Otomatis dikalikan lama sewa saat booking.">
             <RupiahInput value={priceAdjust} onChange={setPriceAdjust} />
+          </FormField>
+
+          <FormField label="Satuan Harga">
+            <div className="flex gap-2">
+              {(['per_bulan', 'per_hari'] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => setSatuan(u)}
+                  className={
+                    'flex-1 py-2 rounded-md text-xs font-semibold border ' +
+                    (satuan === u ? 'bg-ac text-inv border-ac' : 'bg-sf text-tx2 border-bd')
+                  }
+                >
+                  {u === 'per_bulan' ? 'Per Bulan' : 'Per Hari'}
+                </button>
+              ))}
+            </div>
           </FormField>
 
           <FormField label="Deskripsi">
