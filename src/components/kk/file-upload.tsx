@@ -3,7 +3,7 @@
 // KelolaKos · optional bukti/proof file upload (png, pdf, jpg, jpeg, svg ≤ 50MB).
 // Always present (even when optional) because proof is important for the owner.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { KkIcon } from './icons';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,18 @@ function guessMime(ext: string) {
     }[ext] || 'application/octet-stream'
   );
 }
+// Resolve a usable extension from the file name, falling back to its MIME type —
+// pasted screenshots often have no real filename/extension.
+function resolveExt(file: File): string {
+  const e = extOf(file.name);
+  if (ALLOWED_EXT.includes(e as (typeof ALLOWED_EXT)[number])) return e;
+  const m = (file.type || '').toLowerCase();
+  if (m === 'image/png') return 'png';
+  if (m === 'image/jpeg') return 'jpg';
+  if (m === 'image/svg+xml') return 'svg';
+  if (m === 'application/pdf') return 'pdf';
+  return e;
+}
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -58,31 +70,70 @@ export function FileUpload({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  // Keep the latest value in a ref so the document-level paste handler always
+  // appends to the current list (not a stale closure).
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
-  async function addFiles(list: FileList | null) {
-    if (!list || list.length === 0) return;
+  async function addFiles(files: File[]) {
+    if (!files.length) return;
     setBusy(true);
-    const next = [...value];
-    for (const file of Array.from(list)) {
-      const ext = extOf(file.name);
+    const next = [...valueRef.current];
+    for (const file of files) {
+      const ext = resolveExt(file);
       if (!ALLOWED_EXT.includes(ext as (typeof ALLOWED_EXT)[number])) {
-        toast.error(`"${file.name}" formatnya tidak didukung. Pakai PNG, PDF, JPG, JPEG, atau SVG.`);
+        toast.error(`"${file.name || 'berkas'}" formatnya tidak didukung. Pakai PNG, PDF, JPG, JPEG, atau SVG.`);
         continue;
       }
       if (file.size > MAX_BYTES) {
-        toast.error(`"${file.name}" terlalu besar (maksimal 50 MB).`);
+        toast.error(`"${file.name || 'berkas'}" terlalu besar (maksimal 50 MB).`);
         continue;
       }
       try {
         const base64 = await readBase64(file);
-        next.push({ name: file.name, mimeType: file.type || guessMime(ext), size: file.size, base64 });
+        // Pasted images may have no name → give them a friendly one.
+        const name = file.name || `tempel-${Date.now()}.${ext}`;
+        next.push({ name, mimeType: file.type || guessMime(ext), size: file.size, base64 });
       } catch {
-        toast.error(`Gagal memuat "${file.name}".`);
+        toast.error(`Gagal memuat "${file.name || 'berkas'}".`);
       }
     }
     onChange(next);
     setBusy(false);
     if (inputRef.current) inputRef.current.value = '';
+  }
+
+  // Paste (Ctrl+V) anywhere while this uploader is open: grab image/file items
+  // from the clipboard. Guarded so it ignores plain-text pastes and so only one
+  // mounted uploader handles a given paste.
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      if (e.defaultPrevented) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const it of Array.from(items)) {
+        if (it.kind === 'file') {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (!files.length) return; // plain text / nothing useful → leave it alone
+      e.preventDefault();
+      addFiles(files);
+      toast.success('Berkas dari tempel (Ctrl+V) ditambahkan.');
+    }
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (files.length) addFiles(files);
   }
 
   function remove(i: number) {
@@ -102,11 +153,34 @@ export function FileUpload({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!dragOver) setDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+        }}
+        onDrop={onDrop}
         disabled={busy}
-        className="w-full min-h-kk-touch flex items-center justify-center gap-2.5 border-2 border-dashed border-kk-mauve rounded-kk-btn px-4 py-3 text-body font-body font-semibold text-kk-navy bg-white hover:border-kk-navy disabled:opacity-50"
+        className={cn(
+          'w-full min-h-kk-touch flex flex-col items-center justify-center gap-1 border-2 border-dashed rounded-kk-btn px-4 py-4 text-body font-body font-semibold text-kk-navy disabled:opacity-50 transition-colors',
+          dragOver ? 'border-kk-navy bg-kk-mint-soft' : 'border-kk-mauve bg-white hover:border-kk-navy',
+        )}
       >
-        <KkIcon name="unduh" size={22} strokeWidth={2.2} />
-        {busy ? 'Memuat…' : value.length > 0 ? 'Tambah berkas lain' : 'Pilih berkas bukti'}
+        <span className="flex items-center gap-2.5">
+          <KkIcon name="unduh" size={22} strokeWidth={2.2} />
+          {busy
+            ? 'Memuat…'
+            : dragOver
+            ? 'Lepaskan berkas di sini'
+            : value.length > 0
+            ? 'Tambah berkas lain'
+            : 'Pilih berkas bukti'}
+        </span>
+        <span className="text-caption font-normal text-kk-ink">
+          Atau seret &amp; jatuhkan ke sini, atau tempel langsung (Ctrl+V)
+        </span>
       </button>
 
       <input
@@ -115,7 +189,7 @@ export function FileUpload({
         accept={ACCEPT}
         multiple
         className="hidden"
-        onChange={(e) => addFiles(e.target.files)}
+        onChange={(e) => addFiles(Array.from(e.target.files || []))}
       />
 
       {value.length > 0 && (
