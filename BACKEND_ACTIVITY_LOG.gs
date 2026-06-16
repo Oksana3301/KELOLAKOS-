@@ -19,6 +19,41 @@
 
 var ACTIVITY_LOG_SHEET = 'ACTIVITY_LOG';
 
+/*******************************************************
+ * CARA TERMUDAH (DISARANKAN) — pasang 1 blok di ROUTER, semua aksi auto-tercatat
+ *
+ * Tidak perlu edit tiap fungsi submit. Cukup tambahkan blok ini SEKALI di router
+ * Anda (Api.js → function dispatchV1_, di blok ===== WRITES =====), DI ATAS
+ * switch/case-nya. Setiap aksi yang diawali 'submit' otomatis dicatat:
+ *
+ *   // >>> AUTO-LOG semua aksi tulis ke ACTIVITY_LOG <<<
+ *   try {
+ *     if (action && String(action).indexOf('submit') === 0) {
+ *       var _ref = (data && (data.bookingId || data.booking_id || data.id ||
+ *                            data.roomId || data.room_id)) || '';
+ *       logActivity_(action, _logDetail_(data), _ref, data);
+ *     }
+ *   } catch (e) {}
+ *   // >>> END AUTO-LOG <<<
+ *
+ * Selesai — semua create/update/delete tercatat. Lalu Deploy ulang.
+ *******************************************************/
+
+// Ringkasan detail otomatis dari payload (biar log enak dibaca).
+function _logDetail_(data) {
+  if (!data) return '';
+  var p = [];
+  var nama = data.nama || data.customerName || data.namaPenjaga || data.nama_penjaga || data.item;
+  if (nama) p.push(String(nama));
+  var kamar = data.namaKamar || data.nama_kamar || data.roomId || data.room_id;
+  if (kamar) p.push('kamar ' + kamar);
+  var nominal = data.nominal || data.hargaTotal || data.harga_total || data.hargaSatuan;
+  if (nominal) p.push('Rp' + nominal);
+  if (data.type) p.push(String(data.type)); // utk submitTransactionDelete
+  return p.join(' · ');
+}
+
+
 function ensureActivityLogSheet_() {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sh = ss.getSheetByName(ACTIVITY_LOG_SHEET);
