@@ -106,6 +106,7 @@ export default function KamarPage() {
 
   // Filters
   const [cari, setCari] = useState('');
+  const [fStatus, setFStatus] = useState<string>(SEMUA);
   const [fTipe, setFTipe] = useState<string>(SEMUA);
   const [fGedung, setFGedung] = useState<string>(SEMUA);
   const [fLantai, setFLantai] = useState<string>(SEMUA);
@@ -173,6 +174,9 @@ export default function KamarPage() {
     [views],
   );
 
+  // Status filter labels → the value mapRoomStatus returns ("Kosong" = Tersedia).
+  const statusOptions = [SEMUA, 'Terisi', 'Kosong', 'Perlu Perhatian'];
+
   // ── Apply all filters together ──
   const filtered = useMemo(() => {
     const q = cari.trim().toLowerCase();
@@ -181,12 +185,17 @@ export default function KamarPage() {
         const hay = `${v.room.Nama_Kamar} ${v.room.Gedung} ${penghuniName(v.room)}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
+      if (fStatus !== SEMUA) {
+        const s = mapRoomStatus(v.room); // 'Terisi' | 'Tersedia' | 'Perlu Perhatian'
+        const want = fStatus === 'Kosong' ? 'Tersedia' : fStatus;
+        if (s !== want) return false;
+      }
       if (fTipe !== SEMUA && tipeLabel(v.room) !== fTipe) return false;
       if (fGedung !== SEMUA && v.room.Gedung !== fGedung) return false;
       if (fLantai !== SEMUA && String(v.lantai) !== fLantai) return false;
       return true;
     });
-  }, [views, cari, fTipe, fGedung, fLantai]);
+  }, [views, cari, fStatus, fTipe, fGedung, fLantai]);
 
   const byBuilding = useMemo(() => {
     const grouped: Record<string, KamarView[]> = {};
@@ -313,6 +322,7 @@ export default function KamarPage() {
               placeholder="Cari nomor kamar, gedung, atau nama penghuni…"
               className="kk-input"
             />
+            <StatusFilterPills value={fStatus} options={statusOptions} onChange={setFStatus} />
             <FilterPills label="Tipe" options={tipeOptions} value={fTipe} onChange={setFTipe} />
             <FilterPills label="Gedung" options={gedungOptions} value={fGedung} onChange={setFGedung} />
             <FilterPills
@@ -397,6 +407,47 @@ export default function KamarPage() {
 
       <ScrollFab />
     </>
+  );
+}
+
+// Status filter with a colored dot per option (matches the room-card tints) so
+// the owner can eyeball Terisi / Kosong / Perlu Perhatian at a glance.
+function StatusFilterPills({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  const dot: Record<string, string> = {
+    Terisi: 'bg-kk-green',
+    Kosong: 'bg-kk-mauve',
+    'Perlu Perhatian': 'bg-kk-orange',
+  };
+  return (
+    <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 -mx-1 px-1">
+      <span className="flex-shrink-0 text-caption font-semibold text-kk-ink">Status</span>
+      {options.map((o) => {
+        const active = value === o;
+        return (
+          <button
+            key={o}
+            type="button"
+            onClick={() => onChange(o)}
+            className={`flex-shrink-0 inline-flex items-center gap-2 min-h-[48px] px-[18px] rounded-kk-pill font-body font-semibold text-[16px] border-2 ${
+              active ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+            }`}
+          >
+            {dot[o] && (
+              <span className={`w-3 h-3 rounded-full flex-shrink-0 ${active ? 'bg-white' : dot[o]}`} />
+            )}
+            {o}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

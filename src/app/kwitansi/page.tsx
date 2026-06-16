@@ -277,12 +277,14 @@ function ReceiptStatus({ status }: { status: PayStatus }) {
   return (
     <span
       className={
-        'inline-flex items-center justify-center rounded-full font-body font-semibold text-[15px] px-5 leading-none whitespace-nowrap ' +
+        'inline-block rounded-full font-heading font-bold text-[15px] px-5 text-center align-middle whitespace-nowrap ' +
         map[status]
       }
-      // Small line-height + flex centering inside a fixed-height pill keeps the
-      // text vertically centered in BOTH the browser and html2canvas (PNG/PDF).
-      style={{ height: '34px' }}
+      // Vertical centering that survives html2canvas (PNG/PDF): a single-line
+      // pill whose line-height EQUALS its height. font-heading (Lato) has
+      // symmetric metrics so the glyphs sit dead-center — unlike font-body
+      // (Josefin) which sits low and rendered the text below center on export.
+      style={{ height: '32px', lineHeight: '32px' }}
     >
       {status}
     </span>
