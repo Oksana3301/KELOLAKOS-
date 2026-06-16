@@ -277,12 +277,12 @@ function ReceiptStatus({ status }: { status: PayStatus }) {
   return (
     <span
       className={
-        'inline-block rounded-full font-body font-semibold text-[15px] px-5 text-center whitespace-nowrap ' +
+        'inline-flex items-center justify-center rounded-full font-body font-semibold text-[15px] px-5 leading-none whitespace-nowrap ' +
         map[status]
       }
-      // Fixed height + matching line-height centers the text vertically without
-      // relying on flexbox — so html2canvas (PNG/PDF) never clips it.
-      style={{ height: '38px', lineHeight: '38px' }}
+      // Small line-height + flex centering inside a fixed-height pill keeps the
+      // text vertically centered in BOTH the browser and html2canvas (PNG/PDF).
+      style={{ height: '34px' }}
     >
       {status}
     </span>
