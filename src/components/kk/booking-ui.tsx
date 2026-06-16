@@ -182,23 +182,39 @@ export function buildRoomOptions(
   currentRoomId?: string,
   roomRules: RoomPriceRule[] = [],
 ): RoomOption[] {
+  // Normalize so "Superior", " superior " and "SUPERIOR" all match — string
+  // mismatches (case/spasi) were making configured prices show "belum diatur".
+  const norm = (s: string | undefined) => (s || '').trim().toUpperCase();
+
+  // Does a price row's Tipe_Kamar describe this room? In KOS the type is in
+  // Tipe_Kamar; in PENGINAPAN the type IS the room name (Deluxe / Superior 1 /
+  // Eksekutif), while Tipe_Kamar may just be a "Lantai N" placeholder. So match
+  // the price type against BOTH the room's Tipe_Kamar and its Nama_Kamar.
+  function tipeMatch(priceTipe: string, r: RoomStatus): boolean {
+    const pt = norm(priceTipe);
+    if (!pt) return false;
+    if (norm(r.Tipe_Kamar) === pt) return true;
+    const nm = norm(r.Nama_Kamar);
+    // "SUPERIOR 1" / "SUPERIOR-2" → matches type "SUPERIOR"
+    return nm === pt || nm.startsWith(pt + ' ') || nm.startsWith(pt + '-') || nm.startsWith(pt + '_');
+  }
+
   // Price rows for a room, matched TYPE-FIRST so a Superior never borrows a
-  // Deluxe price. We narrow on Tipe_Kamar and never fall back to a *different*
-  // type — if no type match exists, the room shows "harga belum diatur" so the
-  // owner knows to set it (instead of silently using the wrong type's price).
+  // Deluxe price. After narrowing to type-matching rows we prefer the ones that
+  // also match gedung/layanan, but never relax the type — if no type match
+  // exists, the room shows "harga belum diatur" (so the owner sets it).
   function rowsFor(r: RoomStatus): PriceItem[] {
-    const exact = prices.filter(
-      (p) => p.Layanan === r.Layanan_Default && p.Gedung === r.Gedung && p.Tipe_Kamar === r.Tipe_Kamar,
-    );
+    const tipeRows = prices.filter((p) => tipeMatch(p.Tipe_Kamar, r));
+    if (!tipeRows.length) return [];
+    const gedung = norm(r.Gedung);
+    const layanan = norm(r.Layanan_Default);
+    const exact = tipeRows.filter((p) => norm(p.Gedung) === gedung && norm(p.Layanan) === layanan);
     if (exact.length) return exact;
-    const byGedungTipe = prices.filter((p) => p.Gedung === r.Gedung && p.Tipe_Kamar === r.Tipe_Kamar);
-    if (byGedungTipe.length) return byGedungTipe;
-    const byLayananTipe = prices.filter(
-      (p) => p.Layanan === r.Layanan_Default && p.Tipe_Kamar === r.Tipe_Kamar,
-    );
-    if (byLayananTipe.length) return byLayananTipe;
-    const byTipe = prices.filter((p) => p.Tipe_Kamar === r.Tipe_Kamar);
-    return byTipe; // may be empty → "harga belum diatur" (intentional)
+    const byGedung = tipeRows.filter((p) => norm(p.Gedung) === gedung);
+    if (byGedung.length) return byGedung;
+    const byLayanan = tipeRows.filter((p) => norm(p.Layanan) === layanan);
+    if (byLayanan.length) return byLayanan;
+    return tipeRows;
   }
   // Per-room override rows (set via Kelola Kamar / Harga Massal), keyed by RoomID.
   function ruleRowsFor(r: RoomStatus): RoomPriceRule[] {
@@ -598,8 +614,8 @@ export function BookingFlow({
             </BookingField>
             <BookingField
               label="Nomor HP / WhatsApp"
-              contoh="Contoh: 0812 3456 7890"
-              hint="Dipakai untuk mengirim kwitansi & pengingat bayar (boleh dikosongkan)."
+              contoh="Contoh: 0812 3456 7890 atau 62812 3456 7890"
+              hint="Untuk fitur Tagih lewat WhatsApp. Boleh ketik 0812… — otomatis diubah ke format 62. (boleh dikosongkan)"
             >
               <input
                 value={hp}
@@ -608,6 +624,13 @@ export function BookingFlow({
                 inputMode="tel"
                 className="kk-input"
               />
+              {hp.trim() && (
+                <div className="mt-2 text-caption text-kk-ink">
+                  Disimpan sebagai:{' '}
+                  <b className="text-kk-navy tabular-nums">+{waPhone(hp)}</b>{' '}
+                  <span className="text-kk-green">(siap untuk WhatsApp)</span>
+                </div>
+              )}
             </BookingField>
           </div>
         )}
@@ -1451,9 +1474,13 @@ export function RefundForm({
 }
 
 // ═════════════════════════ TAGIH LEWAT WHATSAPP ═════════════════════════
+// Normalize an Indonesian phone to wa.me format (no "+", country code 62):
+//   0812…  → 62812…   ·   812…  → 62812…   ·   620812… → 62812…   ·   +62… → 62…
 function waPhone(raw: string): string {
   let p = (raw || '').replace(/[^0-9]/g, '');
-  if (p.startsWith('0')) p = '62' + p.slice(1);
+  if (!p) return '';
+  if (p.startsWith('620')) p = '62' + p.slice(3); // "62" typed then a local "0…"
+  else if (p.startsWith('0')) p = '62' + p.slice(1);
   else if (p.startsWith('8')) p = '62' + p;
   return p;
 }
@@ -1510,22 +1537,25 @@ export function TagihWa({
     setTeks(templates[i].text);
   }
 
-  function kirim() {
-    const phone = waPhone(booking.WhatsApp);
-    const url = phone
-      ? `https://wa.me/${phone}?text=${encodeURIComponent(teks)}`
-      : `https://wa.me/?text=${encodeURIComponent(teks)}`;
-    window.open(url, '_blank');
-    onClose();
-  }
+  // Build the wa.me link reactively so the button is a real <a> (opens
+  // reliably on tap — window.open was getting blocked / not opening WA).
+  const phone = waPhone(booking.WhatsApp);
+  const waUrl = phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(teks)}`
+    : `https://wa.me/?text=${encodeURIComponent(teks)}`;
 
   return (
     <Sheet open onClose={onClose}>
       <SheetHead title="Tagih lewat WhatsApp" onClose={onClose} />
       <div className="px-6 pb-7">
-        {!booking.WhatsApp && (
+        {!booking.WhatsApp ? (
           <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-card p-3.5 mb-4 text-body text-kk-navy">
-            Nomor HP penyewa belum ada. WhatsApp tetap bisa dibuka, tapi nomornya harus diisi manual.
+            Nomor HP penyewa belum ada. WhatsApp tetap terbuka, tapi nomor tujuannya harus diisi manual.
+            Tambahkan nomornya lewat <b>Ubah Booking</b> agar bisa langsung tertuju.
+          </div>
+        ) : (
+          <div className="bg-kk-mint-soft border-2 border-kk-mint rounded-kk-card p-3.5 mb-4 text-body text-kk-navy">
+            Akan dikirim ke <b className="tabular-nums">+{phone}</b>
           </div>
         )}
 
@@ -1552,9 +1582,15 @@ export function TagihWa({
           className="kk-input mb-4 resize-y leading-snug"
         />
 
-        <KkButton variant="success" size="lg" block onClick={kirim}>
+        <a
+          href={waUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onClose()}
+          className="kk-btn kk-btn-success kk-btn-lg w-full flex items-center justify-center gap-2 no-underline"
+        >
           <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Buka WhatsApp
-        </KkButton>
+        </a>
       </div>
     </Sheet>
   );
