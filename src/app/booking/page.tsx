@@ -443,6 +443,11 @@ function BookingPageInner() {
 function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: () => void }) {
   const status = mapPayStatus(b);
   const batal = status === 'Batal';
+  const total = Number(b.Harga_Total_Net) || 0;
+  const dibayar = Number(b.Net_Diterima ?? b.Total_Bayar) || 0;
+  const sisa = b.Sisa_Bayar != null ? Number(b.Sisa_Bayar) : Math.max(total - dibayar, 0);
+  // Show the paid/remaining split whenever money is still owed (DP / belum lunas).
+  const showSplit = !batal && sisa > 0;
   return (
     <KkCard onClick={onClick} className={batal ? 'opacity-[0.72]' : ''}>
       <div className="flex justify-between items-start gap-3 mb-2.5">
@@ -462,10 +467,14 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
         <span className="text-caption text-kk-ink">
           {tglPendek(b.CheckIn)} → {tglPendek(b.CheckOut)}
         </span>
-        <span className="font-heading font-bold text-[19px] text-kk-navy">
-          {rupiah(b.Harga_Total_Net)}
-        </span>
+        <span className="font-heading font-bold text-[19px] text-kk-navy">{rupiah(total)}</span>
       </div>
+      {showSplit && (
+        <div className="flex justify-between items-baseline gap-2 mt-1.5">
+          <span className="text-caption font-semibold text-kk-green">Dibayar {rupiah(dibayar)}</span>
+          <span className="text-caption font-semibold text-kk-orange">Sisa {rupiah(sisa)}</span>
+        </div>
+      )}
       <div className="flex items-center justify-end gap-1 mt-2.5 text-caption font-semibold text-kk-orange">
         Ketuk untuk detail &amp; ubah
         <KkIcon name="chevron" size={16} strokeWidth={2.6} />

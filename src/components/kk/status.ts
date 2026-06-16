@@ -30,15 +30,36 @@ export const ROOM_BADGE: Record<RoomDisplayStatus, BadgeStyle> = {
 };
 
 /** Map a booking's backend status to one of the 4 plain payment statuses. */
-export function mapPayStatus(b: Pick<BookingItem, 'Status_Booking' | 'Status_Bayar' | 'Sisa_Bayar'>): PayStatus {
+export function mapPayStatus(
+  b: Pick<
+    BookingItem,
+    'Status_Booking' | 'Status_Bayar' | 'Sisa_Bayar' | 'Net_Diterima' | 'Total_Bayar' | 'Harga_Total_Net'
+  >,
+): PayStatus {
   const booking = (b.Status_Booking || '').toUpperCase();
-  if (booking.includes('CANCEL') || booking.includes('BATAL') || booking.includes('REFUND')) return 'Batal';
+  if (booking.includes('CANCEL') || booking.includes('BATAL')) return 'Batal';
 
+  // The money actually received (after any refund) and what is still owed.
+  const total = Number(b.Harga_Total_Net ?? 0);
+  const dibayar = Number(b.Net_Diterima ?? b.Total_Bayar ?? 0);
+  const sisaRaw = b.Sisa_Bayar;
+  const sisa =
+    sisaRaw === undefined || sisaRaw === null ? Math.max(total - dibayar, 0) : Number(sisaRaw);
+
+  // Trust an explicit paid-status string, but never call something "Lunas" when
+  // nothing was actually received — a fresh DP/unpaid booking often arrives with
+  // Sisa_Bayar still 0 before the backend recomputes, which used to flip it to
+  // Lunas by mistake.
   const bayar = (b.Status_Bayar || '').toUpperCase();
-  if (bayar.includes('LUNAS')) return 'Lunas';
-  if (bayar.includes('DP') || bayar.includes('PARSIAL') || bayar.includes('SEBAGIAN')) return 'DP';
-  if ((b.Sisa_Bayar ?? 0) <= 0) return 'Lunas';
-  return 'Belum Bayar';
+  if (bayar.includes('BELUM')) return dibayar > 0 ? 'DP' : 'Belum Bayar';
+  if (bayar.includes('LUNAS')) return dibayar > 0 ? 'Lunas' : 'Belum Bayar';
+  if (bayar.includes('DP') || bayar.includes('PARSIAL') || bayar.includes('SEBAGIAN') || bayar.includes('CICIL'))
+    return 'DP';
+
+  // No reliable status string → decide purely by the amounts.
+  if (dibayar <= 0) return 'Belum Bayar';
+  if (total > 0 && sisa <= 0) return 'Lunas';
+  return 'DP';
 }
 
 /** Map a room's backend Status_Code to one of the 3 plain room statuses. */
