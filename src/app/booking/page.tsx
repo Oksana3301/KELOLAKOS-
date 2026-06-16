@@ -5,13 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type BookingItem, type BookingFullData, type PaymentRecord } from '@/lib/api';
-import { facilityApi } from '@/lib/api-v2';
+import { facilityApi, kwitansiApi } from '@/lib/api-v2';
 import { ScreenHead, KkButton, KkCard, BayarBadge, StickyCTA } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { PaymentConfirm, DeleteConfirm } from '@/components/kk/confirm';
 import { mapPayStatus, rupiah, tglPendek, type PayStatus } from '@/components/kk/status';
-import { BookingFlow, BookingDetail, CancelConfirm } from '@/components/kk/booking-ui';
+import { BookingFlow, BookingDetail, CancelConfirm, RefundForm, TagihWa } from '@/components/kk/booking-ui';
 
 const HELP = {
   title: 'Booking',
@@ -60,6 +60,8 @@ function BookingPageInner() {
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [payTarget, setPayTarget] = useState<BookingFullData | null>(null);
   const [cancelTarget, setCancelTarget] = useState<BookingFullData | null>(null);
+  const [refundTarget, setRefundTarget] = useState<BookingFullData | null>(null);
+  const [tagihTarget, setTagihTarget] = useState<BookingFullData | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BookingFullData | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -71,6 +73,12 @@ function BookingPageInner() {
   const { data: facilities } = useQuery({
     queryKey: ['fasilitas'],
     queryFn: facilityApi.list,
+  });
+
+  // Business name for the WhatsApp billing template.
+  const { data: bizSettings } = useQuery({
+    queryKey: ['kwitansi-settings'],
+    queryFn: kwitansiApi.get,
   });
 
   useEffect(() => {
@@ -218,6 +226,27 @@ function BookingPageInner() {
     onError: (e) => toast.error('Gagal membatalkan: ' + (e as Error).message),
   });
 
+  // Partial refund — booking stays active; backend recomputes net & sisa.
+  const refundMutation = useMutation({
+    mutationFn: (v: { b: BookingFullData; nominal: number; metode: string; alasan: string }) =>
+      api.submitRefund({
+        bookingId: v.b.BookingID,
+        nominal: v.nominal,
+        jenisRefund: 'REFUND_SEBAGIAN',
+        metodeRefund: v.metode,
+        dikembalikanOleh: 'admin',
+        alasanRefund: v.alasan || 'Refund',
+        tanggalRefund: new Date().toISOString().split('T')[0],
+      }),
+    onSuccess: (_r, v) => {
+      toast.success('✓ Refund tercatat');
+      invalidateAll(v.b.BookingID);
+      setRefundTarget(null);
+      refreshDetail(v.b.BookingID);
+    },
+    onError: (e) => toast.error('Gagal refund: ' + (e as Error).message),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (b: BookingFullData) => api.submitBookingDelete(b.BookingID),
     onSuccess: (r, b) => {
@@ -344,8 +373,29 @@ function BookingPageInner() {
           onPay={() => setPayTarget(detail)}
           onEdit={() => openEdit(detail)}
           onCancel={() => setCancelTarget(detail)}
+          onRefund={() => setRefundTarget(detail)}
+          onTagih={() => setTagihTarget(detail)}
           onDelete={() => setDeleteTarget(detail)}
           onDeletePayment={handleDeletePayment}
+        />
+      )}
+
+      {refundTarget && (
+        <RefundForm
+          booking={refundTarget}
+          loading={refundMutation.isPending}
+          onClose={() => setRefundTarget(null)}
+          onConfirm={(nominal, metode, alasan) =>
+            refundMutation.mutate({ b: refundTarget, nominal, metode, alasan })
+          }
+        />
+      )}
+
+      {tagihTarget && (
+        <TagihWa
+          booking={tagihTarget}
+          businessName={bizSettings?.business_name}
+          onClose={() => setTagihTarget(null)}
         />
       )}
 

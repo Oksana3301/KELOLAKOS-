@@ -1159,6 +1159,8 @@ export function BookingDetail({
   onPay,
   onEdit,
   onCancel,
+  onRefund,
+  onTagih,
   onDelete,
   onDeletePayment,
   deletingPaymentId,
@@ -1169,6 +1171,8 @@ export function BookingDetail({
   onPay: () => void;
   onEdit: () => void;
   onCancel: () => void;
+  onRefund?: () => void;
+  onTagih?: () => void;
   onDelete: () => void;
   onDeletePayment?: (paymentId: string) => void;
   deletingPaymentId?: string | null;
@@ -1264,18 +1268,30 @@ export function BookingDetail({
         ) : (
           <div className="flex flex-col gap-3">
             {sisa > 0 && (
-              <KkButton variant="success" size="lg" block onClick={onPay}>
-                <KkIcon name="cek" size={22} strokeWidth={2.4} /> Catat Pembayaran
-              </KkButton>
+              <>
+                <KkButton variant="success" size="lg" block onClick={onPay}>
+                  <KkIcon name="cek" size={22} strokeWidth={2.4} /> Catat Pembayaran
+                </KkButton>
+                {onTagih && (
+                  <KkButton variant="primary" block onClick={onTagih}>
+                    <KkIcon name="kirim" size={20} strokeWidth={2.2} /> Tagih lewat WhatsApp
+                  </KkButton>
+                )}
+              </>
             )}
             <div className="flex gap-3">
               <KkButton variant="secondary" block onClick={onEdit}>
                 Ubah Booking
               </KkButton>
-              <KkButton variant="secondary" block onClick={onCancel}>
-                Batal / Refund
-              </KkButton>
+              {dibayar > 0 && onRefund && (
+                <KkButton variant="secondary" block onClick={onRefund}>
+                  Refund
+                </KkButton>
+              )}
             </div>
+            <KkButton variant="ghost" block onClick={onCancel}>
+              <KkIcon name="refund" size={20} strokeWidth={2.2} /> Batalkan Booking
+            </KkButton>
             <KkButton variant="ghost" block onClick={onDelete}>
               <KkIcon name="hapus" size={20} strokeWidth={2.2} /> Hapus Booking
             </KkButton>
@@ -1326,5 +1342,207 @@ export function CancelConfirm({
         </KkButton>
       </div>
     </Dialog>
+  );
+}
+
+// ═════════════════════════ REFUND (SEBAGIAN / PENUH) ═════════════════════════
+export function RefundForm({
+  booking,
+  loading,
+  onClose,
+  onConfirm,
+}: {
+  booking: BookingFullData;
+  loading?: boolean;
+  onClose: () => void;
+  onConfirm: (nominal: number, metode: string, alasan: string) => void;
+}) {
+  const dibayar = Number(booking.Net_Diterima ?? booking.Total_Bayar ?? 0);
+  const [nominal, setNominal] = useState(String(dibayar));
+  const [metode, setMetode] = useState('CASH');
+  const [alasan, setAlasan] = useState('');
+  const n = Number(nominal) || 0;
+  const penuh = n >= dibayar && dibayar > 0;
+  const valid = n > 0 && n <= dibayar;
+
+  return (
+    <Dialog open>
+      <div className="w-14 h-14 rounded-kk-card bg-kk-mauve-soft grid place-items-center mb-4 text-kk-navy">
+        <KkIcon name="refund" size={28} strokeWidth={2.2} />
+      </div>
+      <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-1.5">
+        Refund ke {booking.Nama_Customer}
+      </h3>
+      <p className="text-body text-kk-ink mt-0 mb-4 leading-snug">
+        Sudah dibayar <b className="text-kk-navy">{rupiah(dibayar)}</b>. Refund sebagian → booking
+        tetap lanjut (jadi ada sisa lagi).
+      </p>
+
+      <BookingField label="Jumlah refund" contoh={'Maksimal ' + rupiah(dibayar)}>
+        <input
+          value={nominal}
+          onChange={(e) => setNominal(e.target.value.replace(/[^0-9]/g, ''))}
+          inputMode="numeric"
+          className="kk-input"
+        />
+      </BookingField>
+      <div className="flex gap-2 mb-4 -mt-2">
+        {[
+          { l: 'Sebagian (½)', v: Math.floor(dibayar / 2) },
+          { l: 'Semua', v: dibayar },
+        ].map((q) => (
+          <button
+            key={q.l}
+            type="button"
+            onClick={() => setNominal(String(q.v))}
+            className="flex-1 min-h-[44px] rounded-kk-pill border-2 border-kk-mauve bg-white text-kk-navy font-body font-semibold text-caption"
+          >
+            {q.l}
+          </button>
+        ))}
+      </div>
+
+      <BookingField label="Metode">
+        <select value={metode} onChange={(e) => setMetode(e.target.value)} className="kk-input">
+          <option value="CASH">Tunai (Cash)</option>
+          <option value="TRANSFER">Transfer</option>
+          <option value="LAINNYA">Lainnya</option>
+        </select>
+      </BookingField>
+      <BookingField label="Alasan (opsional)">
+        <input
+          value={alasan}
+          onChange={(e) => setAlasan(e.target.value)}
+          placeholder="Mis. pindah kamar, kelebihan bayar…"
+          className="kk-input"
+        />
+      </BookingField>
+
+      {penuh && (
+        <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-pill px-4 py-2.5 text-caption text-kk-navy mb-3">
+          Ini refund <b>penuh</b>. Kalau memang mau membatalkan booking & mengosongkan kamar, pakai
+          tombol <b>Batalkan Booking</b>.
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <KkButton variant="secondary" onClick={onClose} disabled={loading}>
+          Batal
+        </KkButton>
+        <KkButton variant="primary" onClick={() => valid && onConfirm(n, metode, alasan)} disabled={!valid || loading}>
+          {loading ? 'Memproses…' : 'Proses Refund'}
+        </KkButton>
+      </div>
+    </Dialog>
+  );
+}
+
+// ═════════════════════════ TAGIH LEWAT WHATSAPP ═════════════════════════
+function waPhone(raw: string): string {
+  let p = (raw || '').replace(/[^0-9]/g, '');
+  if (p.startsWith('0')) p = '62' + p.slice(1);
+  else if (p.startsWith('8')) p = '62' + p;
+  return p;
+}
+
+export function TagihWa({
+  booking,
+  businessName,
+  onClose,
+}: {
+  booking: BookingFullData;
+  businessName?: string;
+  onClose: () => void;
+}) {
+  const nama = booking.Nama_Customer || 'Bapak/Ibu';
+  const kamar = booking.Nama_Kamar || '';
+  const periode = `${tglPanjang(booking.CheckIn)} – ${tglPanjang(booking.CheckOut)}`;
+  const total = rupiah(booking.Harga_Total_Net);
+  const dibayar = rupiah(booking.Net_Diterima ?? booking.Total_Bayar ?? 0);
+  const sisa = rupiah(booking.Sisa_Bayar ?? 0);
+  const biz = businessName ? ` di ${businessName}` : '';
+
+  const templates = useMemo(
+    () => [
+      {
+        id: 'sopan',
+        label: 'Sopan',
+        text:
+          `Halo Bapak/Ibu ${nama},\n\nIni pengingat pembayaran sewa kamar ${kamar}${biz}.\n` +
+          `Periode: ${periode}\nTotal sewa: ${total}\nSudah dibayar: ${dibayar}\n*Sisa tagihan: ${sisa}*\n\n` +
+          `Mohon dapat diselesaikan ya. Terima kasih 🙏`,
+      },
+      {
+        id: 'ramah',
+        label: 'Ramah',
+        text:
+          `Halo Kak ${nama} 😊\n\nReminder ya untuk sisa pembayaran kamar ${kamar}${biz}:\n` +
+          `*Sisa: ${sisa}* (dari total ${total}, sudah bayar ${dibayar}).\nPeriode ${periode}.\n\n` +
+          `Ditunggu ya kak, makasih banyak 🙏`,
+      },
+      {
+        id: 'singkat',
+        label: 'Singkat',
+        text: `Halo ${nama}, sisa tagihan sewa kamar ${kamar}${biz}: *${sisa}*. Mohon segera dibayar ya. Terima kasih.`,
+      },
+    ],
+    [nama, kamar, biz, periode, total, dibayar, sisa],
+  );
+
+  const [pilih, setPilih] = useState(0);
+  const [teks, setTeks] = useState(templates[0].text);
+
+  function pickTemplate(i: number) {
+    setPilih(i);
+    setTeks(templates[i].text);
+  }
+
+  function kirim() {
+    const phone = waPhone(booking.WhatsApp);
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(teks)}`
+      : `https://wa.me/?text=${encodeURIComponent(teks)}`;
+    window.open(url, '_blank');
+    onClose();
+  }
+
+  return (
+    <Sheet open onClose={onClose}>
+      <SheetHead title="Tagih lewat WhatsApp" onClose={onClose} />
+      <div className="px-6 pb-7">
+        {!booking.WhatsApp && (
+          <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-card p-3.5 mb-4 text-body text-kk-navy">
+            Nomor HP penyewa belum ada. WhatsApp tetap bisa dibuka, tapi nomornya harus diisi manual.
+          </div>
+        )}
+
+        <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">Pilih template</div>
+        <div className="flex gap-2 mb-4">
+          {templates.map((t, i) => (
+            <button
+              key={t.id}
+              onClick={() => pickTemplate(i)}
+              className={`flex-1 min-h-[48px] rounded-kk-pill font-body font-semibold text-body border-2 ${
+                pilih === i ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="font-heading font-bold text-[18px] text-kk-navy mb-2">Pesan (bisa diedit)</div>
+        <textarea
+          value={teks}
+          onChange={(e) => setTeks(e.target.value)}
+          rows={8}
+          className="kk-input mb-4 resize-y leading-snug"
+        />
+
+        <KkButton variant="success" size="lg" block onClick={kirim}>
+          <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Buka WhatsApp
+        </KkButton>
+      </div>
+    </Sheet>
   );
 }
