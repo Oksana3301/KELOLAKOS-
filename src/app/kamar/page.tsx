@@ -17,7 +17,7 @@ import {
   type KamarView,
   type KamarFormValue,
 } from '@/components/kk/kamar-ui';
-import { buildRoomOptions } from '@/components/kk/booking-ui';
+import { buildRoomOptions, PAKET_META } from '@/components/kk/booking-ui';
 
 const HELP = {
   title: 'Kelola Kamar',
@@ -130,8 +130,13 @@ export default function KamarPage() {
   // Kamar list and the booking screen never disagree (type-first match, per-room
   // override, penginapan name-as-type).
   const hargaByRoom = useMemo(() => {
-    const opts = buildRoomOptions(rooms, prices, 'Bulanan', undefined, rules);
-    return new Map(opts.map((o) => [o.room.RoomID, o.harga]));
+    const opts = buildRoomOptions(rooms, prices, undefined, rules);
+    return new Map(
+      opts.map((o) => [
+        o.room.RoomID,
+        { harga: o.harga, unit: o.primaryKind ? PAKET_META[o.primaryKind].unitLong : 'bulan' },
+      ]),
+    );
   }, [rooms, prices, rules]);
 
   // Build enriched views (room + derived harga + lantai).
@@ -139,7 +144,8 @@ export default function KamarPage() {
     () =>
       rooms.map((room) => ({
         room,
-        harga: hargaByRoom.get(room.RoomID) || 0,
+        harga: hargaByRoom.get(room.RoomID)?.harga || 0,
+        hargaUnit: hargaByRoom.get(room.RoomID)?.unit || 'bulan',
         lantai: floorForRoom(room),
       })),
     [rooms, hargaByRoom],
@@ -490,7 +496,7 @@ function RoomRow({
   booking?: BookingItem;
   onClick: () => void;
 }) {
-  const { room, harga, lantai } = view;
+  const { room, harga, lantai, hargaUnit } = view;
   const status = mapRoomStatus(room);
   const tint =
     status === 'Terisi'
@@ -534,7 +540,7 @@ function RoomRow({
           )}
         </div>
         <div className="text-caption text-kk-ink">
-          Lantai {lantai} · {harga > 0 ? `${rupiah(harga)}/bulan` : 'Harga belum diatur'}
+          Lantai {lantai} · {harga > 0 ? `${rupiah(harga)}/${hargaUnit || 'bulan'}` : 'Harga belum diatur'}
         </div>
         {terisi ? (
           <div className="mt-1 flex items-center gap-2 flex-wrap text-caption">

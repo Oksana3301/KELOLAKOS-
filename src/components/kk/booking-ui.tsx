@@ -51,6 +51,50 @@ function daysInMonth(iso: string): number {
 
 export type Satuan = 'Bulanan' | 'Harian';
 
+// ── Paket (rental period) model ──────────────────────────────────────────────
+// Settings let the owner price each room per Harian / Mingguan / Bulanan /
+// 6 Bulan / Setahun. Booking must use the price of the SAME paket and multiply
+// by the count of that unit — never silently convert a daily price to monthly.
+export type PaketKind = 'harian' | 'mingguan' | 'bulanan' | '6bulan' | 'setahun';
+
+interface PaketMeta {
+  label: string; // selector label
+  unitLong: string; // "bulan", "hari"
+  unitShort: string; // chip label
+  months: number; // calendar months per 1 unit (0 ⇒ measured in days)
+  days: number; // days per 1 unit (when months = 0)
+  order: number;
+}
+export const PAKET_META: Record<PaketKind, PaketMeta> = {
+  harian: { label: 'Per Hari', unitLong: 'hari', unitShort: 'hr', months: 0, days: 1, order: 1 },
+  mingguan: { label: 'Per Minggu', unitLong: 'minggu', unitShort: 'mgg', months: 0, days: 7, order: 2 },
+  bulanan: { label: 'Per Bulan', unitLong: 'bulan', unitShort: 'bln', months: 1, days: 0, order: 3 },
+  '6bulan': { label: 'Per 6 Bulan', unitLong: '×6 bulan', unitShort: '6bln', months: 6, days: 0, order: 4 },
+  setahun: { label: 'Per Tahun', unitLong: 'tahun', unitShort: 'thn', months: 12, days: 0, order: 5 },
+};
+
+// Classify a backend Paket string ("HARIAN", "1_BULAN", "Setahun"…) into a kind.
+export function classifyPaket(p: string): PaketKind | null {
+  const s = (p || '').toUpperCase();
+  if (/HARI/.test(s)) return 'harian';
+  if (/MINGGU|PEKAN/.test(s)) return 'mingguan';
+  if (/TAHUN/.test(s)) return 'setahun';
+  if (/6\s*BULAN|ENAM\s*BULAN/.test(s)) return '6bulan';
+  if (/BULAN/.test(s)) return 'bulanan';
+  return null;
+}
+
+// Backend Paket label to send for a kind (what the price rows are keyed by).
+const PAKET_BACKEND: Record<PaketKind, string> = {
+  harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan', '6bulan': '6 Bulan', setahun: 'Setahun',
+};
+
+// Check-out date = check-in + count × paket duration.
+function addPaket(iso: string, kind: PaketKind, count: number): string {
+  const m = PAKET_META[kind];
+  return m.months ? addMonths(iso, m.months * count) : addDays(iso, m.days * count);
+}
+
 function daysBetween(a: string, b: string): number {
   if (!a || !b) return 0;
   const da = new Date(a);
@@ -142,7 +186,12 @@ function StepHead({ step }: { step: number }) {
 // A room option enriched with its resolved monthly price.
 export interface RoomOption {
   room: RoomStatus;
+  /** Representative price for list display (the primary paket's price, or 0). */
   harga: number;
+  /** The paket used for `harga` (for the "/bulan" vs "/hari" label). */
+  primaryKind: PaketKind | null;
+  /** Configured price per paket (override-aware, no cross-paket borrowing). */
+  paketPrices: Partial<Record<PaketKind, number>>;
 }
 
 // Small status pill for a room (Terisi / Kosong / Perlu Perhatian) — mirrors
@@ -178,7 +227,6 @@ function floorForRoom(room: RoomStatus): number | null {
 export function buildRoomOptions(
   rooms: RoomStatus[],
   prices: PriceItem[],
-  satuan: Satuan,
   currentRoomId?: string,
   roomRules: RoomPriceRule[] = [],
 ): RoomOption[] {
@@ -220,30 +268,32 @@ export function buildRoomOptions(
   function ruleRowsFor(r: RoomStatus): RoomPriceRule[] {
     return roomRules.filter((rule) => rule.RoomID === r.RoomID && Number(rule.Harga_Satuan) > 0);
   }
-  function pickByPaket<T extends { Paket: string; Harga_Satuan: number }>(
-    rows: T[],
-    daily: boolean,
-  ): number {
-    if (!rows.length) return 0;
-    const want = rows.find((p) => (daily ? /HARI/i : /BULAN/i).test(p.Paket));
-    return (want || rows[0]).Harga_Satuan || 0;
+  // Configured price PER PAKET for a room. Per-room override (Harga Massal) wins
+  // over the generic type table (Harga Umum), and a price is ONLY used for the
+  // paket it was set for — never borrowed across pakets (which caused a daily
+  // price to be multiplied as monthly → totals jomplang).
+  function paketPricesFor(r: RoomStatus): Partial<Record<PaketKind, number>> {
+    const out: Partial<Record<PaketKind, number>> = {};
+    const apply = (rows: { Paket: string; Harga_Satuan: number }[], override: boolean) => {
+      rows.forEach((row) => {
+        const kind = classifyPaket(row.Paket);
+        const harga = Number(row.Harga_Satuan) || 0;
+        if (!kind || harga <= 0) return;
+        // Table fills only gaps; override always wins.
+        if (override || out[kind] === undefined) out[kind] = harga;
+      });
+    };
+    apply(rowsFor(r), false); // Harga Umum first (base)
+    apply(ruleRowsFor(r), true); // Harga Massal overrides
+    return out;
   }
-  function monthlyPrice(r: RoomStatus): number {
-    // Per-room rule wins over the generic type table.
-    const ruleM = pickByPaket(ruleRowsFor(r), false);
-    if (ruleM > 0) return ruleM;
-    return pickByPaket(rowsFor(r), false);
-  }
-  function dailyPrice(r: RoomStatus): number {
-    const ruleD = pickByPaket(ruleRowsFor(r), true);
-    if (ruleD > 0) return ruleD;
-    const tableD = pickByPaket(rowsFor(r), true);
-    if (tableD > 0) return tableD;
-    const monthly = monthlyPrice(r);
-    return monthly ? Math.round(monthly / 30) : 0;
-  }
-  function priceFor(r: RoomStatus): number {
-    return satuan === 'Harian' ? dailyPrice(r) : monthlyPrice(r);
+  // Primary paket for list display: prefer Bulanan, else the smallest unit set.
+  function primaryKindOf(pp: Partial<Record<PaketKind, number>>): PaketKind | null {
+    if (pp.bulanan) return 'bulanan';
+    const kinds = (Object.keys(pp) as PaketKind[]).sort(
+      (a, b) => PAKET_META[a].order - PAKET_META[b].order,
+    );
+    return kinds[0] || null;
   }
   // Show ALL rooms (kosong first), so the owner can also book an occupied room
   // when needed — a warning is shown before saving. The current room (edit
@@ -264,7 +314,11 @@ export function buildRoomOptions(
       if (cur) sorted.unshift(cur);
     }
   }
-  return sorted.map((r) => ({ room: r, harga: priceFor(r) }));
+  return sorted.map((r) => {
+    const paketPrices = paketPricesFor(r);
+    const primaryKind = primaryKindOf(paketPrices);
+    return { room: r, paketPrices, primaryKind, harga: primaryKind ? paketPrices[primaryKind] || 0 : 0 };
+  });
 }
 
 // ═════════════════════════ TAMBAH / UBAH BOOKING FLOW ═════════════════════════
@@ -292,7 +346,9 @@ export function BookingFlow({
 }) {
   const qc = useQueryClient();
   const isEdit = !!editBooking;
-  const [satuan, setSatuan] = useState<Satuan>('Bulanan');
+  // Selected rental paket (price unit). Options come from the chosen room's
+  // configured prices so the count is always multiplied against the right paket.
+  const [paketKind, setPaketKind] = useState<PaketKind>('bulanan');
   // "Atur tanggal sendiri" mode: pick check-in/check-out, bill per day.
   const [customDate, setCustomDate] = useState(false);
   const [keluarDate, setKeluarDate] = useState('');
@@ -305,10 +361,6 @@ export function BookingFlow({
   const headRef = useRef<HTMLDivElement>(null);
   // Confirm dialog when booking a room that's already occupied.
   const [warnOccupied, setWarnOccupied] = useState(false);
-  // When picking custom dates we always bill per day.
-  const effSatuan: Satuan = customDate ? 'Harian' : satuan;
-  const unit = effSatuan === 'Harian' ? 'hari' : 'bulan';
-  const maxLama = satuan === 'Harian' ? 90 : 24;
 
   const [step, setStep] = useState<number | 'sukses'>(1);
   const [nama, setNama] = useState('');
@@ -334,7 +386,7 @@ export function BookingFlow({
       setHp(String(editBooking.WhatsApp || ''));
       setRoomId(editBooking.RoomID || '');
       setLama(editBooking.Jumlah_Periode || 1);
-      setSatuan(/HARI/i.test(editBooking.Paket || '') ? 'Harian' : 'Bulanan');
+      setPaketKind(classifyPaket(editBooking.Paket || '') || 'bulanan');
       setMasuk(
         editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : TODAY(),
       );
@@ -350,7 +402,7 @@ export function BookingFlow({
       setHp('');
       setRoomId('');
       setLama(1);
-      setSatuan('Bulanan');
+      setPaketKind('bulanan');
       setMasuk(TODAY());
       setCustomDate(false);
       setKeluarDate('');
@@ -373,10 +425,28 @@ export function BookingFlow({
   }, [step, open]);
 
   const options = useMemo(
-    () => buildRoomOptions(rooms, prices, effSatuan, editBooking?.RoomID, roomPriceRules),
-    [rooms, prices, effSatuan, editBooking, roomPriceRules],
+    () => buildRoomOptions(rooms, prices, editBooking?.RoomID, roomPriceRules),
+    [rooms, prices, editBooking, roomPriceRules],
   );
   const chosen = options.find((o) => o.room.RoomID === roomId) || null;
+
+  // Pakets this room actually has a price for (sorted Harian→Setahun).
+  const availablePakets = useMemo<PaketKind[]>(() => {
+    if (!chosen) return [];
+    return (Object.keys(chosen.paketPrices) as PaketKind[]).sort(
+      (a, b) => PAKET_META[a].order - PAKET_META[b].order,
+    );
+  }, [chosen]);
+
+  // When the chosen room (or its pakets) changes, keep paketKind valid: prefer
+  // the current pick if still available, else the room's primary paket.
+  useEffect(() => {
+    if (!chosen) return;
+    if (!availablePakets.includes(paketKind)) {
+      setPaketKind(chosen.primaryKind || availablePakets[0] || 'bulanan');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, availablePakets.join(',')]);
 
   // Distinct buildings & floors across the pickable rooms (for the pill filters).
   const gedungList = useMemo(() => {
@@ -425,32 +495,41 @@ export function BookingFlow({
   const customHari = customDate ? daysBetween(masuk, keluarDate) : 0;
   const lamaEff = customDate ? Math.max(0, customHari) : lama;
 
-  // Tanggal keluar (untuk menghitung jumlah hari kalender ASLI).
-  const keluar = customDate
-    ? keluarDate
-    : effSatuan === 'Harian'
-    ? addDays(masuk, lama)
-    : addMonths(masuk, lama);
+  // Unit label + stepper max for the active paket (custom mode always per day).
+  const unit = customDate ? 'hari' : PAKET_META[paketKind].unitLong;
+  const maxLama = customDate ? 365 : paketKind === 'harian' ? 90 : paketKind === 'mingguan' ? 52 : 24;
+
+  // Tanggal keluar (untuk menghitung jumlah hari kalender ASLI): check-in +
+  // count × paket (custom mode → +count hari).
+  const keluar = customDate ? keluarDate : addPaket(masuk, paketKind, lama);
   const actualDays = Math.max(1, daysBetween(masuk, keluar) || lamaEff);
+
+  // Room unit price for the active paket. Custom (per-day) mode uses the daily
+  // price, deriving from the monthly one (/30) only when no daily price is set.
+  const hargaSatuanRoom = customDate
+    ? chosen?.paketPrices.harian ??
+      (chosen?.paketPrices.bulanan ? Math.round(chosen.paketPrices.bulanan / 30) : 0)
+    : chosen?.paketPrices[paketKind] || 0;
 
   // Biaya fasilitas — pakai satuan tiap fasilitas (per bulan / per hari),
   // dikonversi memakai jumlah hari kalender nyata (bukan 30 tetap).
   const activeFas = facilities.filter((f) => f.is_active);
   function facCost(f: Fasilitas): number {
     const rate = f.price_adjust || 0;
-    const unit = f.satuan || 'per_bulan';
-    if (unit === 'per_hari') return Math.round(rate * actualDays);
-    // per_bulan
-    if (!customDate && effSatuan === 'Bulanan') return Math.round(rate * lamaEff); // n bulan penuh
-    // sewa harian / custom → prorate pakai jumlah hari di bulan masuk
+    const fUnit = f.satuan || 'per_bulan';
+    if (fUnit === 'per_hari') return Math.round(rate * actualDays);
+    // per_bulan fasilitas pada paket bulanan/6 bulan/setahun → × total bulan.
+    if (!customDate && PAKET_META[paketKind].months >= 1) {
+      return Math.round(rate * PAKET_META[paketKind].months * lamaEff);
+    }
+    // sewa harian/mingguan/custom → prorate pakai jumlah hari kalender nyata.
     return Math.round((rate / daysInMonth(masuk)) * actualDays);
   }
   const fasTotal = activeFas.reduce((s, f) => (selFas.has(f.id) ? s + facCost(f) : s), 0);
 
-  // Money math. Total selalu dihitung ulang = (harga kamar × periode) + fasilitas,
-  // jadi menambah/menghapus fasilitas atau mengubah durasi langsung mengubah total
-  // — di mode buat maupun edit. Di edit, harga kamar pakai nilai tersimpan booking.
-  const hargaSatuan = chosen?.harga || 0;
+  // Money math. Total selalu dihitung ulang = (harga kamar × jumlah paket) +
+  // fasilitas. Di edit, harga kamar pakai nilai per-unit tersimpan booking.
+  const hargaSatuan = hargaSatuanRoom;
   const hargaKamarEff = isEdit ? Number(editBooking!.Harga_Kamar) || hargaSatuan : hargaSatuan;
   const total = hargaKamarEff * lamaEff + fasTotal;
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
@@ -505,7 +584,7 @@ export function BookingFlow({
         whatsapp: hp,
         checkIn: masuk,
         checkOut: keluar,
-        paket: effSatuan,
+        paket: PAKET_BACKEND[customDate ? 'harian' : paketKind],
         jumlahPeriode: lamaEff,
         hargaKamar: hargaSatuan,
         hargaTotal: total,
@@ -784,7 +863,10 @@ export function BookingFlow({
                         <RoomStatusBadge room={o.room} />
                       </div>
                       <div className="text-caption text-kk-ink">
-                        {o.room.Gedung} · {o.harga > 0 ? `${rupiah(o.harga)}/${unit}` : 'harga belum diatur'}
+                        {o.room.Gedung} ·{' '}
+                        {o.harga > 0 && o.primaryKind
+                          ? `${rupiah(o.harga)}/${PAKET_META[o.primaryKind].unitLong}`
+                          : 'harga belum diatur'}
                       </div>
                     </div>
                     {sel && (
@@ -850,25 +932,33 @@ export function BookingFlow({
 
             {!customDate ? (
               <>
-                {/* Per bulan (kos) atau per hari (penginapan) */}
-                <div className="flex gap-2.5 mb-4">
-                  {(['Bulanan', 'Harian'] as Satuan[]).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        setSatuan(s);
-                        setLama(1);
-                      }}
-                      className={`flex-1 min-h-[48px] rounded-kk-pill font-body font-semibold text-body border-2 ${
-                        satuan === s
-                          ? 'border-kk-navy bg-kk-navy text-white'
-                          : 'border-kk-mauve bg-white text-kk-navy'
-                      }`}
-                    >
-                      {s === 'Bulanan' ? 'Per Bulan' : 'Per Hari'}
-                    </button>
-                  ))}
-                </div>
+                {/* Paket harga — hanya yang sudah diatur untuk kamar ini, supaya
+                    hitungan selalu pakai harga paket yang benar (tidak jomplang). */}
+                {availablePakets.length > 0 ? (
+                  <div className="flex flex-wrap gap-2.5 mb-4">
+                    {availablePakets.map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => {
+                          setPaketKind(k);
+                          setLama(1);
+                        }}
+                        className={`min-h-[48px] px-4 rounded-kk-pill font-body font-semibold text-body border-2 ${
+                          paketKind === k
+                            ? 'border-kk-navy bg-kk-navy text-white'
+                            : 'border-kk-mauve bg-white text-kk-navy'
+                        }`}
+                      >
+                        {PAKET_META[k].label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-card p-3.5 mb-4 text-body text-kk-navy">
+                    Harga kamar ini belum diatur. Set dulu di <b>Pengaturan → Harga</b> (Umum/Massal)
+                    sesuai paket (harian / bulanan / …), lalu hitungannya otomatis benar.
+                  </div>
+                )}
 
                 <div className="flex items-center gap-4 mb-3.5">
                   <button
@@ -889,18 +979,25 @@ export function BookingFlow({
                     +
                   </button>
                 </div>
-                <div className="flex gap-2 mb-6">
-                  {(satuan === 'Harian' ? [1, 3, 7, 14, 30] : [1, 3, 6, 12]).map((m) => (
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {(paketKind === 'harian'
+                    ? [1, 3, 7, 14, 30]
+                    : paketKind === 'mingguan'
+                    ? [1, 2, 4, 8]
+                    : paketKind === 'bulanan'
+                    ? [1, 3, 6, 12]
+                    : [1, 2, 3, 4]
+                  ).map((m) => (
                     <button
                       key={m}
                       onClick={() => setLama(m)}
-                      className={`flex-1 min-h-[48px] rounded-kk-pill font-body font-semibold text-caption border-2 ${
+                      className={`flex-1 min-w-[56px] min-h-[48px] rounded-kk-pill font-body font-semibold text-caption border-2 ${
                         lama === m
                           ? 'border-kk-navy bg-kk-navy text-white'
                           : 'border-kk-mauve bg-white text-kk-navy'
                       }`}
                     >
-                      {m} {satuan === 'Harian' ? 'hr' : 'bln'}
+                      {m} {PAKET_META[paketKind].unitShort}
                     </button>
                   ))}
                 </div>
