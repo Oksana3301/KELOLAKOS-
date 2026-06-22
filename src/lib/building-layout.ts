@@ -80,3 +80,54 @@ export function roomKey(nama: string): string {
   const code = s.match(/\bD0?\d+\b/);
   return (code ? code[0] : s).replace(/\s+/g, '');
 }
+
+// ── 3D positions ──────────────────────────────────────────────────────────
+// Each room becomes a box. (cx, cz) = footprint center on a floor; the floor
+// (lantai) sets the height (y). World units; the viewer recenters automatically.
+export const FLOOR_H = 1.1; // tinggi antar lantai
+export const ROOM_H = 0.62; // tinggi kotak kamar
+const SP = 1.18; // jarak antar kamar
+
+export interface Room3D {
+  nama: string;
+  gedung: GedungKey;
+  lantai: number;
+  cx: number;
+  cz: number;
+  w: number;
+  d: number;
+}
+
+export function room3DPositions(): Room3D[] {
+  const out: Room3D[] = [];
+  for (const f of FLOORS) {
+    for (const b of f.blocks) {
+      if (b.shape === 'twinCol') {
+        const place = (list: string[], colX: number) =>
+          list.forEach((nama, i) => {
+            const row = i < b.gapAfter ? i : i + 1; // koridor (gap)
+            out.push({ nama, gedung: b.gedung, lantai: f.lantai, cx: colX, cz: row * SP, w: 0.92, d: 0.92 });
+          });
+        place(b.left, 0);
+        place(b.right, 2.05); // kolom kanan, koridor di tengah
+      } else if (b.shape === 'lShape') {
+        const bx = 8.5;
+        b.top.forEach((nama, i) =>
+          out.push({ nama, gedung: b.gedung, lantai: f.lantai, cx: bx + i * SP, cz: 0, w: 0.92, d: 0.92 }),
+        );
+        const sideX = bx + (b.top.length - 1) * SP;
+        b.side.forEach((nama, j) =>
+          out.push({ nama, gedung: b.gedung, lantai: f.lantai, cx: sideX, cz: (j + 1) * SP, w: 0.92, d: 0.92 }),
+        );
+      } else {
+        // row (Gedung C / penginapan), taruh di depan B
+        const cx0 = 9;
+        const cz0 = -3.2;
+        b.rooms.forEach((nama, i) =>
+          out.push({ nama, gedung: b.gedung, lantai: f.lantai, cx: cx0 + i * 1.8, cz: cz0, w: 1.5, d: 0.95 }),
+        );
+      }
+    }
+  }
+  return out;
+}

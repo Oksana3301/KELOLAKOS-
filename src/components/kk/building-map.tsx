@@ -4,7 +4,18 @@
 // Ringan (tanpa library 3D). Dipakai di /info (publik) & menu Layout Properti.
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { FLOORS, GEDUNG_LABEL, roomKey, type Arrangement, type RoomStatus3 } from '@/lib/building-layout';
+
+// 3D dimuat hanya saat dibutuhkan (WebGL berat) → halaman tetap kenceng.
+const Building3D = dynamic(() => import('./building-3d'), {
+  ssr: false,
+  loading: () => (
+    <div className="grid place-items-center" style={{ height: 420, color: '#9A8B70', fontSize: 13 }}>
+      Memuat tampilan 3D…
+    </div>
+  ),
+});
 
 const SC: Record<RoomStatus3, { bg: string; bd: string; fg: string }> = {
   kosong: { bg: '#EAF5EE', bd: '#9ED9B4', fg: '#15724A' },
@@ -171,6 +182,48 @@ export function BuildingMap2D({
           <Block key={i} block={b} st={st} onRoomClick={onRoomClick} />
         ))}
       </div>
+    </div>
+  );
+}
+
+// Pembungkus: tombol 2D / 3D. Default 2D (instan); 3D di-lazy-load saat diklik.
+export function BuildingViewer({
+  statusByRoom,
+  onRoomClick,
+  accent = '#1F7A4D',
+}: {
+  statusByRoom: Map<string, RoomStatus3>;
+  onRoomClick?: (nama: string) => void;
+  accent?: string;
+}) {
+  const [mode, setMode] = useState<'2d' | '3d'>('2d');
+  return (
+    <div>
+      <div className="flex justify-center gap-2 mb-4">
+        {(['2d', '3d'] as const).map((m) => {
+          const active = m === mode;
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className="min-h-[40px] px-5 rounded-full font-semibold text-[13px] border-2"
+              style={
+                active
+                  ? { background: accent, color: '#fff', borderColor: accent }
+                  : { background: '#fff', color: '#5b4a32', borderColor: '#E0CFA8' }
+              }
+            >
+              {m === '2d' ? 'Denah 2D' : 'Lihat 3D'}
+            </button>
+          );
+        })}
+      </div>
+      {mode === '2d' ? (
+        <BuildingMap2D statusByRoom={statusByRoom} onRoomClick={onRoomClick} accent={accent} />
+      ) : (
+        <Building3D statusByRoom={statusByRoom} accent={accent} />
+      )}
     </div>
   );
 }

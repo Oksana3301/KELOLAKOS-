@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/halaman-info';
-import { BuildingMap2D } from '@/components/kk/building-map';
+import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
 
 // ───────────────────────── theme ─────────────────────────
@@ -520,7 +520,7 @@ export default function InfoPage() {
           )}
 
           <Card className="!px-3 sm:!px-5">
-            <BuildingMap2D statusByRoom={statusMap} accent={C.gold} />
+            <BuildingViewer statusByRoom={statusMap} accent={C.gold} />
           </Card>
 
           <div className="mt-5 max-w-[360px] mx-auto">
