@@ -133,6 +133,23 @@ export const kwitansiApi = {
 };
 
 // ============================================
+// HALAMAN INFO (public landing /info content)
+// ============================================
+import type { BuktiFile } from './api';
+
+export const halamanInfoApi = {
+  // Public read (no access code) — used by /info; falls back to defaults on error.
+  get: () =>
+    callApi<Record<string, unknown>>('getHalamanInfo', undefined, { skipLicense: true }),
+  // Owner saves the whole content object (stored as JSON in a settings sheet).
+  save: (data: unknown) =>
+    callApi<{ ok: boolean }>('saveHalamanInfo', { json: JSON.stringify(data) }),
+  // Upload one image/video to Drive → returns its public URL.
+  uploadMedia: (file: BuktiFile) =>
+    callApi<{ ok: boolean; url: string }>('uploadInfoMedia', { file }),
+};
+
+// ============================================
 // BOOKING EKSTRA
 // ============================================
 export const bookingExtraApi = {

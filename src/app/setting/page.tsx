@@ -13,6 +13,7 @@ import {
   HargaUmumPanel,
   HargaMassalPanel,
   FasilitasPanel,
+  HalamanInfoPanel,
 } from '@/components/setting-panels';
 
 const SUPPORT_WA = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
@@ -27,7 +28,7 @@ const HELP = {
 };
 
 // Sections that open a Sheet wrapping an existing panel.
-type SheetKey = 'profil' | 'harga' | 'bulk' | 'fasilitas';
+type SheetKey = 'profil' | 'harga' | 'bulk' | 'fasilitas' | 'info';
 
 interface Section {
   icon: KkIconName;
@@ -78,6 +79,14 @@ const SECTIONS: Section[] = [
     sheet: 'fasilitas',
     sheetTitle: 'Fasilitas',
     sheetSub: 'Daftar fasilitas yang bisa dipasang ke kamar.',
+  },
+  {
+    icon: 'toko',
+    title: 'Halaman Info (Brosur Online)',
+    desc: 'Atur isi & foto halaman publik /info untuk calon penghuni.',
+    sheet: 'info',
+    sheetTitle: 'Halaman Info',
+    sheetSub: 'Konten halaman publik /info — bisa dibagikan ke calon penghuni.',
   },
 ];
 
@@ -241,6 +250,7 @@ export default function SettingPage() {
               {activeSheet === 'harga' && <HargaUmumPanel />}
               {activeSheet === 'bulk' && <HargaMassalPanel />}
               {activeSheet === 'fasilitas' && <FasilitasPanel />}
+              {activeSheet === 'info' && <HalamanInfoPanel />}
             </div>
           </>
         )}

@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type RoomStatus, type PriceItem } from '@/lib/api';
-import { facilityApi, kwitansiApi, type Fasilitas, type KwitansiSettings } from '@/lib/api-v2';
+import { api, type RoomStatus, type PriceItem, type BuktiFile } from '@/lib/api';
+import { facilityApi, kwitansiApi, halamanInfoApi, type Fasilitas, type KwitansiSettings } from '@/lib/api-v2';
+import { DEFAULT_INFO, mergeInfo, type HalamanInfo } from '@/lib/halaman-info';
 import { formatRupiah, formatRupiahShort } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -1117,6 +1118,225 @@ function FasilitasModal({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ===========================================
+// HALAMAN INFO (public landing /info) editor
+// ===========================================
+function readBase64_(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const res = String(r.result || '');
+      resolve(res.includes(',') ? res.split(',')[1] : res);
+    };
+    r.onerror = () => reject(new Error('Gagal membaca berkas'));
+    r.readAsDataURL(file);
+  });
+}
+
+function MediaSlot({
+  value,
+  onChange,
+  label,
+  accept = 'image/*',
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  label: string;
+  accept?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [drag, setDrag] = useState(false);
+  const isVideo = accept.startsWith('video');
+
+  async function upload(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const base64 = await readBase64_(file);
+      const res = await halamanInfoApi.uploadMedia({
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        base64,
+      } as BuktiFile);
+      if (res?.url) {
+        onChange(res.url);
+        toast.success('Berhasil diunggah');
+      } else {
+        toast.error('Upload gagal: tidak ada URL kembali. Pasang patch backend dulu, atau tempel link manual.');
+      }
+    } catch (e) {
+      toast.error('Upload gagal: ' + (e as Error).message + '. Bisa tempel link foto/video manual di bawah.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <label className="text-[11px] font-semibold text-tx2 mb-1 block">{label}</label>
+      {value ? (
+        <div className="relative">
+          {isVideo ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video src={value} controls className="w-full rounded-md border border-bd aspect-video bg-black" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt={label} className="w-full rounded-md border border-bd object-cover aspect-video" />
+          )}
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 border border-bd text-rd grid place-items-center text-sm shadow"
+            aria-label="Hapus"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <label
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); upload(e.dataTransfer.files?.[0]); }}
+          className={
+            'flex flex-col items-center justify-center gap-1 border-2 border-dashed rounded-md py-6 px-3 text-center cursor-pointer text-xs ' +
+            (drag ? 'border-ac bg-sf2' : 'border-bd bg-sf')
+          }
+        >
+          <span className="text-lg">{busy ? '⏳' : isVideo ? '🎬' : '🖼️'}</span>
+          <span className="text-tx2 font-semibold">{busy ? 'Mengunggah…' : 'Klik / seret berkas ke sini'}</span>
+          <input type="file" accept={accept} className="hidden" onChange={(e) => upload(e.target.files?.[0] || undefined)} />
+        </label>
+      )}
+      <input
+        className="input mt-1.5 text-xs"
+        placeholder="…atau tempel link (Drive/YouTube)"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+export function HalamanInfoPanel() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get });
+  const [form, setForm] = useState<HalamanInfo>(DEFAULT_INFO);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (data) setForm(mergeInfo(data));
+  }, [data]);
+
+  function set<K extends keyof HalamanInfo>(key: K, value: HalamanInfo[K]) {
+    setForm((p) => ({ ...p, [key]: value }));
+  }
+  function setPeng(i: number, key: 'nama' | 'sub' | 'malam' | 'bulan' | 'tahun', value: string) {
+    setForm((p) => {
+      const peng = p.penginapan.map((x, idx) => (idx === i ? { ...x, [key]: value } : x));
+      return { ...p, penginapan: peng };
+    });
+  }
+  function setGaleri(i: number, url: string) {
+    setForm((p) => {
+      const g = [...p.galeri];
+      while (g.length <= i) g.push('');
+      g[i] = url;
+      return { ...p, galeri: g.filter((_, idx) => idx !== i || url !== '') };
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const clean = { ...form, galeri: form.galeri.filter(Boolean) };
+      await halamanInfoApi.save(clean);
+      toast.success('✓ Halaman info disimpan');
+      qc.invalidateQueries({ queryKey: ['halaman-info'] });
+    } catch (e) {
+      toast.error('Gagal menyimpan: ' + (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const galeriSlots = Array.from({ length: Math.min(8, form.galeri.length + 1) });
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-sf2 border border-bd rounded-md p-3 text-[11px] text-tx2">
+        Konten ini muncul di halaman publik <strong>/info</strong> (bisa dibagikan ke calon penghuni). Foto/video
+        diunggah ke Google Drive. Jika upload belum jalan, pasang patch backend dulu atau tempel link manual.
+      </div>
+
+      {/* Dasar */}
+      <div className="space-y-3">
+        <h4 className="font-bold text-sm">📝 Dasar</h4>
+        <FormField label="Nama properti"><input className="input" value={form.nama} onChange={(e) => set('nama', e.target.value)} /></FormField>
+        <FormField label="Tagline (judul besar)" hint="Boleh pakai Enter untuk baris baru.">
+          <textarea className="input resize-y" rows={2} value={form.tagline} onChange={(e) => set('tagline', e.target.value)} />
+        </FormField>
+        <FormField label="Deskripsi singkat"><textarea className="input resize-y" rows={2} value={form.deskripsi} onChange={(e) => set('deskripsi', e.target.value)} /></FormField>
+        <FormField label="Alamat"><input className="input" value={form.alamat} onChange={(e) => set('alamat', e.target.value)} /></FormField>
+        <FormField label="Link Google Maps"><input className="input" value={form.maps} onChange={(e) => set('maps', e.target.value)} /></FormField>
+      </div>
+
+      {/* WhatsApp */}
+      <div className="space-y-3">
+        <h4 className="font-bold text-sm">💬 WhatsApp</h4>
+        <FormField label="WA Resmi (booking & bukti bayar)"><input className="input" value={form.waResmi} onChange={(e) => set('waResmi', e.target.value)} /></FormField>
+        <FormField label="WA Survey / Penjaga (Bang Mezi)"><input className="input" value={form.waMezi} onChange={(e) => set('waMezi', e.target.value)} /></FormField>
+        <FormField label="Pesan pembuka WA"><textarea className="input resize-y" rows={2} value={form.waPesan} onChange={(e) => set('waPesan', e.target.value)} /></FormField>
+      </div>
+
+      {/* Kost */}
+      <div className="space-y-3">
+        <h4 className="font-bold text-sm">🏠 Kost (teaser)</h4>
+        <div className="grid grid-cols-2 gap-2">
+          <FormField label="Teaser harga"><input className="input" value={form.kostTeaser} onChange={(e) => set('kostTeaser', e.target.value)} /></FormField>
+          <FormField label="Satuan"><input className="input" value={form.kostTeaserUnit} onChange={(e) => set('kostTeaserUnit', e.target.value)} /></FormField>
+        </div>
+      </div>
+
+      {/* Penginapan */}
+      <div className="space-y-3">
+        <h4 className="font-bold text-sm">🛏️ Penginapan (harga)</h4>
+        {form.penginapan.map((p, i) => (
+          <div key={i} className="border border-bd rounded-md p-3 space-y-2">
+            <input className="input font-semibold" value={p.nama} onChange={(e) => setPeng(i, 'nama', e.target.value)} />
+            <input className="input text-xs" value={p.sub} onChange={(e) => setPeng(i, 'sub', e.target.value)} />
+            <div className="grid grid-cols-3 gap-2">
+              <input className="input text-xs" placeholder="/malam" value={p.malam} onChange={(e) => setPeng(i, 'malam', e.target.value)} />
+              <input className="input text-xs" placeholder="/bulan" value={p.bulan} onChange={(e) => setPeng(i, 'bulan', e.target.value)} />
+              <input className="input text-xs" placeholder="/tahun" value={p.tahun} onChange={(e) => setPeng(i, 'tahun', e.target.value)} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Foto & Video */}
+      <div className="space-y-3">
+        <h4 className="font-bold text-sm">📸 Foto & Video</h4>
+        <MediaSlot label="Foto Hero (depan)" value={form.fotoHero} onChange={(u) => set('fotoHero', u)} />
+        <div className="text-[11px] font-semibold text-tx2">Galeri (foto kamar, area, dll — maks 8)</div>
+        <div className="grid grid-cols-2 gap-2">
+          {galeriSlots.map((_, i) => (
+            <MediaSlot key={i} label={`Foto ${i + 1}`} value={form.galeri[i] || ''} onChange={(u) => setGaleri(i, u)} />
+          ))}
+        </div>
+        <MediaSlot label="Video tur (YouTube/Drive/mp4)" value={form.videoUrl} onChange={(u) => set('videoUrl', u)} accept="video/*" />
+      </div>
+
+      <button onClick={handleSave} disabled={saving} className="btn btn-pri btn-lg w-full">
+        {saving ? '⏳ Menyimpan…' : '💾 Simpan Halaman Info'}
+      </button>
+      <a href="/info" target="_blank" rel="noopener noreferrer" className="btn btn-sec w-full">
+        🔗 Buka halaman /info
+      </a>
     </div>
   );
 }

@@ -2,11 +2,13 @@
 
 // Top Hills Kost Putri — public landing page (/info).
 // Elegant "brochure" theme (cream + gold, serif), mobile-first. Renders OUTSIDE
-// the KelolaKos access gate (see AccessCodeGate / AppShell bypass for /info).
-// Content is seeded from the brochure + knowledge base; later it becomes
-// editable via Pengaturan → Halaman Info (Tahap berikutnya).
+// the KelolaKos access gate. Content comes from the saved Halaman Info (editable
+// in Pengaturan), falling back to DEFAULT_INFO so it always works.
 
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { halamanInfoApi } from '@/lib/api-v2';
+import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
 
 // ───────────────────────── theme ─────────────────────────
 const C = {
@@ -19,23 +21,14 @@ const C = {
   brown: '#463720',
   brownSoft: '#7A6A4F',
 };
-const serif = "'Cinzel', serif"; // wordmark + headings
-const elegant = "'Cormorant Garamond', serif"; // taglines / accents
-const body = "'Inter', system-ui, sans-serif"; // readable body
+const serif = "'Cinzel', serif";
+const elegant = "'Cormorant Garamond', serif";
+const body = "'Inter', system-ui, sans-serif";
 
-// ───────────────────────── content (seed) ─────────────────────────
-const WA_RESMI = '08116646615'; // booking & bukti bayar
-const WA_MEZI = '083841614871'; // survey / penjaga
-const MAPS = 'https://maps.app.goo.gl/6sJz6tiH9Px1b1AGA';
-const ADDRESS = 'Limau Manis, Pauh, Kota Padang, Sumatera Barat 25176';
-
-const MSG_BOOKING =
-  'Halo Top Hills 🌸, saya lihat dari halaman info. Saya mau tanya / booking kamar ...';
-const MSG_SURVEY =
-  'Halo Bang Mezi 🙏, saya mau janji survey lihat kamar Top Hills. Kapan boleh datang ya?';
+const MSG_SURVEY = 'Halo Bang Mezi 🙏, saya mau janji survey lihat kamar Top Hills. Kapan boleh datang ya?';
 
 function norm62(raw: string): string {
-  let p = String(raw).replace(/[^0-9]/g, '');
+  let p = String(raw || '').replace(/[^0-9]/g, '');
   if (p.startsWith('0')) p = '62' + p.slice(1);
   else if (p.startsWith('8')) p = '62' + p;
   return p;
@@ -43,30 +36,10 @@ function norm62(raw: string): string {
 function wa(phone: string, text: string): string {
   return `https://wa.me/${norm62(phone)}?text=${encodeURIComponent(text)}`;
 }
-
-const PENGINAPAN = [
-  {
-    nama: 'Executive',
-    sub: 'Paling besar · kasur queen size',
-    malam: 'Rp 300.000',
-    bulan: 'Rp 4.000.000',
-    tahun: 'Rp 40.000.000',
-  },
-  {
-    nama: 'Superior',
-    sub: 'Menengah · twin bunk (ranjang susun)',
-    malam: 'Rp 250.000',
-    bulan: 'Rp 3.000.000',
-    tahun: 'Rp 30.000.000',
-  },
-  {
-    nama: 'Deluxe',
-    sub: 'Kecil · twin bunk (ranjang susun)',
-    malam: 'Rp 200.000',
-    bulan: 'Rp 2.500.000',
-    tahun: 'Rp 25.000.000',
-  },
-];
+function ytEmbed(url: string): string | null {
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{6,})/);
+  return m ? `https://www.youtube.com/embed/${m[1]}` : null;
+}
 
 const FASILITAS = [
   { i: '🛏️', t: 'Kasur & lemari' },
@@ -84,42 +57,15 @@ const FASILITAS = [
 ];
 
 const FAQ = [
-  {
-    q: 'Lokasinya di mana? Dekat UNAND tidak?',
-    a: 'Di Limau Manis, Pauh, Padang — sangat dekat UNAND, ada akses jalan langsung ke gerbang kampus.',
-  },
-  {
-    q: 'Harga kost berapa setahun?',
-    a: 'Lantai 1–3: Rp15jt (non-AC) / Rp19jt (AC). Lantai 4: Rp14jt (non-AC) / Rp18jt (AC). Tersedia juga paket 6 bulan. Detail lengkap silakan tanya via WhatsApp.',
-  },
-  {
-    q: 'Bisa sewa kost bulanan saja?',
-    a: 'Minimal sewa kost adalah 6 bulan. Tersedia paket 6 bulan dan setahun.',
-  },
-  {
-    q: 'Ada AC tidak?',
-    a: 'Untuk kost ada pilihan AC dan non-AC (harga berbeda). Untuk penginapan, semua kamar sudah ber-AC.',
-  },
-  {
-    q: 'Kamar mandi di dalam atau di luar?',
-    a: 'Kamar mandi di dalam kamar (KM dalam), baik kost maupun penginapan.',
-  },
-  {
-    q: 'Aman tidak untuk anak perempuan? Ada CCTV?',
-    a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB, dan tamu laki-laki hanya boleh di area luar/ruang tamu.',
-  },
-  {
-    q: 'Boleh survey/lihat kamar dulu?',
-    a: 'Boleh. Sebaiknya janjian dulu dengan penjaga (Bang Mezi). Jam survey 08.00–19.00 WIB.',
-  },
-  {
-    q: 'DP bisa kembali kalau batal?',
-    a: 'DP berfungsi mengamankan kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).',
-  },
-  {
-    q: 'Penginapan termasuk sarapan?',
-    a: 'Belum termasuk sarapan, tetapi bisa dibantu pesankan bila diminta. Pembersihan kamar sudah termasuk.',
-  },
+  { q: 'Lokasinya di mana? Dekat UNAND tidak?', a: 'Di Limau Manis, Pauh, Padang — sangat dekat UNAND, ada akses jalan langsung ke gerbang kampus.' },
+  { q: 'Harga kost berapa setahun?', a: 'Lantai 1–3: Rp15jt (non-AC) / Rp19jt (AC). Lantai 4: Rp14jt (non-AC) / Rp18jt (AC). Tersedia juga paket 6 bulan. Detail lengkap silakan tanya via WhatsApp.' },
+  { q: 'Bisa sewa kost bulanan saja?', a: 'Minimal sewa kost adalah 6 bulan. Tersedia paket 6 bulan dan setahun.' },
+  { q: 'Ada AC tidak?', a: 'Untuk kost ada pilihan AC dan non-AC (harga berbeda). Untuk penginapan, semua kamar sudah ber-AC.' },
+  { q: 'Kamar mandi di dalam atau di luar?', a: 'Kamar mandi di dalam kamar (KM dalam), baik kost maupun penginapan.' },
+  { q: 'Aman tidak untuk anak perempuan? Ada CCTV?', a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB, dan tamu laki-laki hanya boleh di area luar/ruang tamu.' },
+  { q: 'Boleh survey/lihat kamar dulu?', a: 'Boleh. Sebaiknya janjian dulu dengan penjaga (Bang Mezi). Jam survey 08.00–19.00 WIB.' },
+  { q: 'DP bisa kembali kalau batal?', a: 'DP berfungsi mengamankan kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).' },
+  { q: 'Penginapan termasuk sarapan?', a: 'Belum termasuk sarapan, tetapi bisa dibantu pesankan bila diminta. Pembersihan kamar sudah termasuk.' },
 ];
 
 // ───────────────────────── small UI pieces ─────────────────────────
@@ -127,18 +73,13 @@ function TopHillsMark({ size = 64, color = C.gold }: { size?: number; color?: st
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
       <g stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        {/* roof */}
         <path d="M22 22 L32 12 L42 22" />
-        {/* body */}
         <rect x="22" y="22" width="20" height="26" />
-        {/* windows */}
         <rect x="26.5" y="27" width="4" height="4" />
         <rect x="33.5" y="27" width="4" height="4" />
         <rect x="26.5" y="34" width="4" height="4" />
         <rect x="33.5" y="34" width="4" height="4" />
-        {/* door */}
         <path d="M29 48 L29 42 Q32 40 35 42 L35 48" />
-        {/* hills */}
         <path d="M10 48 Q20 44 32 48 Q44 52 54 48" />
         <path d="M14 52 Q24 49 32 52" opacity="0.7" />
       </g>
@@ -160,10 +101,7 @@ function Brand({ stacked = true }: { stacked?: boolean }) {
   return (
     <div className="flex flex-col items-center">
       <TopHillsMark size={72} />
-      <div
-        style={{ fontFamily: serif, color: C.gold }}
-        className="mt-3 text-[30px] sm:text-[38px] font-bold tracking-[0.16em] leading-none"
-      >
+      <div style={{ fontFamily: serif, color: C.gold }} className="mt-3 text-[30px] sm:text-[38px] font-bold tracking-[0.16em] leading-none">
         TOP HILLS
       </div>
       <div style={{ color: C.goldSoft }} className="mt-1.5 text-[13px] font-semibold tracking-[0.42em]">
@@ -176,10 +114,7 @@ function Brand({ stacked = true }: { stacked?: boolean }) {
 function SectionHead({ n, title, sub }: { n: string; title: string; sub?: string }) {
   return (
     <div className="text-center mb-7">
-      <div
-        className="mx-auto mb-3 w-10 h-10 rounded-full grid place-items-center text-[16px] font-bold"
-        style={{ border: `1.5px solid ${C.gold}`, color: C.gold, fontFamily: serif }}
-      >
+      <div className="mx-auto mb-3 w-10 h-10 rounded-full grid place-items-center text-[16px] font-bold" style={{ border: `1.5px solid ${C.gold}`, color: C.gold, fontFamily: serif }}>
         {n}
       </div>
       <h2 style={{ fontFamily: serif, color: C.brown }} className="text-[24px] sm:text-[30px] font-bold tracking-wide m-0">
@@ -197,29 +132,14 @@ function SectionHead({ n, title, sub }: { n: string; title: string; sub?: string
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div
-      className={'rounded-[20px] p-5 ' + className}
-      style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 6px 22px rgba(112,86,32,0.06)' }}
-    >
+    <div className={'rounded-[20px] p-5 ' + className} style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 6px 22px rgba(112,86,32,0.06)' }}>
       {children}
     </div>
   );
 }
 
-function WAButton({
-  href,
-  children,
-  variant = 'gold',
-  block = true,
-}: {
-  href: string;
-  children: React.ReactNode;
-  variant?: 'gold' | 'green' | 'ghost';
-  block?: boolean;
-}) {
-  const base =
-    'inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline transition-transform active:scale-[0.98] ' +
-    (block ? 'w-full ' : '');
+function WAButton({ href, children, variant = 'gold', block = true }: { href: string; children: React.ReactNode; variant?: 'gold' | 'green' | 'ghost'; block?: boolean }) {
+  const base = 'inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline transition-transform active:scale-[0.98] ' + (block ? 'w-full ' : '');
   const styles =
     variant === 'green'
       ? { background: '#1F7A4D', color: '#fff' }
@@ -245,11 +165,7 @@ function Accordion({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ borderBottom: `1px solid ${C.border}` }}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-start justify-between gap-3 py-4 text-left"
-        style={{ fontFamily: body }}
-      >
+      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-start justify-between gap-3 py-4 text-left" style={{ fontFamily: body }}>
         <span className="text-[16px] font-semibold" style={{ color: C.brown }}>
           {q}
         </span>
@@ -266,12 +182,16 @@ function Accordion({ q, a }: { q: string; a: string }) {
   );
 }
 
-function Photo({ label, ratio = 'aspect-[4/3]' }: { label: string; ratio?: string }) {
+// Image slot: shows the uploaded photo (URL) or an elegant placeholder.
+function Img({ src, label, ratio = 'aspect-[4/3]' }: { src?: string; label: string; ratio?: string }) {
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={label} className={'rounded-[16px] object-cover w-full ' + ratio} style={{ border: `1px solid ${C.border}` }} />
+    );
+  }
   return (
-    <div
-      className={'rounded-[16px] grid place-items-center text-center ' + ratio}
-      style={{ background: C.creamDeep, border: `1px dashed ${C.goldSoft}` }}
-    >
+    <div className={'rounded-[16px] grid place-items-center text-center ' + ratio} style={{ background: C.creamDeep, border: `1px dashed ${C.goldSoft}` }}>
       <div style={{ fontFamily: body, color: C.brownSoft }} className="px-3">
         <div className="text-[22px] mb-1">🖼️</div>
         <div className="text-[12px] leading-tight">{label}</div>
@@ -282,7 +202,6 @@ function Photo({ label, ratio = 'aspect-[4/3]' }: { label: string; ratio?: strin
 
 // ───────────────────────── page ─────────────────────────
 export default function InfoPage() {
-  // Smooth-scroll for the in-page anchor menu (scoped to this page).
   useEffect(() => {
     const prev = document.documentElement.style.scrollBehavior;
     document.documentElement.style.scrollBehavior = 'smooth';
@@ -291,6 +210,15 @@ export default function InfoPage() {
     };
   }, []);
 
+  // Saved content (public read). On any error → defaults, so the page never breaks.
+  const { data } = useQuery({
+    queryKey: ['halaman-info'],
+    queryFn: halamanInfoApi.get,
+    retry: 0,
+    staleTime: 5 * 60 * 1000,
+  });
+  const info = mergeInfo(data || DEFAULT_INFO);
+
   const NAV = [
     { id: 'kost', label: 'Kost' },
     { id: 'penginapan', label: 'Penginapan' },
@@ -298,14 +226,12 @@ export default function InfoPage() {
     { id: 'lokasi', label: 'Lokasi' },
     { id: 'booking', label: 'Booking' },
   ];
+  const yt = info.videoUrl ? ytEmbed(info.videoUrl) : null;
 
   return (
     <div style={{ background: C.cream, fontFamily: body, color: C.brown }} className="min-h-screen">
-      {/* ───── Sticky top bar ───── */}
-      <header
-        className="sticky top-0 z-40 backdrop-blur"
-        style={{ background: 'rgba(244,236,221,0.92)', borderBottom: `1px solid ${C.border}` }}
-      >
+      {/* Sticky top bar */}
+      <header className="sticky top-0 z-40 backdrop-blur" style={{ background: 'rgba(244,236,221,0.92)', borderBottom: `1px solid ${C.border}` }}>
         <div className="mx-auto max-w-[900px] px-4 h-14 flex items-center justify-between gap-3">
           <Brand stacked={false} />
           <nav className="hidden sm:flex items-center gap-5 text-[14px] font-semibold" style={{ color: C.brownSoft }}>
@@ -315,48 +241,31 @@ export default function InfoPage() {
               </a>
             ))}
           </nav>
-          <a
-            href={wa(WA_RESMI, MSG_BOOKING)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold no-underline"
-            style={{ background: C.gold, color: '#fff' }}
-          >
+          <a href={wa(info.waResmi, info.waPesan)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold no-underline" style={{ background: C.gold, color: '#fff' }}>
             <WAIcon size={16} /> WhatsApp
           </a>
         </div>
       </header>
 
       <main className="mx-auto max-w-[900px] px-4">
-        {/* ───── Hero ───── */}
+        {/* Hero */}
         <section className="pt-10 pb-8 text-center">
           <Brand />
-          <h1
-            style={{ fontFamily: elegant, color: C.brown }}
-            className="mt-6 text-[30px] sm:text-[40px] font-semibold leading-tight"
-          >
-            Kost Putri & Penginapan
-            <br />
-            yang nyaman, aman, dekat UNAND
+          <h1 style={{ fontFamily: elegant, color: C.brown }} className="mt-6 text-[30px] sm:text-[40px] font-semibold leading-tight whitespace-pre-line">
+            {info.tagline}
           </h1>
           <p style={{ fontFamily: body, color: C.brownSoft }} className="mt-4 text-[15px] max-w-[44ch] mx-auto leading-relaxed">
-            Limau Manis, Pauh — Padang. Harian, mingguan, bulanan & tahunan. Lengkap dengan AC, kamar mandi
-            dalam, WiFi unlimited, security & CCTV. 🌸
+            {info.deskripsi}
           </p>
           <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:justify-center max-w-[420px] sm:max-w-none mx-auto">
-            <WAButton href={wa(WA_RESMI, MSG_BOOKING)} block={false}>
+            <WAButton href={wa(info.waResmi, info.waPesan)} block={false}>
               <WAIcon /> Booking / Tanya via WhatsApp
             </WAButton>
-            <a
-              href="#kost"
-              className="inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline"
-              style={{ fontFamily: body, background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}
-            >
+            <a href="#kost" className="inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline" style={{ fontFamily: body, background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}>
               Lihat Kamar
             </a>
           </div>
 
-          {/* badges */}
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {[
               ['🎓', 'Dekat UNAND'],
@@ -364,38 +273,31 @@ export default function InfoPage() {
               ['🔒', 'Security & CCTV'],
               ['📶', 'WiFi Unlimited'],
             ].map(([i, t]) => (
-              <div
-                key={t}
-                className="rounded-[14px] py-3 px-2 text-[13px] font-semibold"
-                style={{ background: C.card, border: `1px solid ${C.border}`, color: C.brown }}
-              >
+              <div key={t} className="rounded-[14px] py-3 px-2 text-[13px] font-semibold" style={{ background: C.card, border: `1px solid ${C.border}`, color: C.brown }}>
                 <div className="text-[20px] mb-1">{i}</div>
                 {t}
               </div>
             ))}
           </div>
 
-          <Photo label="Foto depan / area gedung (kamu upload nanti)" ratio="aspect-[16/9] mt-6" />
+          <div className="mt-6">
+            <Img src={info.fotoHero} label="Foto depan / area gedung (atur di Pengaturan → Halaman Info)" ratio="aspect-[16/9]" />
+          </div>
         </section>
 
-        {/* ───── Tentang ───── */}
+        {/* Tentang */}
         <section className="py-8">
-          <SectionHead
-            n="1"
-            title="Tentang Top Hills"
-            sub="Kost putri sekaligus penginapan di Padang — cocok untuk mahasiswi, orang tua yang mengantar anak, atau tamu yang butuh menginap sementara."
-          />
+          <SectionHead n="1" title="Tentang Top Hills" sub="Kost putri sekaligus penginapan di Padang — cocok untuk mahasiswi, orang tua yang mengantar anak, atau tamu yang butuh menginap sementara." />
           <Card>
             <p className="text-[15px] leading-relaxed" style={{ color: C.brownSoft }}>
               Area terdiri dari beberapa gedung: <b style={{ color: C.brown }}>Gedung A & B</b> untuk{' '}
-              <b style={{ color: C.brown }}>kost putri</b> (jangka panjang), dan{' '}
-              <b style={{ color: C.brown }}>Gedung C</b> untuk <b style={{ color: C.brown }}>penginapan</b> (harian,
-              mingguan, bulanan, tahunan). Semua dalam satu lokasi yang asri & dekat kampus.
+              <b style={{ color: C.brown }}>kost putri</b> (jangka panjang), dan <b style={{ color: C.brown }}>Gedung C</b> untuk{' '}
+              <b style={{ color: C.brown }}>penginapan</b> (harian, mingguan, bulanan, tahunan). Semua dalam satu lokasi yang asri & dekat kampus.
             </p>
           </Card>
         </section>
 
-        {/* ───── Kost ───── */}
+        {/* Kost */}
         <section id="kost" className="py-8 scroll-mt-20">
           <SectionHead n="2" title="Kost Putri — Gedung A & B" sub="Sewa jangka panjang, khusus putri." />
           <Card>
@@ -404,19 +306,15 @@ export default function InfoPage() {
                 Mulai dari
               </div>
               <div style={{ fontFamily: serif, color: C.gold }} className="text-[34px] font-bold leading-none my-1">
-                1,3 jutaan
+                {info.kostTeaser}
               </div>
               <div className="text-[14px]" style={{ color: C.brownSoft }}>
-                per bulan*
+                {info.kostTeaserUnit}
               </div>
-              <div
-                className="inline-flex items-center gap-2 mt-4 rounded-full px-4 py-2 text-[14px] font-semibold"
-                style={{ background: '#FBF3E0', color: C.brown, border: `1px solid ${C.border}` }}
-              >
+              <div className="inline-flex items-center gap-2 mt-4 rounded-full px-4 py-2 text-[14px] font-semibold" style={{ background: '#FBF3E0', color: C.brown, border: `1px solid ${C.border}` }}>
                 🔒 Amankan kamarmu — Booking DP sekarang!
               </div>
             </div>
-
             <ul className="space-y-2 text-[15px]" style={{ color: C.brownSoft }}>
               {[
                 'Sudah termasuk: kamar mandi dalam, kasur, lemari, meja & kursi belajar.',
@@ -431,34 +329,26 @@ export default function InfoPage() {
                 </li>
               ))}
             </ul>
-
             <p className="text-[13px] mt-4 italic" style={{ fontFamily: elegant, color: C.brownSoft }}>
-              *Estimasi per bulan dari paket tahunan. Harga pasti (AC/non-AC, lantai, 2 orang) dijelaskan admin via
-              WhatsApp.
+              *Estimasi per bulan dari paket tahunan. Harga pasti (AC/non-AC, lantai, 2 orang) dijelaskan admin via WhatsApp.
             </p>
-
             <div className="grid grid-cols-2 gap-3 mt-5">
-              <Photo label="Kamar kost" />
-              <Photo label="Koridor gedung" />
+              <Img src={info.galeri[0]} label="Kamar kost" />
+              <Img src={info.galeri[1]} label="Koridor gedung" />
             </div>
-
             <div className="mt-5">
-              <WAButton href={wa(WA_RESMI, 'Halo Top Hills 🌸, saya mau tanya kost putri (Gedung A/B).')}>
+              <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau tanya kost putri (Gedung A/B).')}>
                 <WAIcon /> Tanya Kost via WhatsApp
               </WAButton>
             </div>
           </Card>
         </section>
 
-        {/* ───── Penginapan ───── */}
+        {/* Penginapan */}
         <section id="penginapan" className="py-8 scroll-mt-20">
-          <SectionHead
-            n="3"
-            title="Penginapan — Gedung C"
-            sub="Harian, mingguan, bulanan. Semua kamar ber-AC + kamar mandi dalam (WC duduk + water heater)."
-          />
+          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan. Semua kamar ber-AC + kamar mandi dalam (WC duduk + water heater)." />
           <div className="space-y-4">
-            {PENGINAPAN.map((p) => (
+            {info.penginapan.map((p, idx) => (
               <Card key={p.nama}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -469,10 +359,7 @@ export default function InfoPage() {
                       {p.sub}
                     </div>
                   </div>
-                  <span
-                    className="text-[12px] font-semibold rounded-full px-3 py-1 flex-shrink-0"
-                    style={{ background: '#EAF5EE', color: '#1F7A4D' }}
-                  >
+                  <span className="text-[12px] font-semibold rounded-full px-3 py-1 flex-shrink-0" style={{ background: '#EAF5EE', color: '#1F7A4D' }}>
                     Maks 3 org
                   </span>
                 </div>
@@ -492,7 +379,9 @@ export default function InfoPage() {
                     </div>
                   ))}
                 </div>
-                <Photo label={`Kamar ${p.nama}`} ratio="aspect-[16/9] mt-3" />
+                <div className="mt-3">
+                  <Img src={info.galeri[2 + idx]} label={`Kamar ${p.nama}`} ratio="aspect-[16/9]" />
+                </div>
               </Card>
             ))}
           </div>
@@ -500,22 +389,18 @@ export default function InfoPage() {
             Extra bed +Rp 100.000/malam · check-in 13.00 · check-out 12.00
           </p>
           <div className="mt-4 max-w-[420px] mx-auto">
-            <WAButton href={wa(WA_RESMI, 'Halo Top Hills 🌸, saya mau booking penginapan (Gedung C).')} variant="green">
+            <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau booking penginapan (Gedung C).')} variant="green">
               <WAIcon /> Booking Penginapan via WhatsApp
             </WAButton>
           </div>
         </section>
 
-        {/* ───── Fasilitas ───── */}
+        {/* Fasilitas */}
         <section id="fasilitas" className="py-8 scroll-mt-20">
           <SectionHead n="4" title="Fasilitas" sub="Tersedia di Gedung A, B & C." />
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {FASILITAS.map((f) => (
-              <div
-                key={f.t}
-                className="rounded-[14px] p-4 flex items-center gap-3"
-                style={{ background: C.card, border: `1px solid ${C.border}` }}
-              >
+              <div key={f.t} className="rounded-[14px] p-4 flex items-center gap-3" style={{ background: C.card, border: `1px solid ${C.border}` }}>
                 <span className="text-[22px]">{f.i}</span>
                 <span className="text-[14px] font-medium" style={{ color: C.brown }}>
                   {f.t}
@@ -528,30 +413,35 @@ export default function InfoPage() {
           </p>
         </section>
 
-        {/* ───── Galeri + video ───── */}
+        {/* Galeri + video */}
         <section className="py-8">
           <SectionHead n="5" title="Galeri" sub="Suasana Top Hills." />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {['Area gedung', 'Kamar nyaman', 'Lemari & meja', 'Balkon view', 'Gazebo atas', 'Laundry & minimarket', 'Cuci motor', 'Security & CCTV'].map(
-              (l) => (
-                <Photo key={l} label={l} />
-              ),
-            )}
+            {(info.galeri.length > 0
+              ? info.galeri
+              : ['Area gedung', 'Kamar nyaman', 'Lemari & meja', 'Balkon view', 'Gazebo atas', 'Laundry & minimarket', 'Cuci motor', 'Security & CCTV']
+            ).map((g, i) => (
+              <Img key={i} src={info.galeri.length > 0 ? g : undefined} label={typeof g === 'string' && info.galeri.length === 0 ? g : 'Foto'} />
+            ))}
           </div>
           <div className="mt-4">
-            <div
-              className="rounded-[16px] grid place-items-center text-center aspect-[16/9]"
-              style={{ background: C.creamDeep, border: `1px dashed ${C.goldSoft}` }}
-            >
-              <div style={{ fontFamily: body, color: C.brownSoft }}>
-                <div className="text-[26px] mb-1">▶️</div>
-                <div className="text-[13px]">Video tur kamar (kamu tambahkan nanti)</div>
+            {yt ? (
+              <iframe src={yt} title="Video Top Hills" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full aspect-[16/9] rounded-[16px]" style={{ border: `1px solid ${C.border}` }} />
+            ) : info.videoUrl ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video src={info.videoUrl} controls className="w-full aspect-[16/9] rounded-[16px]" style={{ border: `1px solid ${C.border}`, background: '#000' }} />
+            ) : (
+              <div className="rounded-[16px] grid place-items-center text-center aspect-[16/9]" style={{ background: C.creamDeep, border: `1px dashed ${C.goldSoft}` }}>
+                <div style={{ fontFamily: body, color: C.brownSoft }}>
+                  <div className="text-[26px] mb-1">▶️</div>
+                  <div className="text-[13px]">Video tur kamar (atur di Pengaturan → Halaman Info)</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
 
-        {/* ───── Aturan ───── */}
+        {/* Aturan */}
         <section className="py-8">
           <SectionHead n="6" title="Aturan" />
           <div className="grid sm:grid-cols-2 gap-4">
@@ -596,7 +486,7 @@ export default function InfoPage() {
           </div>
         </section>
 
-        {/* ───── Cara Booking ───── */}
+        {/* Cara Booking */}
         <section id="booking" className="py-8 scroll-mt-20">
           <SectionHead n="7" title="Cara Booking" />
           <Card>
@@ -609,10 +499,7 @@ export default function InfoPage() {
                 ['Kamar diamankan ✅', 'Setelah bukti diterima & dicek, kamarmu langsung kami amankan.'],
               ].map(([t, d], i) => (
                 <li key={t} className="flex gap-3">
-                  <span
-                    className="flex-shrink-0 w-7 h-7 rounded-full grid place-items-center text-[14px] font-bold"
-                    style={{ background: C.gold, color: '#fff', fontFamily: serif }}
-                  >
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full grid place-items-center text-[14px] font-bold" style={{ background: C.gold, color: '#fff', fontFamily: serif }}>
                     {i + 1}
                   </span>
                   <div>
@@ -626,25 +513,18 @@ export default function InfoPage() {
                 </li>
               ))}
             </ol>
-
-            <div
-              className="mt-5 rounded-[14px] p-4 text-[14px] leading-snug"
-              style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}
-            >
-              ⚠️ <b>Penting:</b> bukti pembayaran <b>asli wajib dikirim</b> ke WhatsApp Resmi dan akan{' '}
-              <b>dicek ulang</b> oleh admin. Pelunasan dilakukan di awal sebelum menempati. DP tidak dapat
-              dikembalikan bila batal.
+            <div className="mt-5 rounded-[14px] p-4 text-[14px] leading-snug" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
+              ⚠️ <b>Penting:</b> bukti pembayaran <b>asli wajib dikirim</b> ke WhatsApp Resmi dan akan <b>dicek ulang</b> oleh admin. Pelunasan dilakukan di awal sebelum menempati. DP tidak dapat dikembalikan bila batal.
             </div>
-
             <div className="mt-5">
-              <WAButton href={wa(WA_RESMI, 'Halo Top Hills 🌸, saya sudah baca cara booking. Saya mau lanjut booking ...')}>
+              <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya sudah baca cara booking. Saya mau lanjut booking ...')}>
                 <WAIcon /> Booking via WhatsApp Resmi
               </WAButton>
             </div>
           </Card>
         </section>
 
-        {/* ───── Lokasi & Survey ───── */}
+        {/* Lokasi & Survey */}
         <section id="lokasi" className="py-8 scroll-mt-20">
           <SectionHead n="8" title="Lokasi & Survey" />
           <Card>
@@ -652,10 +532,10 @@ export default function InfoPage() {
               <span className="text-[22px]">📍</span>
               <div>
                 <div className="text-[15px] font-semibold" style={{ color: C.brown }}>
-                  Top Hills Kost Putri
+                  {info.nama}
                 </div>
                 <div className="text-[14px]" style={{ color: C.brownSoft }}>
-                  {ADDRESS}
+                  {info.alamat}
                 </div>
                 <div className="text-[14px] mt-1" style={{ color: C.brownSoft }}>
                   Dekat UNAND, ada akses langsung ke gerbang kampus 🎓
@@ -663,10 +543,10 @@ export default function InfoPage() {
               </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-3 mt-5">
-              <WAButton href={MAPS} variant="ghost">
+              <WAButton href={info.maps} variant="ghost">
                 🗺️ Buka di Google Maps
               </WAButton>
-              <WAButton href={wa(WA_MEZI, MSG_SURVEY)} variant="green">
+              <WAButton href={wa(info.waMezi, MSG_SURVEY)} variant="green">
                 <WAIcon /> Janji Survey (Bang Mezi)
               </WAButton>
             </div>
@@ -676,7 +556,7 @@ export default function InfoPage() {
           </Card>
         </section>
 
-        {/* ───── FAQ ───── */}
+        {/* FAQ */}
         <section className="py-8">
           <SectionHead n="9" title="Pertanyaan Umum" />
           <Card className="!py-1">
@@ -687,18 +567,12 @@ export default function InfoPage() {
         </section>
       </main>
 
-      {/* ───── Footer ───── */}
+      {/* Footer */}
       <footer className="py-10 px-4 text-center" style={{ background: C.creamDeep, borderTop: `1px solid ${C.border}` }}>
         <div className="mx-auto max-w-[900px]">
           <Brand />
           <div className="mt-6 grid sm:grid-cols-2 gap-3 max-w-[520px] mx-auto text-left">
-            <a
-              href={wa(WA_RESMI, MSG_BOOKING)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-[14px] p-4 no-underline flex items-center gap-3"
-              style={{ background: C.card, border: `1px solid ${C.border}` }}
-            >
+            <a href={wa(info.waResmi, info.waPesan)} target="_blank" rel="noopener noreferrer" className="rounded-[14px] p-4 no-underline flex items-center gap-3" style={{ background: C.card, border: `1px solid ${C.border}` }}>
               <span style={{ color: '#1F7A4D' }}>
                 <WAIcon size={24} />
               </span>
@@ -707,17 +581,11 @@ export default function InfoPage() {
                   WhatsApp Resmi (booking & bukti bayar)
                 </span>
                 <span className="block text-[15px] font-semibold" style={{ color: C.brown }}>
-                  0811-6646-615
+                  {info.waResmi}
                 </span>
               </span>
             </a>
-            <a
-              href={wa(WA_MEZI, MSG_SURVEY)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-[14px] p-4 no-underline flex items-center gap-3"
-              style={{ background: C.card, border: `1px solid ${C.border}` }}
-            >
+            <a href={wa(info.waMezi, MSG_SURVEY)} target="_blank" rel="noopener noreferrer" className="rounded-[14px] p-4 no-underline flex items-center gap-3" style={{ background: C.card, border: `1px solid ${C.border}` }}>
               <span style={{ color: '#1F7A4D' }}>
                 <WAIcon size={24} />
               </span>
@@ -726,7 +594,7 @@ export default function InfoPage() {
                   Bang Mezi (penjaga / survey)
                 </span>
                 <span className="block text-[15px] font-semibold" style={{ color: C.brown }}>
-                  0838-4161-4871
+                  {info.waMezi}
                 </span>
               </span>
             </a>
@@ -735,20 +603,13 @@ export default function InfoPage() {
             Admin aktif 08.00–21.00 WIB · Jam survey 08.00–19.00 WIB · Gerbang ditutup 22.00 WIB
           </p>
           <p className="mt-4 text-[12px]" style={{ color: C.brownSoft }}>
-            © {new Date().getFullYear()} Top Hills Kost Putri · Limau Manis, Pauh, Padang
+            © {new Date().getFullYear()} {info.nama} · Limau Manis, Pauh, Padang
           </p>
         </div>
       </footer>
 
-      {/* ───── Floating WhatsApp ───── */}
-      <a
-        href={wa(WA_RESMI, MSG_BOOKING)}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Booking via WhatsApp"
-        className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full grid place-items-center shadow-lg"
-        style={{ background: '#25D366', color: '#fff', boxShadow: '0 8px 24px rgba(37,211,102,0.5)' }}
-      >
+      {/* Floating WhatsApp */}
+      <a href={wa(info.waResmi, info.waPesan)} target="_blank" rel="noopener noreferrer" aria-label="Booking via WhatsApp" className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full grid place-items-center shadow-lg" style={{ background: '#25D366', color: '#fff', boxShadow: '0 8px 24px rgba(37,211,102,0.5)' }}>
         <WAIcon size={28} />
       </a>
     </div>
