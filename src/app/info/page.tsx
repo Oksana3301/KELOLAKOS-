@@ -269,7 +269,7 @@ export default function InfoPage() {
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {[
               ['🎓', 'Dekat UNAND'],
-              ['🌸', 'Khusus Putri'],
+              ['🌸', 'Kost Putri'],
               ['🔒', 'Security & CCTV'],
               ['📶', 'WiFi Unlimited'],
             ].map(([i, t]) => (
@@ -291,8 +291,8 @@ export default function InfoPage() {
           <Card>
             <p className="text-[15px] leading-relaxed" style={{ color: C.brownSoft }}>
               Area terdiri dari beberapa gedung: <b style={{ color: C.brown }}>Gedung A & B</b> untuk{' '}
-              <b style={{ color: C.brown }}>kost putri</b> (jangka panjang), dan <b style={{ color: C.brown }}>Gedung C</b> untuk{' '}
-              <b style={{ color: C.brown }}>penginapan</b> (harian, mingguan, bulanan, tahunan). Semua dalam satu lokasi yang asri & dekat kampus.
+              <b style={{ color: C.brown }}>kost — khusus putri</b> (jangka panjang), dan <b style={{ color: C.brown }}>Gedung C</b> untuk{' '}
+              <b style={{ color: C.brown }}>penginapan — terbuka untuk umum</b> (putra & putri, harian/mingguan/bulanan/tahunan). Semua dalam satu lokasi yang asri & dekat kampus.
             </p>
           </Card>
         </section>
@@ -346,7 +346,7 @@ export default function InfoPage() {
 
         {/* Penginapan */}
         <section id="penginapan" className="py-8 scroll-mt-20">
-          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan. Semua kamar ber-AC + kamar mandi dalam (WC duduk + water heater)." />
+          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & gratis air mineral di kamar. 💧" />
           <div className="space-y-4">
             {info.penginapan.map((p, idx) => (
               <Card key={p.nama}>
@@ -382,17 +382,20 @@ export default function InfoPage() {
                 <div className="mt-3">
                   <Img src={info.galeri[2 + idx]} label={`Kamar ${p.nama}`} ratio="aspect-[16/9]" />
                 </div>
+                <div className="mt-3">
+                  <WAButton
+                    href={wa(info.waResmi, `Halo Top Hills 🌸, saya mau booking kamar ${p.nama} (penginapan). Mohon info ketersediaannya ya 🙏`)}
+                    variant="green"
+                  >
+                    <WAIcon /> Booking {p.nama} via WhatsApp
+                  </WAButton>
+                </div>
               </Card>
             ))}
           </div>
           <p className="text-center text-[14px] mt-4" style={{ color: C.brownSoft }}>
             Extra bed +Rp 100.000/malam · check-in 13.00 · check-out 12.00
           </p>
-          <div className="mt-4 max-w-[420px] mx-auto">
-            <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau booking penginapan (Gedung C).')} variant="green">
-              <WAIcon /> Booking Penginapan via WhatsApp
-            </WAButton>
-          </div>
         </section>
 
         {/* Fasilitas */}

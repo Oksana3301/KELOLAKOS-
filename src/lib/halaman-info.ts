@@ -45,9 +45,9 @@ export const DEFAULT_INFO: HalamanInfo = {
   kostTeaser: '1,3 jutaan',
   kostTeaserUnit: 'per bulan*',
   penginapan: [
-    { nama: 'Executive', sub: 'Paling besar · kasur queen size', malam: 'Rp 300.000', bulan: 'Rp 4.000.000', tahun: 'Rp 40.000.000' },
-    { nama: 'Superior', sub: 'Menengah · twin bunk (ranjang susun)', malam: 'Rp 250.000', bulan: 'Rp 3.000.000', tahun: 'Rp 30.000.000' },
-    { nama: 'Deluxe', sub: 'Kecil · twin bunk (ranjang susun)', malam: 'Rp 200.000', bulan: 'Rp 2.500.000', tahun: 'Rp 25.000.000' },
+    { nama: 'Executive', sub: 'Ukuran paling luas · kasur queen size', malam: 'Rp 300.000', bulan: 'Rp 4.000.000', tahun: 'Rp 40.000.000' },
+    { nama: 'Superior', sub: 'Ukuran menengah · 1 kasur + kasur sorong di bawah', malam: 'Rp 250.000', bulan: 'Rp 3.000.000', tahun: 'Rp 30.000.000' },
+    { nama: 'Deluxe', sub: 'Ukuran cozy · 1 kasur + kasur sorong di bawah', malam: 'Rp 200.000', bulan: 'Rp 2.500.000', tahun: 'Rp 25.000.000' },
   ],
   fotoHero: '',
   galeri: [],
