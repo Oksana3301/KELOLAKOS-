@@ -9,6 +9,8 @@ import { KkIcon } from '@/components/kk/icons';
 import { mapRoomStatus, type RoomDisplayStatus } from '@/components/kk/status';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { ScrollFab } from '@/components/kk/scroll-fab';
+import { BuildingMap2D } from '@/components/kk/building-map';
+import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
 
 const SEMUA = 'Semua';
 
@@ -82,6 +84,17 @@ export default function LayoutPropertiPage() {
   }, [isError, error]);
 
   const rooms = useMemo(() => data?.roomStatus || [], [data]);
+
+  // Status per kamar untuk Denah (cocokkan via nama kamar).
+  const statusMap = useMemo(() => {
+    const m = new Map<string, RoomStatus3>();
+    rooms.forEach((r) => {
+      const s = mapRoomStatus(r);
+      const v: RoomStatus3 = s === 'Tersedia' ? 'kosong' : s === 'Terisi' ? 'terisi' : 'perbaikan';
+      m.set(roomKey(r.Nama_Kamar), v);
+    });
+    return m;
+  }, [rooms]);
 
   // Occupancy summary counts (3 plain statuses).
   const stats = useMemo(
@@ -193,6 +206,12 @@ export default function LayoutPropertiPage() {
         sub="Peta semua kamar dan kondisinya."
         onHelp={() => setHelpOpen(true)}
       />
+
+      {/* Denah per lantai (sesuai tata letak gedung) */}
+      <KkCard className="mb-6 overflow-x-auto">
+        <h2 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-4">Denah Properti</h2>
+        <BuildingMap2D statusByRoom={statusMap} accent="#0C2C47" />
+      </KkCard>
 
       {/* Ringkasan hunian */}
       <div className="grid grid-cols-3 gap-3 mb-6">

@@ -7,9 +7,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, type PublicRoom } from '@/lib/api';
+import { api } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/halaman-info';
+import { BuildingMap2D } from '@/components/kk/building-map';
+import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
 
 // ───────────────────────── theme ─────────────────────────
 const C = {
@@ -162,14 +164,6 @@ function SectionHead({ n, title, sub, badge }: { n?: string; title: string; sub?
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="w-3 h-3 rounded-full" style={{ background: color }} /> {label}
-    </span>
-  );
-}
-
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={'rounded-[20px] p-5 ' + className} style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 6px 22px rgba(112,86,32,0.06)' }}>
@@ -304,24 +298,12 @@ export default function InfoPage() {
     retry: 0,
     staleTime: 60 * 1000,
   });
-  const roomsByGedung = useMemo(() => {
-    const list = Array.isArray(rooms) ? rooms : [];
-    const map = new Map<string, PublicRoom[]>();
-    list.forEach((r) => {
-      const g = (r.gedung || 'Lainnya').trim() || 'Lainnya';
-      if (!map.has(g)) map.set(g, []);
-      map.get(g)!.push(r);
-    });
-    return Array.from(map.entries())
-      .map(([gedung, rs]) => ({
-        gedung,
-        kosong: rs.filter((r) => r.status === 'kosong').length,
-        total: rs.length,
-        rooms: [...rs].sort((a, b) => (a.lantai - b.lantai) || a.nama.localeCompare(b.nama, 'id', { numeric: true })),
-      }))
-      .sort((a, b) => a.gedung.localeCompare(b.gedung, 'id'));
+  const statusMap = useMemo(() => {
+    const m = new Map<string, RoomStatus3>();
+    (Array.isArray(rooms) ? rooms : []).forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
+    return m;
   }, [rooms]);
-  const totalKosong = roomsByGedung.reduce((s, g) => s + g.kosong, 0);
+  const totalKosong = (Array.isArray(rooms) ? rooms : []).filter((r) => r.status === 'kosong').length;
 
   const NAV = [
     { id: 'tersedia', label: 'Ketersediaan' },
@@ -527,69 +509,25 @@ export default function InfoPage() {
             title="Ketersediaan Kamar"
             sub="Status kamar langsung dari sistem. Untuk kepastian & booking, konfirmasi via WhatsApp ya."
           />
-          {roomsByGedung.length === 0 ? (
-            <Card className="text-center">
-              <p className="text-[15px] m-0 mb-4" style={{ color: C.brownSoft }}>
-                Untuk cek kamar kosong terkini, hubungi kami via WhatsApp 🌸
-              </p>
-              <div className="max-w-[360px] mx-auto">
-                <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau tanya ketersediaan kamar.')} variant="green">
-                  <WAIcon /> Tanya Ketersediaan
-                </WAButton>
-              </div>
-            </Card>
+          {rooms && rooms.length > 0 ? (
+            <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
+              <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b> siap dihuni saat ini.
+            </div>
           ) : (
-            <>
-              <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
-                <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b> siap dihuni saat ini.
-              </div>
-              <div className="flex justify-center flex-wrap gap-3 mb-5 text-[12px]" style={{ color: C.brownSoft }}>
-                <Legend color="#1F7A4D" label="Kosong" />
-                <Legend color={C.goldSoft} label="Terisi" />
-                <Legend color="#C2682C" label="Perbaikan" />
-              </div>
-              <div className="space-y-4">
-                {roomsByGedung.map((g) => (
-                  <Card key={g.gedung}>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 style={{ fontFamily: serif, color: C.brown }} className="text-[18px] font-bold m-0">
-                        {g.gedung}
-                      </h3>
-                      <span className="text-[13px] font-semibold" style={{ color: g.kosong > 0 ? '#1F7A4D' : C.brownSoft }}>
-                        {g.kosong > 0 ? `${g.kosong} kosong` : 'Penuh'}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {g.rooms.map((r, i) => {
-                        const c =
-                          r.status === 'kosong'
-                            ? { bg: '#EAF5EE', fg: '#1F7A4D', bd: '#Bfe3CC' }
-                            : r.status === 'perbaikan'
-                              ? { bg: '#FBE7DC', fg: '#C2682C', bd: '#EccBA8' }
-                              : { bg: C.cream, fg: C.brownSoft, bd: C.border };
-                        return (
-                          <span
-                            key={i}
-                            className="text-[13px] font-semibold rounded-[10px] px-2.5 py-1.5"
-                            style={{ background: c.bg, color: c.fg, border: `1px solid ${c.bd}` }}
-                            title={r.lantai ? `Lantai ${r.lantai}` : undefined}
-                          >
-                            {r.nama}
-                            {r.lantai ? <span className="font-normal opacity-70"> · L{r.lantai}</span> : null}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-              <div className="mt-5 max-w-[360px] mx-auto">
-                <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau booking/tanya kamar yang masih kosong.')} variant="green">
-                  <WAIcon /> Booking Kamar Kosong
-                </WAButton>
-              </div>
-            </>
+            <div className="text-center mb-5 text-[14px]" style={{ color: C.brownSoft }}>
+              Denah properti — untuk status & ketersediaan terkini, konfirmasi via WhatsApp ya. 🌸
+            </div>
           )}
+
+          <Card className="!px-3 sm:!px-5">
+            <BuildingMap2D statusByRoom={statusMap} accent={C.gold} />
+          </Card>
+
+          <div className="mt-5 max-w-[360px] mx-auto">
+            <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau booking/tanya kamar yang masih kosong.')} variant="green">
+              <WAIcon /> Booking / Tanya Kamar
+            </WAButton>
+          </div>
         </section>
 
         {/* Fasilitas */}
