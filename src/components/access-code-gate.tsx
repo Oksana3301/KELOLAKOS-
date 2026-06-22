@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { api, getStoredAccessCode, setStoredAccessCode, clearStoredAccessCode, LicenseError } from '@/lib/api';
 import { RoleProvider, roleFromTier } from '@/components/kk/role';
 
@@ -16,6 +17,7 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
   const [inputCode, setInputCode] = useState('');
   const [tier, setTier] = useState('');
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+  const pathname = usePathname();
 
   const supportWa = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
 
@@ -104,6 +106,11 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
         {children}
       </RoleProvider>
     );
+  }
+
+  // Public pages (e.g. the /info landing) are NOT behind the access code.
+  if (pathname && pathname.startsWith('/info')) {
+    return <>{children}</>;
   }
 
   if (status === 'checking') {

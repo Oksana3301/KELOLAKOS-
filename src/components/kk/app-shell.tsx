@@ -48,6 +48,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const supportWa = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
 
+  // Public landing (/info) renders standalone — no app sidebar/tab bar.
+  if (pathname.startsWith('/info')) {
+    return <>{children}</>;
+  }
+
   // Penjaga (caretaker) can't access Pengaturan.
   const moreItems = role === 'penjaga' ? MORE.filter((m) => m.href !== '/setting') : MORE;
 
