@@ -224,6 +224,27 @@ function FasChips({ items }: { items: string[] }) {
   );
 }
 
+// Video player: YouTube link → iframe, else a plain <video>.
+function VideoEmbed({ url }: { url: string }) {
+  const yt = ytEmbed(url);
+  if (yt) {
+    return (
+      <iframe
+        src={yt}
+        title="Video Top Hills"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        className="w-full aspect-[16/9] rounded-[16px]"
+        style={{ border: `1px solid ${C.border}` }}
+      />
+    );
+  }
+  return (
+    // eslint-disable-next-line jsx-a11y/media-has-caption
+    <video src={url} controls className="w-full aspect-[16/9] rounded-[16px]" style={{ border: `1px solid ${C.border}`, background: '#000' }} />
+  );
+}
+
 // Image slot: shows the uploaded photo (URL) or an elegant placeholder.
 function Img({ src, label, ratio = 'aspect-[4/3]' }: { src?: string; label: string; ratio?: string }) {
   if (src) {
@@ -268,7 +289,6 @@ export default function InfoPage() {
     { id: 'lokasi', label: 'Lokasi' },
     { id: 'booking', label: 'Booking' },
   ];
-  const yt = info.videoUrl ? ytEmbed(info.videoUrl) : null;
 
   return (
     <div style={{ background: C.cream, fontFamily: body, color: C.brown }} className="min-h-screen">
@@ -379,8 +399,9 @@ export default function InfoPage() {
             </div>
             <FasChips items={KOST_FAS} />
             <div className="grid grid-cols-2 gap-3 mt-5">
-              <Img src={info.galeri[0]} label="Kamar kost" />
-              <Img src={info.galeri[1]} label="Koridor gedung" />
+              {(info.fotoKost.length > 0 ? info.fotoKost : ['Kamar kost', 'Koridor gedung']).map((g, i) => (
+                <Img key={i} src={info.fotoKost.length > 0 ? g : undefined} label={info.fotoKost.length === 0 ? g : 'Foto kost'} />
+              ))}
             </div>
             <div className="mt-5">
               <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau tanya kost putri (Gedung A/B).')}>
@@ -394,10 +415,10 @@ export default function InfoPage() {
         <section id="penginapan" className="py-8 scroll-mt-20">
           <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & gratis air mineral di kamar. 💧" />
           <div className="space-y-4">
-            {info.penginapan.map((p, idx) => (
+            {info.penginapan.map((p) => (
               <Card key={p.nama} className="!p-0 overflow-hidden">
                 {/* Foto kamar di atas (ala listing Traveloka) */}
-                <Img src={info.galeri[2 + idx]} label={`Kamar ${p.nama}`} ratio="aspect-[16/9] !rounded-none" />
+                <Img src={p.foto[0]} label={`Kamar ${p.nama}`} ratio="aspect-[16/9] !rounded-none" />
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -412,6 +433,15 @@ export default function InfoPage() {
                       Maks 3 org
                     </span>
                   </div>
+
+                  {/* Thumbnail foto lain untuk kamar ini */}
+                  {p.foto.length > 1 && (
+                    <div className="grid grid-cols-4 gap-2 mt-3">
+                      {p.foto.slice(1).map((f, i) => (
+                        <Img key={i} src={f} label="Foto" ratio="aspect-square" />
+                      ))}
+                    </div>
+                  )}
 
                   {/* Fasilitas kamar ini */}
                   <FasChips items={PENGINAPAN_FAS} />
@@ -471,19 +501,20 @@ export default function InfoPage() {
         <section className="py-8">
           <SectionHead n="5" title="Galeri" sub="Suasana Top Hills." />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {(info.galeri.length > 0
-              ? info.galeri
+            {(info.fotoArea.length > 0
+              ? info.fotoArea
               : ['Area gedung', 'Kamar nyaman', 'Lemari & meja', 'Balkon view', 'Gazebo atas', 'Laundry & minimarket', 'Cuci motor', 'Security & CCTV']
             ).map((g, i) => (
-              <Img key={i} src={info.galeri.length > 0 ? g : undefined} label={typeof g === 'string' && info.galeri.length === 0 ? g : 'Foto'} />
+              <Img key={i} src={info.fotoArea.length > 0 ? g : undefined} label={info.fotoArea.length === 0 ? g : 'Foto'} />
             ))}
           </div>
           <div className="mt-4">
-            {yt ? (
-              <iframe src={yt} title="Video Top Hills" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full aspect-[16/9] rounded-[16px]" style={{ border: `1px solid ${C.border}` }} />
-            ) : info.videoUrl ? (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
-              <video src={info.videoUrl} controls className="w-full aspect-[16/9] rounded-[16px]" style={{ border: `1px solid ${C.border}`, background: '#000' }} />
+            {info.videos.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {info.videos.map((v, i) => (
+                  <VideoEmbed key={i} url={v} />
+                ))}
+              </div>
             ) : (
               <div className="rounded-[16px] grid place-items-center text-center aspect-[16/9]" style={{ background: C.creamDeep, border: `1px dashed ${C.goldSoft}` }}>
                 <div style={{ fontFamily: body, color: C.brownSoft }}>

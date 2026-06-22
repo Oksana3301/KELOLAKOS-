@@ -1222,6 +1222,42 @@ function MediaSlot({
   );
 }
 
+// A list of media (foto/video) up to `max` — each item is a MediaSlot.
+function MediaListField({
+  label,
+  value,
+  onChange,
+  max,
+  accept = 'image/*',
+}: {
+  label: string;
+  value: string[];
+  onChange: (v: string[]) => void;
+  max: number;
+  accept?: string;
+}) {
+  const items = value || [];
+  function setAt(i: number, url: string) {
+    const next = [...items];
+    if (url) next[i] = url;
+    else next.splice(i, 1);
+    onChange(next.filter(Boolean));
+  }
+  const slots = Math.min(max, items.length + 1); // existing + 1 slot tambah
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-tx2 mb-1">
+        {label} <span className="text-tx3">({items.length}/{max})</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {Array.from({ length: slots }).map((_, i) => (
+          <MediaSlot key={i} label={`#${i + 1}`} value={items[i] || ''} onChange={(u) => setAt(i, u)} accept={accept} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function HalamanInfoPanel() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get });
@@ -1241,20 +1277,17 @@ export function HalamanInfoPanel() {
       return { ...p, penginapan: peng };
     });
   }
-  function setGaleri(i: number, url: string) {
-    setForm((p) => {
-      const g = [...p.galeri];
-      while (g.length <= i) g.push('');
-      g[i] = url;
-      return { ...p, galeri: g.filter((_, idx) => idx !== i || url !== '') };
-    });
+  function setPengFoto(i: number, list: string[]) {
+    setForm((p) => ({
+      ...p,
+      penginapan: p.penginapan.map((x, idx) => (idx === i ? { ...x, foto: list } : x)),
+    }));
   }
 
   async function handleSave() {
     setSaving(true);
     try {
-      const clean = { ...form, galeri: form.galeri.filter(Boolean) };
-      await halamanInfoApi.save(clean);
+      await halamanInfoApi.save(form);
       toast.success('✓ Halaman info disimpan');
       qc.invalidateQueries({ queryKey: ['halaman-info'] });
     } catch (e) {
@@ -1263,8 +1296,6 @@ export function HalamanInfoPanel() {
       setSaving(false);
     }
   }
-
-  const galeriSlots = Array.from({ length: Math.min(8, form.galeri.length + 1) });
 
   return (
     <div className="space-y-5">
@@ -1304,7 +1335,7 @@ export function HalamanInfoPanel() {
 
       {/* Penginapan */}
       <div className="space-y-3">
-        <h4 className="font-bold text-sm">🛏️ Penginapan (harga)</h4>
+        <h4 className="font-bold text-sm">🛏️ Penginapan (harga & foto per tipe)</h4>
         {form.penginapan.map((p, i) => (
           <div key={i} className="border border-bd rounded-md p-3 space-y-2">
             <input className="input font-semibold" value={p.nama} onChange={(e) => setPeng(i, 'nama', e.target.value)} />
@@ -1314,21 +1345,21 @@ export function HalamanInfoPanel() {
               <input className="input text-xs" placeholder="/bulan" value={p.bulan} onChange={(e) => setPeng(i, 'bulan', e.target.value)} />
               <input className="input text-xs" placeholder="/tahun" value={p.tahun} onChange={(e) => setPeng(i, 'tahun', e.target.value)} />
             </div>
+            <MediaListField label={`Foto ${p.nama} (maks 10)`} value={p.foto} onChange={(l) => setPengFoto(i, l)} max={10} />
           </div>
         ))}
       </div>
 
       {/* Foto & Video */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <h4 className="font-bold text-sm">📸 Foto & Video</h4>
         <MediaSlot label="Foto Hero (depan)" value={form.fotoHero} onChange={(u) => set('fotoHero', u)} />
-        <div className="text-[11px] font-semibold text-tx2">Galeri (foto kamar, area, dll — maks 8)</div>
-        <div className="grid grid-cols-2 gap-2">
-          {galeriSlots.map((_, i) => (
-            <MediaSlot key={i} label={`Foto ${i + 1}`} value={form.galeri[i] || ''} onChange={(u) => setGaleri(i, u)} />
-          ))}
+        <MediaListField label="Foto Kost (maks 10)" value={form.fotoKost} onChange={(l) => set('fotoKost', l)} max={10} />
+        <MediaListField label="Foto Area / Galeri Umum (maks 10)" value={form.fotoArea} onChange={(l) => set('fotoArea', l)} max={10} />
+        <MediaListField label="Video — YouTube/Drive/mp4 (maks 6)" value={form.videos} onChange={(l) => set('videos', l)} max={6} accept="video/*" />
+        <div className="bg-sf2 border border-bd rounded-md p-2.5 text-[10px] text-tx3 leading-relaxed">
+          💡 Video besar sebaiknya pakai <strong>link YouTube/Google Drive</strong> (tempel di kolom link) — lebih ringan & tidak makan kuota.
         </div>
-        <MediaSlot label="Video tur (YouTube/Drive/mp4)" value={form.videoUrl} onChange={(u) => set('videoUrl', u)} accept="video/*" />
       </div>
 
       <button onClick={handleSave} disabled={saving} className="btn btn-pri btn-lg w-full">
