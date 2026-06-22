@@ -583,8 +583,8 @@ export default function InfoPage() {
                 <span className="block text-[13px]" style={{ color: C.brownSoft }}>
                   WhatsApp Resmi (booking & bukti bayar)
                 </span>
-                <span className="block text-[15px] font-semibold" style={{ color: C.brown }}>
-                  {info.waResmi}
+                <span className="block text-[15px] font-semibold" style={{ color: '#1F7A4D' }}>
+                  Klik untuk chat →
                 </span>
               </span>
             </a>
@@ -596,8 +596,8 @@ export default function InfoPage() {
                 <span className="block text-[13px]" style={{ color: C.brownSoft }}>
                   Bang Mezi (penjaga / survey)
                 </span>
-                <span className="block text-[15px] font-semibold" style={{ color: C.brown }}>
-                  {info.waMezi}
+                <span className="block text-[15px] font-semibold" style={{ color: '#1F7A4D' }}>
+                  Klik untuk chat →
                 </span>
               </span>
             </a>
