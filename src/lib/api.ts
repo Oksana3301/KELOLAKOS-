@@ -105,7 +105,13 @@ export async function callApi<T = unknown>(
     }
     throw new ApiError(errorMsg, errorCode, body);
   }
-  return body.data as T;
+  // Most actions wrap their result in { ok, data }. Some V2 actions (e.g.
+  // uploadInfoMedia / saveFasilitas) put their fields at the TOP level instead.
+  // Fall back to the whole body (minus envelope) so those fields aren't lost.
+  if (body.data !== undefined) return body.data as T;
+  const { ok: _ok, _meta, error: _e, message: _m, ...rest } = body as Record<string, unknown> & ApiResponse<T>;
+  void _ok; void _meta; void _e; void _m;
+  return rest as T;
 }
 
 export interface RoomStatus {
