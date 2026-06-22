@@ -171,6 +171,16 @@ export interface InitialData {
 
 export interface BookingFormData { rooms: RoomStatus[]; prices: PriceItem[] }
 
+/** Sanitized room info for the PUBLIC /info page (no tenant names / money). */
+export interface PublicRoom {
+  nama: string;
+  gedung: string;
+  tipe: string;
+  layanan: string;
+  lantai: number;
+  status: 'kosong' | 'terisi' | 'perbaikan';
+}
+
 export interface SubmitBookingPayload {
   roomId: string; customerName: string; whatsapp?: string;
   checkIn: string; checkOut: string; paket: string; jumlahPeriode: number;
@@ -308,6 +318,10 @@ export const api = {
 
   getInitialData: () => callApi<InitialData>('getInitialData'),
   getBookingFormData: () => callApi<BookingFormData>('getBookingFormData'),
+
+  // Public (no access code) — sanitized room availability for the /info page.
+  getPublicRooms: () =>
+    callApi<PublicRoom[]>('getPublicRooms', undefined, { skipLicense: true }),
 
   submitBooking: (data: SubmitBookingPayload) =>
     callApi<{ bookingId: string; message?: string; warning?: string }>('submitBooking', {
