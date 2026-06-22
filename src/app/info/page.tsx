@@ -56,6 +56,31 @@ const FASILITAS = [
   { i: '🔒', t: 'Security & CCTV 24 jam' },
 ];
 
+// Fasilitas yang ditampilkan sebagai chip di tiap section (ala Traveloka).
+const KOST_FAS = [
+  '🚿 KM dalam',
+  '🛏️ Kasur',
+  '🗄️ Lemari',
+  '📚 Meja & kursi belajar',
+  '❄️ AC / non-AC',
+  '📶 WiFi unlimited',
+  '💧 Air termasuk',
+  '🌄 Balkon view',
+  '🧺 Laundry',
+  '🏪 Minimarket',
+  '🔒 Security & CCTV',
+];
+const PENGINAPAN_FAS = [
+  '❄️ AC',
+  '🚿 KM dalam',
+  '🚽 WC duduk',
+  '♨️ Water heater',
+  '💧 Air mineral gratis',
+  '📶 WiFi unlimited',
+  '🧹 Pembersihan kamar',
+  '🔒 Security & CCTV',
+];
+
 const FAQ = [
   { q: 'Lokasinya di mana? Dekat UNAND tidak?', a: 'Di Limau Manis, Pauh, Padang — sangat dekat UNAND, ada akses jalan langsung ke gerbang kampus.' },
   { q: 'Harga kost berapa setahun?', a: 'Lantai 1–3: Rp15jt (non-AC) / Rp19jt (AC). Lantai 4: Rp14jt (non-AC) / Rp18jt (AC). Tersedia juga paket 6 bulan. Detail lengkap silakan tanya via WhatsApp.' },
@@ -178,6 +203,23 @@ function Accordion({ q, a }: { q: string; a: string }) {
           {a}
         </p>
       )}
+    </div>
+  );
+}
+
+// Traveloka-style amenity chips.
+function FasChips({ items }: { items: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-3">
+      {items.map((t) => (
+        <span
+          key={t}
+          className="text-[12.5px] rounded-full px-2.5 py-1 whitespace-nowrap"
+          style={{ background: C.cream, border: `1px solid ${C.border}`, color: C.brown }}
+        >
+          {t}
+        </span>
+      ))}
     </div>
   );
 }
@@ -332,6 +374,10 @@ export default function InfoPage() {
             <p className="text-[13px] mt-4 italic" style={{ fontFamily: elegant, color: C.brownSoft }}>
               *Estimasi per bulan dari paket tahunan. Harga pasti (AC/non-AC, lantai, 2 orang) dijelaskan admin via WhatsApp.
             </p>
+            <div className="text-[13px] font-semibold mt-5 mb-1" style={{ color: C.brown }}>
+              Fasilitas Kost
+            </div>
+            <FasChips items={KOST_FAS} />
             <div className="grid grid-cols-2 gap-3 mt-5">
               <Img src={info.galeri[0]} label="Kamar kost" />
               <Img src={info.galeri[1]} label="Koridor gedung" />
@@ -349,46 +395,51 @@ export default function InfoPage() {
           <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & gratis air mineral di kamar. 💧" />
           <div className="space-y-4">
             {info.penginapan.map((p, idx) => (
-              <Card key={p.nama}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 style={{ fontFamily: serif, color: C.brown }} className="text-[20px] font-bold m-0">
-                      {p.nama}
-                    </h3>
-                    <div className="text-[13px] mt-0.5" style={{ color: C.brownSoft }}>
-                      {p.sub}
+              <Card key={p.nama} className="!p-0 overflow-hidden">
+                {/* Foto kamar di atas (ala listing Traveloka) */}
+                <Img src={info.galeri[2 + idx]} label={`Kamar ${p.nama}`} ratio="aspect-[16/9] !rounded-none" />
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 style={{ fontFamily: serif, color: C.brown }} className="text-[20px] font-bold m-0">
+                        {p.nama}
+                      </h3>
+                      <div className="text-[13px] mt-0.5" style={{ color: C.brownSoft }}>
+                        {p.sub}
+                      </div>
                     </div>
+                    <span className="text-[12px] font-semibold rounded-full px-3 py-1 flex-shrink-0" style={{ background: '#EAF5EE', color: '#1F7A4D' }}>
+                      Maks 3 org
+                    </span>
                   </div>
-                  <span className="text-[12px] font-semibold rounded-full px-3 py-1 flex-shrink-0" style={{ background: '#EAF5EE', color: '#1F7A4D' }}>
-                    Maks 3 org
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                  {[
-                    ['Per malam', p.malam],
-                    ['Per bulan', p.bulan],
-                    ['Per tahun', p.tahun],
-                  ].map(([l, v]) => (
-                    <div key={l} className="rounded-[12px] py-2.5" style={{ background: C.cream, border: `1px solid ${C.border}` }}>
-                      <div className="text-[11px]" style={{ color: C.brownSoft }}>
-                        {l}
+
+                  {/* Fasilitas kamar ini */}
+                  <FasChips items={PENGINAPAN_FAS} />
+
+                  <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                    {[
+                      ['Per malam', p.malam],
+                      ['Per bulan', p.bulan],
+                      ['Per tahun', p.tahun],
+                    ].map(([l, v]) => (
+                      <div key={l} className="rounded-[12px] py-2.5" style={{ background: C.cream, border: `1px solid ${C.border}` }}>
+                        <div className="text-[11px]" style={{ color: C.brownSoft }}>
+                          {l}
+                        </div>
+                        <div style={{ fontFamily: serif, color: C.gold }} className="text-[15px] font-bold mt-0.5">
+                          {v}
+                        </div>
                       </div>
-                      <div style={{ fontFamily: serif, color: C.gold }} className="text-[15px] font-bold mt-0.5">
-                        {v}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3">
-                  <Img src={info.galeri[2 + idx]} label={`Kamar ${p.nama}`} ratio="aspect-[16/9]" />
-                </div>
-                <div className="mt-3">
-                  <WAButton
-                    href={wa(info.waResmi, `Halo Top Hills 🌸, saya mau booking kamar ${p.nama} (penginapan). Mohon info ketersediaannya ya 🙏`)}
-                    variant="green"
-                  >
-                    <WAIcon /> Booking {p.nama} via WhatsApp
-                  </WAButton>
+                    ))}
+                  </div>
+                  <div className="mt-4">
+                    <WAButton
+                      href={wa(info.waResmi, `Halo Top Hills 🌸, saya mau booking kamar ${p.nama} (penginapan). Mohon info ketersediaannya ya 🙏`)}
+                      variant="green"
+                    >
+                      <WAIcon /> Booking {p.nama} via WhatsApp
+                    </WAButton>
+                  </div>
                 </div>
               </Card>
             ))}
