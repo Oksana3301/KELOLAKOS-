@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { halamanInfoApi } from '@/lib/api-v2';
-import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
+import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/halaman-info';
 
 // ───────────────────────── theme ─────────────────────────
 const C = {
@@ -224,13 +224,13 @@ function FasChips({ items }: { items: string[] }) {
   );
 }
 
-// Video player: YouTube link → iframe, else a plain <video>.
+// Video player: YouTube link → iframe; Google Drive → preview iframe; else <video>.
 function VideoEmbed({ url }: { url: string }) {
-  const yt = ytEmbed(url);
-  if (yt) {
+  const src = ytEmbed(url) || drivePreviewUrl(url);
+  if (src) {
     return (
       <iframe
-        src={yt}
+        src={src}
         title="Video Top Hills"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
@@ -250,7 +250,7 @@ function Img({ src, label, ratio = 'aspect-[4/3]' }: { src?: string; label: stri
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={label} className={'rounded-[16px] object-cover w-full ' + ratio} style={{ border: `1px solid ${C.border}` }} />
+      <img src={driveImageUrl(src)} alt={label} className={'rounded-[16px] object-cover w-full ' + ratio} style={{ border: `1px solid ${C.border}` }} />
     );
   }
   return (

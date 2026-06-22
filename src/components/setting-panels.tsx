@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type RoomStatus, type PriceItem, type BuktiFile } from '@/lib/api';
 import { facilityApi, kwitansiApi, halamanInfoApi, type Fasilitas, type KwitansiSettings } from '@/lib/api-v2';
-import { DEFAULT_INFO, mergeInfo, type HalamanInfo } from '@/lib/halaman-info';
+import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl, type HalamanInfo } from '@/lib/halaman-info';
 import { formatRupiah, formatRupiahShort } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -1182,11 +1182,15 @@ function MediaSlot({
       {value ? (
         <div className="relative">
           {isVideo ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
-            <video src={value} controls className="w-full rounded-md border border-bd aspect-video bg-black" />
+            drivePreviewUrl(value) ? (
+              <iframe src={drivePreviewUrl(value) as string} title={label} allowFullScreen className="w-full rounded-md border border-bd aspect-video bg-black" />
+            ) : (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video src={value} controls className="w-full rounded-md border border-bd aspect-video bg-black" />
+            )
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt={label} className="w-full rounded-md border border-bd object-cover aspect-video" />
+            <img src={driveImageUrl(value)} alt={label} className="w-full rounded-md border border-bd object-cover aspect-video" />
           )}
           <button
             type="button"

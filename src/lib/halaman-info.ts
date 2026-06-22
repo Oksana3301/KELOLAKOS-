@@ -63,6 +63,26 @@ export const DEFAULT_INFO: HalamanInfo = {
 const arr = (v: unknown, max: number): string[] =>
   Array.isArray(v) ? (v as unknown[]).map(String).filter(Boolean).slice(0, max) : [];
 
+/** Extract a Google Drive file id from any common Drive URL form. */
+export function driveFileId(url: string): string | null {
+  if (!url) return null;
+  const m = url.match(/[?&]id=([\w-]+)/) || url.match(/\/file\/d\/([\w-]+)/) || url.match(/\/d\/([\w-]+)/);
+  return m ? m[1] : null;
+}
+
+/** Drive share/uc URLs are flaky in <img>. Convert to the reliable thumbnail URL. */
+export function driveImageUrl(url: string): string {
+  if (!url) return url;
+  const id = url.includes('drive.google.com') ? driveFileId(url) : null;
+  return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w1600` : url;
+}
+
+/** Embeddable preview URL for a Drive video, or null if not a Drive link. */
+export function drivePreviewUrl(url: string): string | null {
+  const id = url && url.includes('drive.google.com') ? driveFileId(url) : null;
+  return id ? `https://drive.google.com/file/d/${id}/preview` : null;
+}
+
 /** Merge saved (partial) values over the defaults so missing fields never break. */
 export function mergeInfo(saved: Partial<HalamanInfo> & { galeri?: unknown; videoUrl?: unknown } | null | undefined): HalamanInfo {
   if (!saved || typeof saved !== 'object') return DEFAULT_INFO;
