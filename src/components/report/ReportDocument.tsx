@@ -26,8 +26,8 @@ interface Props {
   onShow?: (k: DetailKey) => void;
 }
 
-function lbl(text: string): React.CSSProperties {
-  return { fontSize: 11, letterSpacing: 2, color: GOLD, fontWeight: 700 };
+function lbl(_text: string): React.CSSProperties {
+  return { fontSize: 12.5, letterSpacing: 2, color: GOLD, fontWeight: 700 };
 }
 
 export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, forExport = false, onShow }: Props) {
@@ -49,42 +49,42 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
   const labelStep = Math.max(1, Math.ceil(n / 12));
 
   return (
-    <div style={{ width: 1080, minHeight: 1700, padding: 46, position: 'relative', fontFamily: SANS, overflow: 'hidden', background: 'radial-gradient(120% 70% at 18% 0%, #F4ECDC 0%, #EBE2CF 52%, #E2D8C2 100%)' }}>
+    <div style={{ width: 1080, minHeight: 1700, padding: 54, position: 'relative', fontFamily: SANS, overflow: 'hidden', background: 'radial-gradient(120% 70% at 18% 0%, #F4ECDC 0%, #EBE2CF 52%, #E2D8C2 100%)' }}>
       <div style={{ position: 'absolute', width: 560, height: 560, top: -200, right: -150, background: 'radial-gradient(circle, rgba(156,122,46,.12), rgba(156,122,46,0) 68%)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', width: 520, height: 520, bottom: -220, left: -170, background: 'radial-gradient(circle, rgba(156,122,46,.10), rgba(156,122,46,0) 70%)', pointerEvents: 'none' }} />
 
       {/* HEADER */}
-      <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+      <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 30, marginBottom: 28 }}>
         <div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/invoice/logo-mark.png" alt="Top Hills" style={{ height: 92, width: 'auto', display: 'block', margin: '-2px 0 0 -2px' }} />
-          <div style={{ fontSize: 12, color: '#8A8170', marginTop: 6, letterSpacing: .3 }}>Limau Manis, Pauh — Padang</div>
+          <img src="/invoice/logo-mark.png" alt="Top Hills" style={{ height: 96, width: 'auto', display: 'block', margin: '-2px 0 0 -2px' }} />
+          <div style={{ fontSize: 14, color: '#8A8170', marginTop: 8, letterSpacing: .3 }}>Limau Manis, Pauh — Padang</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, letterSpacing: 3, color: GOLD, fontWeight: 700 }}>LAPORAN KEUANGAN</div>
-          <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 46, letterSpacing: 1, lineHeight: 1, color: '#2C2620', marginTop: 8 }}>{rep.label}</div>
-          <div style={{ fontSize: 12.5, color: '#7A7164', marginTop: 8 }}>{rep.range}</div>
+          <div style={{ fontSize: 12.5, letterSpacing: 3, color: GOLD, fontWeight: 700 }}>LAPORAN KEUANGAN</div>
+          <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 46, letterSpacing: 1, lineHeight: 1.05, color: '#2C2620', marginTop: 10 }}>{rep.label}</div>
+          <div style={{ fontSize: 14, color: '#7A7164', marginTop: 9 }}>{rep.range}</div>
         </div>
       </div>
 
       {/* HERO */}
-      <div style={{ position: 'relative', borderRadius: 22, overflow: 'hidden', padding: '34px 38px', background: 'linear-gradient(135deg, rgba(166,128,47,.16), rgba(156,122,46,.05))', backdropFilter: 'blur(26px)', WebkitBackdropFilter: 'blur(26px)', border: '1px solid rgba(156,122,46,.34)', boxShadow: '0 30px 70px -34px rgba(120,96,40,.40), inset 0 1px 0 rgba(255,255,255,.6)' }}>
-        <div style={{ position: 'absolute', top: 0, left: 38, right: 38, height: 2, background: 'linear-gradient(90deg, rgba(156,122,46,0), #C9A24B 30%, #9C7A2E 50%, #C9A24B 70%, rgba(156,122,46,0))' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 30 }}>
-          <div>
+      <div style={{ position: 'relative', borderRadius: 22, overflow: 'hidden', padding: '38px 44px 40px', background: 'linear-gradient(135deg, rgba(166,128,47,.16), rgba(156,122,46,.05))', backdropFilter: 'blur(26px)', WebkitBackdropFilter: 'blur(26px)', border: '1px solid rgba(156,122,46,.34)', boxShadow: '0 30px 70px -34px rgba(120,96,40,.40), inset 0 1px 0 rgba(255,255,255,.6)' }}>
+        <div style={{ position: 'absolute', top: 0, left: 44, right: 44, height: 2, background: 'linear-gradient(90deg, rgba(156,122,46,0), #C9A24B 30%, #9C7A2E 50%, #C9A24B 70%, rgba(156,122,46,0))' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 30 }}>
+          <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <span style={{ width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '9px solid #9C7A2E', display: 'inline-block' }} />
-              <span style={{ fontSize: 11, letterSpacing: 2.6, color: GOLD, fontWeight: 700 }}>BULAN INI · UNTUNG BERSIH</span>
+              <span style={{ fontSize: 12, letterSpacing: 2.6, color: GOLD, fontWeight: 700 }}>BULAN INI · UNTUNG BERSIH</span>
             </div>
-            <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 72, lineHeight: .95, marginTop: 10, ...heroStyle, fontVariantNumeric: 'tabular-nums' }}>{rp(net)}</div>
-            <div style={{ fontSize: 14, color: '#5A5446', marginTop: 12, maxWidth: 600, lineHeight: 1.55 }}>
+            <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 68, lineHeight: 1.16, marginTop: 8, paddingBottom: 6, ...heroStyle, fontVariantNumeric: 'tabular-nums' }}>{rp(net)}</div>
+            <div style={{ fontSize: 16, color: '#5A5446', marginTop: 20, maxWidth: 620, lineHeight: 1.6 }}>
               Anda menerima <b style={{ color: '#2C2620', fontWeight: 600 }}>{rp(rep.cashIn)}</b> dan mengeluarkan <b style={{ color: '#2C2620', fontWeight: 600 }}>{rp(rep.cashOut)}</b> — keuntungan bersih Anda <b style={{ color: '#2C2620', fontWeight: 600 }}>{rp(net)}</b>.
             </div>
           </div>
-          <div style={{ textAlign: 'right', flex: 'none' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 15px', borderRadius: 30, border: '1px solid rgba(156,122,46,.4)', background: 'rgba(156,122,46,.08)' }}>
+          <div style={{ flex: 'none', paddingTop: 4 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 30, border: '1px solid rgba(156,122,46,.4)', background: 'rgba(156,122,46,.08)' }}>
               <span style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderBottom: '8px solid #9C7A2E', display: 'inline-block' }} />
-              <span style={{ fontSize: 12, color: GOLD, fontWeight: 700 }}>{net >= 0 ? 'Untung bersih' : 'Rugi'}</span>
+              <span style={{ fontSize: 13, color: GOLD, fontWeight: 700 }}>{net >= 0 ? 'Untung bersih' : 'Rugi'}</span>
             </div>
           </div>
         </div>
@@ -134,23 +134,23 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
 
       {/* BREAKDOWN — flex */}
       <div style={{ display: 'flex', gap: 22, marginTop: 22, alignItems: 'flex-start' }}>
-        <div style={{ ...GLASS, padding: '26px 28px', width: 483 }}>
+        <div style={{ ...GLASS, padding: '28px 30px', width: 475 }}>
           <div style={lbl('')}>DARI MANA UANG MASUK</div>
           {rep.income.length === 0 ? (
-            <div style={{ color: '#8A8170', fontSize: 13.5, marginTop: 16 }}>Belum ada pemasukan pada periode ini.</div>
+            <div style={{ color: '#8A8170', fontSize: 15, marginTop: 16 }}>Belum ada pemasukan pada periode ini.</div>
           ) : rep.income.map((r, i) => (
             <BreakRow key={i} label={r.label} amount={rp(r.amount)} pct={rep.cashIn ? Math.round((r.amount / rep.cashIn) * 100) : 0} sub={r.sub} gold />
           ))}
         </div>
-        <div style={{ ...GLASS, padding: '26px 28px', width: 483, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...GLASS, padding: '28px 30px', width: 475, display: 'flex', flexDirection: 'column' }}>
           <div style={lbl('')}>KE MANA UANG KELUAR</div>
           {rep.expense.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '34px 0 14px' }}>
-              <div style={{ width: 46, height: 46, borderRadius: '50%', border: '1.5px dashed rgba(156,122,46,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ width: 16, height: 2, background: 'rgba(156,122,46,.5)', display: 'inline-block' }} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 0 18px' }}>
+              <div style={{ width: 50, height: 50, borderRadius: '50%', border: '1.5px dashed rgba(156,122,46,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ width: 18, height: 2, background: 'rgba(156,122,46,.5)', display: 'inline-block' }} />
               </div>
-              <div style={{ fontSize: 14, color: '#5A5446', marginTop: 14, fontWeight: 600 }}>Belum ada pengeluaran</div>
-              <div style={{ fontSize: 12.5, color: '#8A8170', marginTop: 5 }}>Tidak ada uang keluar pada periode ini.</div>
+              <div style={{ fontSize: 15.5, color: '#5A5446', marginTop: 14, fontWeight: 600 }}>Belum ada pengeluaran</div>
+              <div style={{ fontSize: 14, color: '#8A8170', marginTop: 6 }}>Tidak ada uang keluar pada periode ini.</div>
             </div>
           ) : rep.expense.map((r, i) => (
             <BreakRow key={i} label={r.label} amount={rp(r.amount)} pct={rep.cashOut ? Math.round((r.amount / rep.cashOut) * 100) : 0} sub={r.sub} />
@@ -159,31 +159,31 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
       </div>
 
       {/* OCCUPANCY */}
-      <div style={{ ...GLASS, padding: '28px 30px', marginTop: 22 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div style={{ ...GLASS, padding: '30px 32px', marginTop: 22 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 24 }}>
           <div>
             <div style={lbl('')}>HUNIAN KAMAR</div>
-            <div style={{ fontSize: 13.5, color: '#8A8170', marginTop: 7 }}>{occPct}% kamar Anda sedang disewa</div>
+            <div style={{ fontSize: 15, color: '#8A8170', marginTop: 8 }}>{occPct}% kamar Anda sedang disewa</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 48, color: '#2C2620', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{rep.occupancy.occupied}</span>
             <span style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 28, color: '#9A938A' }}> / {rep.occupancy.total}</span>
-            <div style={{ fontSize: 12, color: '#8A8170', marginTop: 2 }}>kamar terisi</div>
+            <div style={{ fontSize: 13.5, color: '#8A8170', marginTop: 3 }}>kamar terisi</div>
           </div>
         </div>
         <div style={{ height: 14, borderRadius: 8, background: 'rgba(156,122,46,.10)', marginTop: 18, overflow: 'hidden' }}>
           <div style={{ height: '100%', borderRadius: 8, background: 'linear-gradient(90deg,#C9A24B,#9C7A2E)', width: `${occPct}%` }} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 9 }}>
-          <span style={{ fontSize: 12, color: '#8A8170' }}>Terisi {rep.occupancy.occupied}</span>
-          <span style={{ fontSize: 12, color: '#8A8170' }}>Kosong {kosong}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+          <span style={{ fontSize: 13.5, color: '#8A8170' }}>Terisi {rep.occupancy.occupied}</span>
+          <span style={{ fontSize: 13.5, color: '#8A8170' }}>Kosong {kosong}</span>
         </div>
       </div>
 
       {/* FOOTER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 30, paddingTop: 18, borderTop: '1px solid rgba(156,122,46,.20)' }}>
-        <div style={{ fontSize: 12, color: '#8A8170' }}>Laporan dibuat otomatis oleh sistem Top Hills · angka dalam Rupiah (Rp).</div>
-        <div style={{ fontFamily: SERIF, fontSize: 16, color: GOLD, letterSpacing: 1 }}>Top Hills</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 24, marginTop: 32, paddingTop: 20, borderTop: '1px solid rgba(156,122,46,.20)' }}>
+        <div style={{ fontSize: 13.5, color: '#8A8170' }}>Laporan dibuat otomatis oleh sistem Top Hills · angka dalam Rupiah (Rp).</div>
+        <div style={{ fontFamily: SERIF, fontSize: 17, color: GOLD, letterSpacing: 1 }}>Top Hills</div>
       </div>
     </div>
   );
@@ -191,15 +191,15 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
 
 function Kpi({ label, sub, value, muted, dotMuted, onClick }: { label: string; sub: string; value: string; muted?: boolean; dotMuted?: boolean; onClick?: () => void }) {
   return (
-    <div style={{ ...GLASS, padding: '26px 28px', width: 483, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ ...GLASS, padding: '28px 30px', width: 475, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotMuted ? '#B0966A' : '#9C7A2E', display: 'inline-block' }} />
-        <span style={{ fontSize: 11, letterSpacing: 2, color: dotMuted ? '#9A8A6A' : '#9C7A2E', fontWeight: 700 }}>{label}</span>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: dotMuted ? '#B0966A' : '#9C7A2E', display: 'inline-block' }} />
+        <span style={{ fontSize: 12, letterSpacing: 2, color: dotMuted ? '#9A8A6A' : '#9C7A2E', fontWeight: 700 }}>{label}</span>
       </div>
-      <div style={{ fontSize: 13, color: '#8A8170', marginTop: 7, lineHeight: 1.5 }}>{sub}</div>
-      <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 40, color: muted ? '#9A938A' : '#2C2620', marginTop: 14, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div style={{ fontSize: 15.5, color: '#8A8170', marginTop: 9, lineHeight: 1.5 }}>{sub}</div>
+      <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 42, color: muted ? '#9A938A' : '#2C2620', marginTop: 14, lineHeight: 1.1, paddingBottom: 2, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       {onClick && (
-        <button onClick={onClick} style={{ background: 'none', border: 'none', padding: 0, marginTop: 16, fontSize: 13, color: GOLD, fontWeight: 700, letterSpacing: .3, cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>Lihat rincian ›</button>
+        <button onClick={onClick} style={{ background: 'none', border: 'none', padding: 0, marginTop: 16, fontSize: 14, color: GOLD, fontWeight: 700, letterSpacing: .3, cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>Lihat rincian ›</button>
       )}
     </div>
   );
@@ -216,15 +216,15 @@ function Legend({ color, text }: { color: string; text: string }) {
 
 function BreakRow({ label, amount, pct, sub, gold }: { label: string; amount: string; pct: number; sub: string; gold?: boolean }) {
   return (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontSize: 14.5, color: '#2C2620', fontWeight: 600 }}>{label}</span>
-        <span style={{ fontSize: 14.5, color: '#2C2620', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{amount}</span>
+    <div style={{ marginTop: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 14 }}>
+        <span style={{ fontSize: 16, color: '#2C2620', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 16, color: '#2C2620', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{amount}</span>
       </div>
-      <div style={{ height: 9, borderRadius: 6, background: gold ? 'rgba(156,122,46,.10)' : 'rgba(176,92,59,.10)', marginTop: 9, overflow: 'hidden' }}>
+      <div style={{ height: 10, borderRadius: 6, background: gold ? 'rgba(156,122,46,.10)' : 'rgba(176,92,59,.10)', marginTop: 10, overflow: 'hidden' }}>
         <div style={{ height: '100%', borderRadius: 6, background: gold ? 'linear-gradient(90deg,#C9A24B,#9C7A2E)' : 'linear-gradient(90deg,#C77A56,#B05C3B)', width: `${pct}%` }} />
       </div>
-      <div style={{ fontSize: 12, color: '#8A8170', marginTop: 7 }}>{sub ? `${sub} · ${pct}%` : `${pct}%`}</div>
+      <div style={{ fontSize: 13.5, color: '#8A8170', marginTop: 8 }}>{sub ? `${sub} · ${pct}%` : `${pct}%`}</div>
     </div>
   );
 }
