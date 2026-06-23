@@ -52,7 +52,7 @@ const FASILITAS = [
   { i: '📶', t: 'WiFi unlimited' },
   { i: '💡', t: 'Listrik token' },
   { i: '💧', t: 'Air sudah termasuk' },
-  { i: '🌄', t: 'Gazebo & balkon view' },
+  { i: '🏙️', t: 'Rooftop belajar & balkon view' },
   { i: '🧺', t: 'Laundry' },
   { i: '🏪', t: 'Minimarket' },
   { i: '🛵', t: 'Cuci motor' },
@@ -68,6 +68,7 @@ const KOST_FAS = [
   '❄️ AC / non-AC',
   '📶 WiFi unlimited',
   '💧 Air termasuk',
+  '🏙️ Rooftop belajar',
   '🌄 Balkon view',
   '🧺 Laundry',
   '🏪 Minimarket',
@@ -90,7 +91,7 @@ const FAQ = [
   { q: 'Bisa sewa kost bulanan saja?', a: 'Minimal sewa kost adalah 6 bulan. Tersedia paket 6 bulan dan setahun.' },
   { q: 'Ada AC tidak?', a: 'Untuk kost ada pilihan AC dan non-AC (harga berbeda). Untuk penginapan, semua kamar sudah ber-AC.' },
   { q: 'Kamar mandi di dalam atau di luar?', a: 'Kamar mandi di dalam kamar (KM dalam), baik kost maupun penginapan.' },
-  { q: 'Aman tidak untuk anak perempuan? Ada CCTV?', a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB, dan tamu laki-laki hanya boleh di area luar/ruang tamu.' },
+  { q: 'Aman tidak untuk anak perempuan? Ada CCTV?', a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB (bila ada keperluan lewat jam itu, kabari penjaga dulu ya), dan tamu laki-laki hanya boleh di area luar dekat minimarket.' },
   { q: 'Boleh survey/lihat kamar dulu?', a: 'Boleh. Sebaiknya janjian dulu dengan penjaga (Bang Mezi). Jam survey 08.00–19.00 WIB.' },
   { q: 'DP bisa kembali kalau batal?', a: 'DP berfungsi mengamankan kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).' },
   { q: 'Penginapan termasuk sarapan?', a: 'Sarapan tidak disediakan. Namun ada minimarket di lokasi yang menyediakan aneka snack & kebutuhan. Pembersihan kamar tetap sudah termasuk.' },
@@ -614,7 +615,7 @@ export default function InfoPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(info.fotoArea.length > 0
               ? info.fotoArea
-              : ['Area gedung', 'Kamar nyaman', 'Lemari & meja', 'Balkon view', 'Gazebo atas', 'Laundry & minimarket', 'Cuci motor', 'Security & CCTV']
+              : ['Area gedung', 'Kamar nyaman', 'Lemari & meja', 'Balkon view', 'Rooftop belajar', 'Laundry & minimarket', 'Cuci motor', 'Security & CCTV']
             ).map((g, i) => (
               <Img key={i} src={info.fotoArea.length > 0 ? g : undefined} label={info.fotoArea.length === 0 ? g : 'Foto'} />
             ))}
@@ -648,11 +649,9 @@ export default function InfoPage() {
               <ul className="space-y-2 text-[14px]" style={{ color: C.brownSoft }}>
                 {[
                   'Khusus putri, terbuka untuk umum (mahasiswi & non-mahasiswi).',
-                  'Gerbang ditutup 22.00 WIB (kabari penjaga bila ada keperluan).',
-                  'Tamu laki-laki hanya di area luar/ruang tamu.',
-                  'Boleh masak di kamar (listrik token pribadi).',
-                  'Tidak ada deposit.',
-                  'Tamu menginap di kamar >2 hari: Rp 150.000/orang.',
+                  'Gerbang ditutup pukul 22.00 WIB. Bila ada keperluan hingga lewat jam tersebut, mohon kabari penjaga terlebih dahulu ya 🙏',
+                  'Tamu laki-laki hanya diperbolehkan di area luar, dekat minimarket.',
+                  'Tamu menginap di kamar lebih dari 2 hari: Rp 50.000/orang.',
                 ].map((t) => (
                   <li key={t} className="flex gap-2">
                     <span style={{ color: C.gold }}>•</span>
