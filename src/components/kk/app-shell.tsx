@@ -71,10 +71,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Brand */}
         <div className="flex items-center gap-3 mb-6">
           <div className="w-11 h-11 rounded-[14px] bg-kk-orange text-white grid place-items-center font-heading font-black text-[22px]">
-            K
+            T
           </div>
           <div>
-            <div className="font-heading font-bold text-[19px] leading-tight">KelolaKos</div>
+            <div className="font-heading font-bold text-[19px] leading-tight">{'Top Hills & Co'}</div>
             <div className="text-caption text-kk-ink">Properti Anda</div>
           </div>
         </div>

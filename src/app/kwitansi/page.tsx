@@ -37,8 +37,8 @@ export default function KwitansiPage() {
     queryFn: kwitansiApi.get,
   });
 
-  const businessName = settings?.business_name?.trim() || 'KelolaKos';
-  const logoLetter = (settings?.logo_letter?.trim() || businessName[0] || 'K').toUpperCase();
+  const businessName = settings?.business_name?.trim() || 'Top Hills & Co';
+  const logoLetter = (settings?.logo_letter?.trim() || businessName[0] || 'T').toUpperCase();
   const showTagline = Boolean(settings?.show_tagline && settings?.tagline?.trim());
   const alamat = settings?.alamat?.trim() || '';
   const kontak = settings?.kontak?.trim() || '';

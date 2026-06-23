@@ -142,7 +142,7 @@ export default function SettingPage() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-heading font-bold text-[21px] text-kk-navy truncate">Pemilik Kos</div>
-          <div className="text-body text-kk-ink">Pemilik · Akun KelolaKos</div>
+          <div className="text-body text-kk-ink">Pemilik · Akun Top Hills & Co</div>
         </div>
         <Link href="/kwitansi" className="flex-shrink-0">
           <KkButton variant="secondary">Akun</KkButton>
@@ -234,7 +234,7 @@ export default function SettingPage() {
         <KkIcon name="logout" size={20} /> Keluar dari Aplikasi
       </KkButton>
 
-      <div className="text-center text-body text-kk-ink my-5">KelolaKos · versi 1.0</div>
+      <div className="text-center text-body text-kk-ink my-5">Top Hills & Co · versi 1.0</div>
 
       {/* Section sheets (wrap existing panels — data wiring unchanged) */}
       <Sheet open={!!activeSheet} onClose={() => setActiveSheet(null)}>
