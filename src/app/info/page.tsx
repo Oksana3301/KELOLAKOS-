@@ -428,7 +428,7 @@ export default function InfoPage() {
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {[
               ['🎓', 'Dekat UNAND'],
-              ['🌸', 'Kost Putri'],
+              ['🏙️', 'Rooftop Belajar'],
               ['🔒', 'Security & CCTV'],
               ['📶', 'WiFi Unlimited'],
             ].map(([i, t]) => (
