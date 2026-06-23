@@ -230,26 +230,16 @@ export default function InvoicePage() {
     }
   }
 
-  async function exportPNG(share: boolean) {
+  async function downloadPNG() {
     if (!exportRef.current) return;
     const toastId = toast.loading('Menyiapkan invoice…');
     try {
       if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
       // beri jeda agar gambar (logo/ttd) ter-load di node export
       await new Promise((r) => setTimeout(r, 120));
-      if (share) {
-        const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: null });
-        toast.success(
-          res.method === 'clipboard'
-            ? 'Invoice tersalin. Buka WhatsApp lalu tempel (Ctrl+V).'
-            : 'Invoice diunduh untuk dikirim lewat WhatsApp.',
-          { id: toastId },
-        );
-      } else {
-        const nm = (invoice.customer.name || 'invoice').replace(/\s+/g, '_');
-        await downloadAsPNG({ element: exportRef.current, filename: `invoice-${nm}-${Date.now()}`, scale: 2, backgroundColor: null });
-        toast.success('Invoice tersimpan (PNG).', { id: toastId });
-      }
+      const nm = (invoice.customer.name || 'invoice').replace(/\s+/g, '_');
+      await downloadAsPNG({ element: exportRef.current, filename: `invoice-${nm}-${Date.now()}`, scale: 2, backgroundColor: null });
+      toast.success('Invoice tersimpan (PNG).', { id: toastId });
     } catch (e) {
       toast.error('Gagal: ' + (e as Error).message, { id: toastId });
     }
@@ -341,7 +331,7 @@ export default function InvoicePage() {
 
       {/* Aksi tambahan */}
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <KkButton variant="secondary" block onClick={() => exportPNG(false)}>
+        <KkButton variant="secondary" block onClick={downloadPNG}>
           <KkIcon name="unduh" size={20} strokeWidth={2.2} /> Unduh PNG
         </KkButton>
         <KkButton variant="secondary" block onClick={() => flashCopied('rek', digitsOnly(identity.accountNo))}>
