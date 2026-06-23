@@ -30,7 +30,7 @@ export interface HalamanInfo {
   // Media
   fotoHero: string;
   fotoKost: string[]; // maks 10
-  fotoArea: string[]; // maks 10 (galeri umum: gedung, gazebo, dll)
+  fotoArea: string[]; // maks 10 (galeri umum: gedung, rooftop, dll)
   videos: string[]; // maks 6 (URL YouTube/Drive/mp4)
 }
 
