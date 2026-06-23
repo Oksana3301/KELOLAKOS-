@@ -13,8 +13,51 @@ import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 import { InvoiceDocument } from '@/components/invoice/InvoiceDocument';
 import {
   bookingToInvoice, digitsOnly, deriveInvoice, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
-  type Invoice, type InvoiceIdentity,
+  type Invoice, type InvoiceIdentity, type Layanan,
 } from '@/lib/invoice';
+
+/** Pilih rekening & QR sesuai jenis (kost / penginapan), fallback ke field lama. */
+function resolveIdentity(s: KwitansiSettings | undefined, layanan: Layanan): InvoiceIdentity {
+  const isKost = layanan === 'kost';
+  const bank = isKost ? s?.inv_kost_bank_name : s?.inv_png_bank_name;
+  const acc = isKost ? s?.inv_kost_account_no : s?.inv_png_account_no;
+  const accName = isKost ? s?.inv_kost_account_name : s?.inv_png_account_name;
+  const qr = isKost ? s?.inv_kost_qris_base64 : s?.inv_png_qris_base64;
+  return {
+    bankName: bank?.trim() || s?.inv_bank_name?.trim() || DEFAULT_IDENTITY.bankName,
+    accountNo: acc?.trim() || s?.inv_account_no?.trim() || DEFAULT_IDENTITY.accountNo,
+    accountName: accName?.trim() || s?.inv_account_name?.trim() || DEFAULT_IDENTITY.accountName,
+    waResmi: s?.inv_wa_resmi?.trim() || DEFAULT_IDENTITY.waResmi,
+    ownerName: s?.inv_owner_name?.trim() || s?.sig_name?.trim() || DEFAULT_IDENTITY.ownerName,
+    ownerTitle: s?.inv_owner_title?.trim() || s?.sig_title?.trim() || DEFAULT_IDENTITY.ownerTitle,
+    qrisBase64: qr || s?.inv_qris_base64 || '',
+  };
+}
+
+/** File gambar → data URL ter-resize (maks ~520px) supaya base64 tidak kebesaran. */
+function fileToResizedDataUrl(file: File, max = 520): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas tidak tersedia'));
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Gambar tidak valid'));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file'));
+    reader.readAsDataURL(file);
+  });
+}
 
 const HELP = {
   title: 'Invoice',
@@ -52,24 +95,14 @@ export default function InvoicePage() {
     if (settings?.inv_variant === 'krem' || settings?.inv_variant === 'pita') setVariant(settings.inv_variant);
   }, [settings?.inv_variant]);
 
-  const identity: InvoiceIdentity = {
-    bankName: settings?.inv_bank_name?.trim() || DEFAULT_IDENTITY.bankName,
-    accountNo: settings?.inv_account_no?.trim() || DEFAULT_IDENTITY.accountNo,
-    accountName: settings?.inv_account_name?.trim() || DEFAULT_IDENTITY.accountName,
-    waResmi: settings?.inv_wa_resmi?.trim() || DEFAULT_IDENTITY.waResmi,
-    ownerName: settings?.inv_owner_name?.trim() || settings?.sig_name?.trim() || DEFAULT_IDENTITY.ownerName,
-    ownerTitle: settings?.inv_owner_title?.trim() || settings?.sig_title?.trim() || DEFAULT_IDENTITY.ownerTitle,
-    qrisBase64: settings?.inv_qris_base64 || '',
-  };
-
-  // Tenants for booking mode (only those who paid something).
+  // Booking untuk dipilih — termasuk yang Belum Bayar / DP / Lunas (bukan yang batal).
   const tenants: BookingItem[] = useMemo(() => {
     const set = new Map<string, BookingItem>();
     (initialData?.paymentBookings || []).forEach((b) => set.set(b.BookingID, b));
     (initialData?.statusActionBookings || []).forEach((b) => set.set(b.BookingID, b));
     (initialData?.closingBookings || []).forEach((b) => set.set(b.BookingID, b));
     return Array.from(set.values())
-      .filter((b) => ['Lunas', 'DP'].includes(mapPayStatus(b)))
+      .filter((b) => ['Lunas', 'DP', 'Belum Bayar'].includes(mapPayStatus(b)))
       .sort((a, b) => (new Date(b.CheckIn || 0).getTime()) - (new Date(a.CheckIn || 0).getTime()));
   }, [initialData]);
 
@@ -93,6 +126,8 @@ export default function InvoicePage() {
   }, [mode, manualInv, selectedBooking, detail]);
 
   const { balance } = deriveInvoice(invoice);
+  const layanan: Layanan = invoice.layanan || 'penginapan';
+  const identity = resolveIdentity(settings, layanan);
 
   function flashCopied(key: string, text: string) {
     try {
@@ -186,8 +221,13 @@ export default function InvoicePage() {
         </div>
       </div>
 
+      <div className="mt-4 text-center text-caption text-kk-ink">
+        Rekening & QR dipakai: <b className="text-kk-navy">{layanan === 'kost' ? 'Kost' : 'Penginapan'}</b>
+        {' · '}{identity.bankName} · {identity.accountNo}
+      </div>
+
       {/* Preview */}
-      <div className="mt-5 flex justify-center">
+      <div className="mt-3 flex justify-center">
         <div style={{ width: PREVIEW_W, height: Math.round(1528 * scale), overflow: 'hidden', borderRadius: 18, boxShadow: '0 18px 50px -22px rgba(120,96,40,.5)' }}>
           <div style={{ width: 1080, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
             <InvoiceDocument
@@ -216,7 +256,7 @@ export default function InvoicePage() {
           <KkIcon name="panahAtas" size={20} className={settingsOpen ? '' : 'rotate-180'} /> Pengaturan Invoice (bank & identitas)
         </button>
         {settingsOpen && (
-          <IdentityEditor key={JSON.stringify(identity)} initial={identity} variant={variant} onSave={saveIdentity} />
+          <IdentityEditor key={settings ? 'loaded' : 'loading'} settings={settings} variant={variant} onSave={saveIdentity} />
         )}
       </div>
 
@@ -267,26 +307,84 @@ function field(label: string, el: React.ReactNode) {
 }
 
 // ── Editor identitas (disimpan ke kwitansi-settings) ─────────────────────────
-function IdentityEditor({ initial, variant, onSave }: { initial: InvoiceIdentity; variant: 'krem' | 'pita'; onSave: (n: Partial<KwitansiSettings>) => void }) {
-  const [f, setF] = useState(initial);
+function IdentityEditor({ settings, variant, onSave }: { settings: KwitansiSettings | undefined; variant: 'krem' | 'pita'; onSave: (n: Partial<KwitansiSettings>) => void }) {
+  const s = settings;
+  const [wa, setWa] = useState(s?.inv_wa_resmi || DEFAULT_IDENTITY.waResmi);
+  const [owner, setOwner] = useState(s?.inv_owner_name || s?.sig_name || DEFAULT_IDENTITY.ownerName);
+  const [ownerTitle, setOwnerTitle] = useState(s?.inv_owner_title || s?.sig_title || DEFAULT_IDENTITY.ownerTitle);
+
+  const [kBank, setKBank] = useState(s?.inv_kost_bank_name || s?.inv_bank_name || DEFAULT_IDENTITY.bankName);
+  const [kAcc, setKAcc] = useState(s?.inv_kost_account_no || s?.inv_account_no || DEFAULT_IDENTITY.accountNo);
+  const [kName, setKName] = useState(s?.inv_kost_account_name || s?.inv_account_name || DEFAULT_IDENTITY.accountName);
+  const [kQr, setKQr] = useState(s?.inv_kost_qris_base64 || '');
+
+  const [pBank, setPBank] = useState(s?.inv_png_bank_name || s?.inv_bank_name || DEFAULT_IDENTITY.bankName);
+  const [pAcc, setPAcc] = useState(s?.inv_png_account_no || s?.inv_account_no || DEFAULT_IDENTITY.accountNo);
+  const [pName, setPName] = useState(s?.inv_png_account_name || s?.inv_account_name || DEFAULT_IDENTITY.accountName);
+  const [pQr, setPQr] = useState(s?.inv_png_qris_base64 || '');
+
   return (
-    <KkCard className="mt-3 space-y-3">
-      <div className="grid sm:grid-cols-2 gap-3">
-        {field('Bank', <input className="kk-input" value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })} />)}
-        {field('No. Rekening', <input className="kk-input" value={f.accountNo} onChange={(e) => setF({ ...f, accountNo: e.target.value })} />)}
-        {field('Atas Nama', <input className="kk-input" value={f.accountName} onChange={(e) => setF({ ...f, accountName: e.target.value })} />)}
-        {field('WhatsApp Resmi', <input className="kk-input" value={f.waResmi} onChange={(e) => setF({ ...f, waResmi: e.target.value })} />)}
-        {field('Nama Pemilik', <input className="kk-input" value={f.ownerName} onChange={(e) => setF({ ...f, ownerName: e.target.value })} />)}
-        {field('Jabatan', <input className="kk-input" value={f.ownerTitle} onChange={(e) => setF({ ...f, ownerTitle: e.target.value })} />)}
+    <KkCard className="mt-3 space-y-4">
+      <div className="grid sm:grid-cols-3 gap-3">
+        {field('WhatsApp Resmi', <input className="kk-input" value={wa} onChange={(e) => setWa(e.target.value)} />)}
+        {field('Nama Pemilik', <input className="kk-input" value={owner} onChange={(e) => setOwner(e.target.value)} />)}
+        {field('Jabatan', <input className="kk-input" value={ownerTitle} onChange={(e) => setOwnerTitle(e.target.value)} />)}
       </div>
+
+      <RekeningBlock title="🏠 Rekening & QR — Kost" bank={kBank} setBank={setKBank} acc={kAcc} setAcc={setKAcc} name={kName} setName={setKName} qr={kQr} setQr={setKQr} />
+      <RekeningBlock title="🛏️ Rekening & QR — Penginapan" bank={pBank} setBank={setPBank} acc={pAcc} setAcc={setPAcc} name={pName} setName={setPName} qr={pQr} setQr={setPQr} />
+
       <KkButton variant="primary" block onClick={() => onSave({
-        inv_bank_name: f.bankName, inv_account_no: f.accountNo, inv_account_name: f.accountName,
-        inv_wa_resmi: f.waResmi, inv_owner_name: f.ownerName, inv_owner_title: f.ownerTitle, inv_variant: variant,
+        inv_wa_resmi: wa, inv_owner_name: owner, inv_owner_title: ownerTitle, inv_variant: variant,
+        inv_kost_bank_name: kBank, inv_kost_account_no: kAcc, inv_kost_account_name: kName, inv_kost_qris_base64: kQr,
+        inv_png_bank_name: pBank, inv_png_account_no: pAcc, inv_png_account_name: pName, inv_png_qris_base64: pQr,
       })}>
         Simpan Pengaturan Invoice
       </KkButton>
-      <p className="text-caption text-kk-ink m-0">Variant aktif ({variant === 'krem' ? 'Krem Klasik' : 'Pita Emas'}) ikut tersimpan sebagai default.</p>
+      <p className="text-caption text-kk-ink m-0">Invoice otomatis pakai rekening & QR sesuai jenisnya (Kost / Penginapan). Variant aktif ({variant === 'krem' ? 'Krem Klasik' : 'Pita Emas'}) ikut tersimpan sebagai default.</p>
     </KkCard>
+  );
+}
+
+function RekeningBlock({ title, bank, setBank, acc, setAcc, name, setName, qr, setQr }: {
+  title: string; bank: string; setBank: (v: string) => void; acc: string; setAcc: (v: string) => void;
+  name: string; setName: (v: string) => void; qr: string; setQr: (v: string) => void;
+}) {
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await fileToResizedDataUrl(file);
+      setQr(url);
+      toast.success('QR diunggah ✓');
+    } catch (err) {
+      toast.error('Gagal unggah QR: ' + (err as Error).message);
+    }
+  }
+  return (
+    <div className="rounded-kk-card border-2 border-kk-mauve p-3">
+      <div className="font-heading font-bold text-kk-navy mb-2">{title}</div>
+      <div className="grid sm:grid-cols-3 gap-3">
+        {field('Bank', <input className="kk-input" value={bank} onChange={(e) => setBank(e.target.value)} />)}
+        {field('No. Rekening', <input className="kk-input" value={acc} onChange={(e) => setAcc(e.target.value)} />)}
+        {field('Atas Nama', <input className="kk-input" value={name} onChange={(e) => setName(e.target.value)} />)}
+      </div>
+      <div className="flex items-center gap-3 mt-3">
+        {qr ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qr} alt="QR" className="w-[72px] h-[72px] rounded-[10px] object-cover border border-kk-mauve" />
+        ) : (
+          <div className="w-[72px] h-[72px] rounded-[10px] border-2 border-dashed border-kk-mauve grid place-items-center text-caption text-kk-ink">QR</div>
+        )}
+        <div className="flex flex-col gap-2">
+          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-[10px] border-2 border-kk-navy text-kk-navy font-semibold text-[14px] cursor-pointer">
+            <KkIcon name="unduh" size={18} className="rotate-180" /> Unggah QR
+            <input type="file" accept="image/*" className="hidden" onChange={onPick} />
+          </label>
+          {qr && <button className="text-kk-orange font-semibold text-[13px] text-left" onClick={() => setQr('')}>Hapus QR</button>}
+        </div>
+      </div>
+    </div>
   );
 }
 

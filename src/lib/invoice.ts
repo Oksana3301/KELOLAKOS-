@@ -3,11 +3,14 @@
 export type Payment = { label: string; amount: number };
 export type LineItem = { desc: string; note?: string; qty: number; price: number };
 
+export type Layanan = 'kost' | 'penginapan';
+
 export type Invoice = {
   id: string; // e.g. "TH/PNG/2026-0613"
   date: string; // "20 Juni 2026"
   due: string;
   tag?: string; // optional status pill (TAGIHAN DP / PELUNASAN)
+  layanan?: Layanan; // menentukan rekening & QR yang dipakai
   customer: { name: string; phone: string; kind: string };
   booking: { room: string; period: string };
   items: LineItem[];
@@ -52,7 +55,7 @@ export function deriveInvoice(inv: Invoice) {
 // ── 5 contoh skenario (kasus nyata) ──────────────────────────────────────────
 export const SEED_SCENARIOS: Record<string, Invoice> = {
   'penginapan-harian': {
-    id: 'TH/PNG/2026-0613', date: '20 Juni 2026', due: '20 Juni 2026',
+    id: 'TH/PNG/2026-0613', date: '20 Juni 2026', due: '20 Juni 2026', layanan: 'penginapan',
     customer: { name: 'Sarah Amelia', phone: '0812-6644-1290', kind: 'Penginapan · Tamu Umum' },
     booking: { room: 'Executive — Gedung C', period: '3 malam · 20–23 Jun 2026' },
     items: [
@@ -62,28 +65,35 @@ export const SEED_SCENARIOS: Record<string, Invoice> = {
     payments: [{ label: 'Dibayar Penuh', amount: 1150000 }],
   },
   'penginapan-bulanan': {
-    id: 'TH/PNG/2026-0627', date: '28 Juni 2026', due: '01 Juli 2026',
+    id: 'TH/PNG/2026-0627', date: '28 Juni 2026', due: '01 Juli 2026', layanan: 'penginapan',
     customer: { name: 'Nurul Fadhilah', phone: '0813-7781-4502', kind: 'Penginapan · Bulanan' },
     booking: { room: 'Executive — Gedung C', period: 'Sewa 1 Bulan · 01–31 Jul 2026' },
     items: [{ desc: 'Sewa Kamar Executive', note: 'Per bulan · termasuk AC & WiFi', qty: 1, price: 4000000 }],
     payments: [{ label: 'Uang Muka (DP)', amount: 1000000 }],
   },
+  'penginapan-bulanan-lunas': {
+    id: 'TH/PNG/2026-0631', date: '01 Juli 2026', due: '01 Juli 2026', layanan: 'penginapan',
+    customer: { name: 'Nurul Fadhilah', phone: '0813-7781-4502', kind: 'Penginapan · Bulanan' },
+    booking: { room: 'Executive — Gedung C', period: 'Sewa 1 Bulan · 01–31 Jul 2026' },
+    items: [{ desc: 'Sewa Kamar Executive', note: 'Per bulan · termasuk AC & WiFi', qty: 1, price: 4000000 }],
+    payments: [{ label: 'Dibayar Penuh', amount: 4000000 }],
+  },
   'kost-dp': {
-    id: 'TH/KOST/2026-0148', date: '25 Juni 2026', due: '01 Juli 2026', tag: 'TAGIHAN DP',
+    id: 'TH/KOST/2026-0148', date: '25 Juni 2026', due: '01 Juli 2026', tag: 'TAGIHAN DP', layanan: 'kost',
     customer: { name: 'Aisyah Putri', phone: '0852-6390-1187', kind: 'Kost Putri · Booking' },
     booking: { room: 'Kamar 12A — Gedung A', period: 'Paket 6 Bulan · mulai 01 Jul 2026' },
     items: [{ desc: 'Sewa Kost Putri', note: 'Paket 6 Bulan · Gedung A', qty: 6, price: 1300000 }],
     payments: [{ label: 'Uang Muka (DP)', amount: 4000000 }],
   },
   'kost-tahunan': {
-    id: 'TH/KOST/2026-0152', date: '23 Juni 2026', due: '30 Juni 2026',
+    id: 'TH/KOST/2026-0152', date: '23 Juni 2026', due: '30 Juni 2026', layanan: 'kost',
     customer: { name: 'Salsabila Rahma', phone: '0878-2244-9031', kind: 'Kost Putri · Tahunan' },
     booking: { room: 'Kamar 07B — Gedung B', period: 'Paket Tahunan · Jul 2026 – Jun 2027' },
     items: [{ desc: 'Sewa Kost Putri', note: 'Paket 1 Tahun (12 bulan) · AC', qty: 1, price: 15600000 }],
     payments: [{ label: 'Dibayar Penuh', amount: 15600000 }],
   },
   'kost-pelunasan': {
-    id: 'TH/KOST/2026-0148-PL', date: '02 Juli 2026', due: '02 Juli 2026', tag: 'PELUNASAN',
+    id: 'TH/KOST/2026-0148-PL', date: '02 Juli 2026', due: '02 Juli 2026', tag: 'PELUNASAN', layanan: 'kost',
     customer: { name: 'Aisyah Putri', phone: '0852-6390-1187', kind: 'Kost Putri · Pelunasan' },
     booking: { room: 'Kamar 12A — Gedung A', period: 'Pelunasan · Paket 6 Bulan' },
     items: [{ desc: 'Sewa Kost Putri', note: 'Paket 6 Bulan · Gedung A', qty: 6, price: 1300000 }],
@@ -97,6 +107,7 @@ export const SEED_SCENARIOS: Record<string, Invoice> = {
 export const SCENARIO_LABELS: Record<string, string> = {
   'penginapan-harian': 'Penginapan harian (Lunas)',
   'penginapan-bulanan': 'Penginapan bulanan (DP)',
+  'penginapan-bulanan-lunas': 'Penginapan bulanan (Lunas)',
   'kost-dp': 'Kost — Tagihan DP',
   'kost-tahunan': 'Kost tahunan (Lunas)',
   'kost-pelunasan': 'Kost — Pelunasan',
@@ -183,6 +194,7 @@ export function bookingToInvoice(
     date: tgl(new Date().toISOString()),
     due: b.CheckIn ? tgl(b.CheckIn) : tgl(new Date().toISOString()),
     tag,
+    layanan: isKost ? 'kost' : 'penginapan',
     customer: {
       name: b.Nama_Customer || '-',
       phone: b.WhatsApp || '',

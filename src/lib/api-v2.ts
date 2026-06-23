@@ -68,13 +68,25 @@ export interface KwitansiSettings {
   alamat: string;
   kontak: string;
   // ── Invoice (Top Hills) — pembayaran & identitas, editable di Pengaturan ──
-  inv_bank_name?: string;
-  inv_account_no?: string;
-  inv_account_name?: string;
+  // Bersama (semua invoice)
   inv_wa_resmi?: string;
   inv_owner_name?: string;
   inv_owner_title?: string;
   inv_variant?: 'krem' | 'pita';
+  // Rekening & QR — KOST
+  inv_kost_bank_name?: string;
+  inv_kost_account_no?: string;
+  inv_kost_account_name?: string;
+  inv_kost_qris_base64?: string;
+  // Rekening & QR — PENGINAPAN
+  inv_png_bank_name?: string;
+  inv_png_account_no?: string;
+  inv_png_account_name?: string;
+  inv_png_qris_base64?: string;
+  // Lama (fallback bila per-layanan kosong)
+  inv_bank_name?: string;
+  inv_account_no?: string;
+  inv_account_name?: string;
   inv_qris_base64?: string;
 }
 
