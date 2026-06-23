@@ -30,7 +30,7 @@ const PRIMARY: NavEntry[] = [
 
 const MORE: NavEntry[] = [
   { href: '/laporan', label: 'Laporan', icon: 'laporan', desc: 'Ringkasan untung-rugi & laporan PDF.' },
-  { href: '/kwitansi', label: 'Kwitansi', icon: 'kwitansi', desc: 'Buat & kirim kwitansi ke penyewa.' },
+  { href: '/kwitansi', label: 'Invoice', icon: 'kwitansi', desc: 'Buat & kirim invoice mewah Top Hills ke penyewa.' },
   { href: '/layout3d', label: 'Layout Properti', icon: 'layout', desc: 'Peta semua kamar dan kondisinya.' },
   { href: '/setting', label: 'Pengaturan', icon: 'setting', desc: 'Profil bisnis, harga, fasilitas, akun.' },
 ];
