@@ -544,16 +544,13 @@ export function BookingFlow({
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
 
+  // Form utuh: semua syarat dicek sekaligus (bukan per-langkah lagi).
   const bisaLanjut =
-    step === 1
-      ? nama.trim().length > 0
-      : step === 2
-      ? !!chosen
-      : step === 3
-      ? !!masuk && (customDate ? customHari >= 1 : lama >= 1)
-      : // Step 4: DP only needs a positive amount (sisa is computed). Lunas/Belum
-        // Bayar always valid.
-        bayar !== 'DP' || Number(dp) > 0;
+    nama.trim().length > 0 &&
+    (isEdit || !!chosen) &&
+    !!masuk &&
+    (customDate ? customHari >= 1 : lama >= 1) &&
+    (bayar !== 'DP' || Number(dp) > 0);
 
   // Booking an occupied / attention room is allowed, but warn first.
   const roomOccupied = !!chosen && chosen.room.Status_Code !== 'READY';
@@ -655,12 +652,10 @@ export function BookingFlow({
     );
   }
 
-  const curStep = step as number;
-
   return (
     <>
-      {/* Floating up/down scroll buttons — only on step 2 (banyak kamar). */}
-      {open && curStep === 2 && (
+      {/* Floating up/down scroll buttons — bantu navigasi form yang panjang. */}
+      {open && (
         <div className="fixed z-[80] right-5 bottom-6 flex flex-col gap-2.5">
           <button
             onClick={() => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
@@ -682,10 +677,9 @@ export function BookingFlow({
         <SheetHead title={judul} onClose={onClose} />
       <div className="px-6 pb-8 pt-2">
         <div ref={headRef} />
-        <StepHead step={curStep} />
 
-        {/* LANGKAH 1 — DATA PENYEWA */}
-        {curStep === 1 && (
+        {/* 1 — DATA PENYEWA */}
+        {(
           <div>
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               1. Siapa penyewanya?
@@ -726,9 +720,9 @@ export function BookingFlow({
           </div>
         )}
 
-        {/* LANGKAH 2 — PILIH KAMAR */}
-        {curStep === 2 && (
-          <div>
+        {/* 2 — PILIH KAMAR */}
+        {(
+          <div className="mt-9 pt-7 border-t-2 border-kk-mauve-soft">
             <div ref={topRef} />
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               2. Pilih kamar
@@ -896,8 +890,8 @@ export function BookingFlow({
         )}
 
         {/* LANGKAH 3 — LAMA SEWA */}
-        {curStep === 3 && (
-          <div>
+        {(
+          <div className="mt-9 pt-7 border-t-2 border-kk-mauve-soft">
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               3. Berapa lama menyewa?
             </h3>
@@ -1123,8 +1117,8 @@ export function BookingFlow({
         )}
 
         {/* LANGKAH 4 — PEMBAYARAN */}
-        {curStep === 4 && (
-          <div>
+        {(
+          <div className="mt-9 pt-7 border-t-2 border-kk-mauve-soft">
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               4. Bagaimana pembayarannya?
             </h3>
@@ -1221,41 +1215,26 @@ export function BookingFlow({
           </div>
         )}
 
-        {/* Navigasi */}
-        <div className="flex gap-3 mt-6">
-          {curStep > 1 && (
-            <KkButton
-              variant="secondary"
-              className="flex-1"
-              onClick={() => setStep(curStep - 1)}
-              disabled={saveMutation.isPending}
-            >
-              Kembali
-            </KkButton>
-          )}
-          {curStep < 4 && (
-            <KkButton
-              variant="primary"
-              size="lg"
-              className="flex-[2]"
-              disabled={!bisaLanjut}
-              onClick={() => bisaLanjut && setStep(curStep + 1)}
-            >
-              Lanjut
-            </KkButton>
-          )}
-          {curStep === 4 && (
-            <KkButton
-              variant="success"
-              size="lg"
-              className="flex-[2]"
-              disabled={!bisaLanjut || saveMutation.isPending}
-              onClick={handleSave}
-            >
-              <KkIcon name="cek" size={22} strokeWidth={2.4} />{' '}
-              {saveMutation.isPending ? 'Menyimpan…' : 'Simpan Booking'}
-            </KkButton>
-          )}
+        {/* Simpan — satu tombol untuk seluruh form */}
+        <div className="flex gap-3 mt-9 pt-6 border-t-2 border-kk-mauve-soft sticky bottom-0 bg-white pb-1">
+          <KkButton
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+            disabled={saveMutation.isPending}
+          >
+            Batal
+          </KkButton>
+          <KkButton
+            variant="success"
+            size="lg"
+            className="flex-[2]"
+            disabled={!bisaLanjut || saveMutation.isPending}
+            onClick={handleSave}
+          >
+            <KkIcon name="cek" size={22} strokeWidth={2.4} />{' '}
+            {saveMutation.isPending ? 'Menyimpan…' : isEdit ? 'Simpan Perubahan' : 'Simpan Booking'}
+          </KkButton>
         </div>
       </div>
       </Sheet>
