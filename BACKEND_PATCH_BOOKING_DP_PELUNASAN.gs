@@ -180,6 +180,10 @@ function submitBooking(data) {
     }
   } catch (e) { /* abaikan, jangan ganggu booking */ }
 
+  // PENTING: pertahankan baris ini kalau di submitBooking lama Anda ada —
+  // ini yang membuat data penghuni kos otomatis.
+  if (typeof upsertPenghuni_ === 'function') upsertPenghuni_(data, bookingId, room);
+
   return {
     success: true,
     message: existingActiveBookings.length > 0
