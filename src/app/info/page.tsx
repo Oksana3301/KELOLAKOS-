@@ -5,7 +5,7 @@
 // the KelolaKos access gate. Content comes from the saved Halaman Info (editable
 // in Pengaturan), falling back to DEFAULT_INFO so it always works.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
@@ -93,7 +93,7 @@ const FAQ = [
   { q: 'Aman tidak untuk anak perempuan? Ada CCTV?', a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB, dan tamu laki-laki hanya boleh di area luar/ruang tamu.' },
   { q: 'Boleh survey/lihat kamar dulu?', a: 'Boleh. Sebaiknya janjian dulu dengan penjaga (Bang Mezi). Jam survey 08.00–19.00 WIB.' },
   { q: 'DP bisa kembali kalau batal?', a: 'DP berfungsi mengamankan kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).' },
-  { q: 'Penginapan termasuk sarapan?', a: 'Belum termasuk sarapan, tetapi bisa dibantu pesankan bila diminta. Pembersihan kamar sudah termasuk.' },
+  { q: 'Penginapan termasuk sarapan?', a: 'Sarapan tidak disediakan. Namun ada minimarket di lokasi yang menyediakan aneka snack & kebutuhan. Pembersihan kamar tetap sudah termasuk.' },
 ];
 
 // ───────────────────────── small UI pieces ─────────────────────────
@@ -272,6 +272,63 @@ function Img({ src, label, ratio = 'aspect-[4/3]' }: { src?: string; label: stri
   );
 }
 
+// Hero video — studi jarak ke kampus (autoplay senyap + ketuk untuk suara piano).
+function HeroVideo({ poster }: { poster?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
+  const toggleSound = () => {
+    const v = ref.current;
+    if (!v) return;
+    const next = !muted;
+    setMuted(next);
+    v.muted = next;
+    if (!next) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+  };
+  return (
+    <div className="mx-auto" style={{ maxWidth: 300 }}>
+      <div
+        className="relative rounded-[22px] overflow-hidden"
+        style={{ border: `1.5px solid ${C.gold}`, boxShadow: '0 18px 44px rgba(70,55,32,0.22)' }}
+      >
+        <video
+          ref={ref}
+          className="block w-full aspect-[9/16] object-cover"
+          src="/video/tophills-unand.mp4"
+          poster={poster ? driveImageUrl(poster) : '/video/tophills-unand-poster.jpg'}
+          autoPlay
+          muted={muted}
+          loop
+          playsInline
+          preload="metadata"
+        />
+        {/* caption — info terpenting, hierarki teratas di kartu */}
+        <div
+          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold"
+          style={{ fontFamily: body, background: 'rgba(20,14,5,0.62)', color: '#fff', backdropFilter: 'blur(3px)' }}
+        >
+          📍 350 m ke UNAND
+        </div>
+        {/* kontrol suara */}
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+          className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold no-underline"
+          style={{ fontFamily: body, background: muted ? 'rgba(20,14,5,0.62)' : C.gold, color: '#fff', backdropFilter: 'blur(3px)', border: 'none' }}
+        >
+          {muted ? '🔇 Ketuk untuk suara' : '🔊 Suara aktif'}
+        </button>
+      </div>
+      <p className="mt-2 text-center text-[12px]" style={{ fontFamily: body, color: C.brownSoft }}>
+        Selangkah dari kampus · jarak &amp; waktu: Google Maps
+      </p>
+    </div>
+  );
+}
+
 // ───────────────────────── page ─────────────────────────
 export default function InfoPage() {
   useEffect(() => {
@@ -342,6 +399,12 @@ export default function InfoPage() {
           <p style={{ fontFamily: body, color: C.brownSoft }} className="mt-4 text-[15px] max-w-[44ch] mx-auto leading-relaxed">
             {info.deskripsi}
           </p>
+
+          {/* Hero video — hook utama: sedekat apa ke kampus */}
+          <div className="mt-7">
+            <HeroVideo poster={info.fotoHero} />
+          </div>
+
           <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:justify-center max-w-[420px] sm:max-w-none mx-auto">
             <WAButton href={wa(info.waResmi, info.waPesan)} block={false}>
               <WAIcon /> Booking / Tanya via WhatsApp
@@ -365,9 +428,6 @@ export default function InfoPage() {
             ))}
           </div>
 
-          <div className="mt-6">
-            <Img src={info.fotoHero} label="Foto depan / area gedung (atur di Pengaturan → Halaman Info)" ratio="aspect-[16/9]" />
-          </div>
         </section>
 
         {/* Tentang */}
@@ -406,7 +466,7 @@ export default function InfoPage() {
                 'Air sudah termasuk · listrik token diisi sendiri.',
                 'Pilihan AC & non-AC (harga lengkap via WhatsApp).',
                 'Minimal sewa 6 bulan · tersedia paket 6 bulan & setahun.',
-                'DP: mulai Rp 2 juta (6 bulan) / Rp 4 juta (setahun) untuk mengamankan kamar.',
+                'DP minimal Rp 4 juta untuk mengamankan kamar (berlaku paket 6 bulan & setahun).',
               ].map((t) => (
                 <li key={t} className="flex gap-2.5">
                   <span style={{ color: C.gold }}>✦</span>
@@ -629,7 +689,7 @@ export default function InfoPage() {
             <ol className="space-y-4">
               {[
                 ['Pilih kamar / tipe', 'Tentukan kost (Gedung A/B) atau penginapan (Gedung C) yang kamu mau.'],
-                ['Bayar DP untuk amankan kamar', 'Kost setahun min. Rp 4jt · 6 bulan min. Rp 2jt · Penginapan harian min. Rp 100rb. Bisa transfer atau tunai di lokasi.'],
+                ['Bayar DP untuk amankan kamar', 'Kost (6 bulan & setahun): DP minimal Rp 4 juta · Penginapan harian: DP minimal Rp 100rb. Bisa transfer atau tunai di lokasi.'],
                 ['Minta nomor rekening via WhatsApp Resmi', 'Demi keamanan, nomor rekening diberikan admin saat konfirmasi (rekening kost & penginapan berbeda).'],
                 ['WAJIB kirim bukti pembayaran ASLI', 'Upload/kirim bukti transfer atau tunai yang asli ke WhatsApp Resmi — akan diverifikasi kembali oleh admin.'],
                 ['Kamar diamankan ✅', 'Setelah bukti diterima & dicek, kamarmu langsung kami amankan.'],
