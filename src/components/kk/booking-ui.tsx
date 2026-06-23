@@ -21,6 +21,7 @@ import { type Fasilitas } from '@/lib/api-v2';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
 import { MoneyInput } from './money-input';
+import { DatePicker } from '../ui/date-picker';
 import { KkIcon } from './icons';
 import { rupiah, tglPanjang, tglPendek, mapPayStatus, mapRoomStatus, type PayStatus, type RoomDisplayStatus } from './status';
 
@@ -370,6 +371,8 @@ export function BookingFlow({
   const [masuk, setMasuk] = useState(TODAY());
   const [bayar, setBayar] = useState<PayStatus>('Lunas');
   const [dp, setDp] = useState('');
+  // Tanggal pembayaran (opsional). Untuk DP → tanggal DP · untuk Lunas → tanggal pelunasan.
+  const [tglBayar, setTglBayar] = useState('');
   const [bukti, setBukti] = useState<BuktiFile[]>([]);
 
   // Step-2 room filters (UI only — never affects submit payload).
@@ -408,6 +411,7 @@ export function BookingFlow({
       setKeluarDate('');
       setBayar('Lunas');
       setDp('');
+      setTglBayar('');
     }
     setSelFas(new Set(editBooking ? editFacilityIds || [] : []));
     setBukti([]);
@@ -569,7 +573,7 @@ export function BookingFlow({
         return api.submitBookingEdit({
           bookingId: editBooking.BookingID,
           customerName: nama.trim(),
-          whatsapp: hp,
+          whatsapp: hp ? waPhone(hp) : '',
           checkIn: masuk,
           checkOut: keluar,
           hargaKamar: editBooking.Harga_Kamar,
@@ -586,7 +590,7 @@ export function BookingFlow({
       return api.submitBooking({
         roomId: chosen.room.RoomID,
         customerName: nama.trim(),
-        whatsapp: hp,
+        whatsapp: hp ? waPhone(hp) : '',
         checkIn: masuk,
         checkOut: keluar,
         paket: PAKET_BACKEND[customDate ? 'harian' : paketKind],
@@ -594,6 +598,9 @@ export function BookingFlow({
         hargaKamar: hargaSatuan,
         hargaTotal: total,
         dpAwal: dibayar,
+        // Tanggal pembayaran yang dipilih (DP → tanggal DP · Lunas → tanggal pelunasan).
+        // Backend otomatis melabeli DP vs PELUNASAN berdasarkan nominal.
+        dpTanggal: bayar !== 'Belum Bayar' && dibayar > 0 ? tglBayar : '',
         fasilitasIds: Array.from(selFas),
         buktiFiles: bukti,
       });
@@ -1008,12 +1015,7 @@ export function BookingFlow({
                 </div>
 
                 <BookingField label="Tanggal Mulai Masuk" hint="Tanggal penyewa mulai menempati kamar.">
-                  <input
-                    type="date"
-                    value={masuk}
-                    onChange={(e) => setMasuk(e.target.value)}
-                    className="kk-input"
-                  />
+                  <DatePicker variant="kk" value={masuk} onChange={setMasuk} placeholder="Pilih tanggal" />
                 </BookingField>
               </>
             ) : (
@@ -1021,21 +1023,10 @@ export function BookingFlow({
                 {/* Atur tanggal sendiri: dari–sampai, ditagih per hari */}
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <BookingField label="Dari tanggal">
-                    <input
-                      type="date"
-                      value={masuk}
-                      onChange={(e) => setMasuk(e.target.value)}
-                      className="kk-input"
-                    />
+                    <DatePicker variant="kk" value={masuk} onChange={setMasuk} placeholder="Dari" />
                   </BookingField>
                   <BookingField label="Sampai tanggal">
-                    <input
-                      type="date"
-                      value={keluarDate}
-                      min={masuk}
-                      onChange={(e) => setKeluarDate(e.target.value)}
-                      className="kk-input"
-                    />
+                    <DatePicker variant="kk" value={keluarDate} onChange={setKeluarDate} min={masuk} placeholder="Sampai" />
                   </BookingField>
                 </div>
                 {customHari >= 1 ? (
@@ -1202,6 +1193,15 @@ export function BookingFlow({
                   onChange={(n) => setDp(n ? String(n) : '')}
                   placeholder="Contoh: 400.000"
                 />
+              </BookingField>
+            )}
+
+            {bayar !== 'Belum Bayar' && (
+              <BookingField
+                label={bayar === 'DP' ? 'Tanggal DP (opsional)' : 'Tanggal Pelunasan (opsional)'}
+                hint="Kosongkan = pakai tanggal hari ini."
+              >
+                <DatePicker variant="kk" value={tglBayar} onChange={setTglBayar} clearable placeholder="Pilih tanggal" />
               </BookingField>
             )}
 
