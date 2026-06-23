@@ -14,8 +14,8 @@ interface ExportOptions {
   filename?: string;
   /** Scale factor for quality (default 2 = retina) */
   scale?: number;
-  /** Background color (default white) */
-  backgroundColor?: string;
+  /** Background color (default white). Pass null for a transparent PNG. */
+  backgroundColor?: string | null;
 }
 
 async function captureToBlob({

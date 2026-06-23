@@ -85,7 +85,9 @@ export default function InvoicePage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const exportRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [docH, setDocH] = useState(1600);
 
   const { data: initialData } = useQuery({ queryKey: ['initial-data'], queryFn: api.getInitialData });
   const { data: settings } = useQuery({ queryKey: ['kwitansi-settings'], queryFn: kwitansiApi.get });
@@ -129,6 +131,16 @@ export default function InvoicePage() {
   const layanan: Layanan = invoice.layanan || 'penginapan';
   const identity = resolveIdentity(settings, layanan);
 
+  // Ukur tinggi invoice (font lebih besar → lebih tinggi) agar preview pas, tidak terpotong.
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const el = previewRef.current;
+    const ro = new ResizeObserver(() => setDocH(el.offsetHeight || 1600));
+    ro.observe(el);
+    setDocH(el.offsetHeight || 1600);
+    return () => ro.disconnect();
+  }, [invoice, variant, showStamp, showQR, identity]);
+
   function flashCopied(key: string, text: string) {
     try {
       if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text);
@@ -147,7 +159,7 @@ export default function InvoicePage() {
       // beri jeda agar gambar (logo/ttd) ter-load di node export
       await new Promise((r) => setTimeout(r, 120));
       if (share) {
-        const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: '#E3D9C4' });
+        const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: null });
         toast.success(
           res.method === 'clipboard'
             ? 'Invoice tersalin. Buka WhatsApp lalu tempel (Ctrl+V).'
@@ -156,7 +168,7 @@ export default function InvoicePage() {
         );
       } else {
         const nm = (invoice.customer.name || 'invoice').replace(/\s+/g, '_');
-        await downloadAsPNG({ element: exportRef.current, filename: `invoice-${nm}-${Date.now()}`, scale: 2, backgroundColor: '#E3D9C4' });
+        await downloadAsPNG({ element: exportRef.current, filename: `invoice-${nm}-${Date.now()}`, scale: 2, backgroundColor: null });
         toast.success('Invoice tersimpan (PNG).', { id: toastId });
       }
     } catch (e) {
@@ -228,8 +240,8 @@ export default function InvoicePage() {
 
       {/* Preview */}
       <div className="mt-3 flex justify-center">
-        <div style={{ width: PREVIEW_W, height: Math.round(1528 * scale), overflow: 'hidden', borderRadius: 18, boxShadow: '0 18px 50px -22px rgba(120,96,40,.5)' }}>
-          <div style={{ width: 1080, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+        <div style={{ width: PREVIEW_W, height: Math.round(docH * scale), overflow: 'hidden', borderRadius: 18, boxShadow: '0 18px 50px -22px rgba(120,96,40,.5)' }}>
+          <div ref={previewRef} style={{ width: 1080, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
             <InvoiceDocument
               inv={invoice} identity={identity} variant={variant} showStamp={showStamp} showQR={showQR}
               copied={copied}
