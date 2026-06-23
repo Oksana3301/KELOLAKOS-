@@ -292,11 +292,11 @@ function hdr(align: 'left' | 'center' | 'right' = 'left'): React.CSSProperties {
 // Meta (NO INVOICE / TANGGAL / JATUH TEMPO) — flex rows, nilai rata kanan & sejajar.
 function MetaBlock({ rows, kColor, vColor }: { rows: [string, string][]; kColor: string; vColor: string }) {
   return (
-    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 9, marginTop: 16 }}>
       {rows.map(([k, v]) => (
         <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}>
           <span style={{ fontSize: 12, letterSpacing: 1.6, color: kColor }}>{k}</span>
-          <span style={{ fontSize: 16, color: vColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 168, textAlign: 'right' }}>{v}</span>
+          <span style={{ fontSize: 16, color: vColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 170, textAlign: 'right' }}>{v}</span>
         </div>
       ))}
     </div>
