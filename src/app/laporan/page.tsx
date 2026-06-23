@@ -1,51 +1,48 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, type ReportData, type RoomStatus } from '@/lib/api';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { ScreenHead, KkButton, KkCard, StickyCTA } from '@/components/kk/ui';
+import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
-import {
-  KkPeriodFilter,
-  MoneyKpiGrid,
-  MoneyKpiDetail,
-  periodLabel,
-  resolvePeriod,
-  type PeriodValue,
-  type MoneyData,
-} from '@/components/kk/money';
+import { KkPeriodFilter, resolvePeriod, type PeriodValue } from '@/components/kk/money';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { rupiah } from '@/components/kk/status';
 import { exportGeneralLedgerExcel } from '@/lib/excel-export';
 import { kwitansiApi } from '@/lib/api-v2';
-import { mapRoomStatus } from '@/components/kk/status';
-import { BreakBar } from '@/components/kk/laporan-ui';
-import { cn } from '@/lib/utils';
+import { downloadAsPNG } from '@/lib/image-export';
+import { ReportDocument } from '@/components/report/ReportDocument';
+import { reportDataToPeriod, rp, type PeriodReport, type RLine } from '@/lib/report';
 
 const HELP = {
   title: 'Laporan',
   tips: [
-    'Pilih periode di atas (Bulan Ini, dll.) untuk melihat ringkasan keuangan pada rentang waktu tersebut.',
-    'Kartu hijau berarti Anda untung, kartu oranye berarti pengeluaran lebih besar dari pemasukan.',
-    'Tekan tombol oranye "Unduh Laporan PDF" untuk menyimpan atau mencetak laporan ini.',
+    'Pilih periode di atas untuk melihat ringkasan keuangan pada rentang waktu tersebut.',
+    'Tekan "Unduh PNG" / "Unduh PDF" untuk laporan mewah yang bisa dibagikan, atau "Excel" untuk data rinci.',
+    'Tekan "Lihat rincian" di kartu untuk melihat detail uang masuk / keluar.',
   ],
 };
 
-const MONTH_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const PREVIEW_W = 540;
 
-// Plain-language category labels for the income / expense breakdowns.
-const MASUK_LABEL: Record<string, string> = { PAYMENT: 'Pembayaran sewa' };
-const KELUAR_LABEL: Record<string, string> = {
-  FEE: 'Gaji penjaga',
-  EXPENSE: 'Belanja operasional',
-  REFUND: 'Pengembalian (refund)',
-};
+function fmtLabel(start: string, end: string): string {
+  const s = new Date(start); const e = new Date(end);
+  const same = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+  if (same) return s.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  return `${s.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
+function fmtRange(start: string, end: string): string {
+  const s = new Date(start); const e = new Date(end); const now = new Date();
+  return `Periode ${s.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })} – ${e.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} · per ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}, ${now.getHours()}.${String(now.getMinutes()).padStart(2, '0')} WIB`;
+}
 
 export default function LaporanPage() {
   const [period, setPeriod] = useState<PeriodValue>({ preset: 'this_month' });
-  const [detailKpi, setDetailKpi] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [detail, setDetail] = useState<'bersih' | 'masuk' | 'keluar' | 'sisa' | null>(null);
+  const [docH, setDocH] = useState(1700);
+
+  const exportRef = useRef<HTMLDivElement>(null);
 
   const resolved = useMemo(() => resolvePeriod(period), [period]);
 
@@ -54,49 +51,70 @@ export default function LaporanPage() {
     queryFn: () => api.getReportData(resolved!.start, resolved!.end),
     enabled: !!resolved,
   });
+  const { data: initData } = useQuery({ queryKey: ['initial-data'], queryFn: api.getInitialData });
 
-  // Room occupancy comes from the dashboard init data (room master + status).
-  const { data: initData } = useQuery({
-    queryKey: ['initial-data'],
-    queryFn: api.getInitialData,
-  });
+  const rep: PeriodReport | null = useMemo(() => {
+    if (!data || !resolved) return null;
+    return reportDataToPeriod(data, initData?.roomStatus, fmtLabel(resolved.start, resolved.end), fmtRange(resolved.start, resolved.end));
+  }, [data, resolved, initData]);
 
-  async function handleExportPDF() {
-    // Preserve the existing PDF export mechanism (browser print → Save as PDF).
-    window.print();
+  // Measure the full-size doc to size the scaled preview correctly.
+  useEffect(() => {
+    if (!exportRef.current) return;
+    const el = exportRef.current;
+    const ro = new ResizeObserver(() => setDocH(el.offsetHeight || 1700));
+    ro.observe(el);
+    setDocH(el.offsetHeight || 1700);
+    return () => ro.disconnect();
+  }, [rep]);
+
+  async function fontsReady() {
+    if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
+    await new Promise((r) => setTimeout(r, 120));
   }
 
-  async function handleExportExcel() {
+  async function handlePNG() {
+    if (!exportRef.current) return;
+    const id = toast.loading('Menyiapkan laporan…');
+    try {
+      await fontsReady();
+      await downloadAsPNG({ element: exportRef.current, filename: `laporan-${(rep?.label || 'tophills').replace(/\s+/g, '_')}-${Date.now()}`, scale: 2, backgroundColor: '#E3D9C4' });
+      toast.success('Laporan tersimpan (PNG).', { id });
+    } catch (e) { toast.error('Gagal: ' + (e as Error).message, { id }); }
+  }
+
+  async function handlePDF() {
+    if (!exportRef.current) return;
+    const id = toast.loading('Menyiapkan PDF…');
+    try {
+      await fontsReady();
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(exportRef.current, { scale: 2, backgroundColor: '#E3D9C4', useCORS: true });
+      const url = canvas.toDataURL('image/png');
+      const w = window.open('', '_blank');
+      if (!w) { toast.error('Popup diblokir — izinkan popup untuk PDF.', { id }); return; }
+      w.document.write(`<html><head><title>Laporan ${rep?.label || ''}</title><style>@page{margin:0}body{margin:0}img{width:100%;display:block}</style></head><body><img src="${url}" onload="window.focus();window.print();" /></body></html>`);
+      w.document.close();
+      toast.success('Laporan siap dicetak / simpan PDF.', { id });
+    } catch (e) { toast.error('Gagal: ' + (e as Error).message, { id }); }
+  }
+
+  async function handleExcel() {
     if (!data) return;
-    const toastId = toast.loading('⏳ Menyiapkan file Excel…');
+    const id = toast.loading('Menyiapkan Excel…');
     try {
       let businessName = 'Top Hills & Co';
-      try {
-        const settings = await kwitansiApi.get();
-        if (settings?.business_name) businessName = settings.business_name;
-      } catch (e) {
-        console.warn('Failed to fetch business name:', e);
-      }
+      try { const s = await kwitansiApi.get(); if (s?.business_name) businessName = s.business_name; } catch { /* ignore */ }
       await exportGeneralLedgerExcel({ reportData: data, businessName, saldoAwal: 0 });
-      toast.success('✓ File Excel berhasil diunduh', { id: toastId });
-    } catch (e) {
-      toast.error('Gagal membuat Excel: ' + (e as Error).message, { id: toastId });
-    }
+      toast.success('File Excel berhasil diunduh.', { id });
+    } catch (e) { toast.error('Gagal membuat Excel: ' + (e as Error).message, { id }); }
   }
+
+  const scale = PREVIEW_W / 1080;
 
   return (
     <>
-      <ScreenHead
-        title="Laporan"
-        sub="Ringkasan keuangan properti Anda."
-        onHelp={() => setHelpOpen(true)}
-      />
-
-      <StickyCTA>
-        <KkButton variant="primary" size="lg" block disabled={!data} onClick={handleExportPDF}>
-          <KkIcon name="unduh" size={22} strokeWidth={2.2} /> Unduh Laporan PDF
-        </KkButton>
-      </StickyCTA>
+      <ScreenHead title="Laporan" sub="Ringkasan keuangan properti Anda." onHelp={() => setHelpOpen(true)} />
 
       <KkPeriodFilter value={period} onChange={setPeriod} />
 
@@ -105,268 +123,111 @@ export default function LaporanPage() {
           <div className="w-12 h-12 rounded-full border-4 border-kk-mauve border-t-kk-orange animate-spin mx-auto mb-4" />
           <div className="text-body text-kk-ink">Memuat laporan…</div>
         </div>
-      ) : isError || !data ? (
+      ) : isError || !rep ? (
         <KkCard className="text-center py-12">
-          <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
-            <KkIcon name="info" size={30} />
-          </div>
+          <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4"><KkIcon name="info" size={30} /></div>
           <h2 className="font-heading font-bold text-subhead mb-2">Gagal memuat laporan</h2>
           <p className="text-body text-kk-ink mb-5">{(error as Error)?.message || 'Terjadi kesalahan'}</p>
-          <KkButton variant="primary" onClick={() => refetch()}>
-            Coba Lagi
-          </KkButton>
+          <KkButton variant="primary" onClick={() => refetch()}>Coba Lagi</KkButton>
         </KkCard>
       ) : (
-        <ReportBody
-          data={data}
-          rooms={initData?.roomStatus}
-          label={periodLabel(period)}
-          detailKpi={detailKpi}
-          setDetailKpi={setDetailKpi}
-          onExportExcel={handleExportExcel}
-        />
+        <>
+          {/* Aksi unduh */}
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <KkButton variant="primary" block onClick={handlePNG}><KkIcon name="unduh" size={20} strokeWidth={2.2} /> PNG</KkButton>
+            <KkButton variant="secondary" block onClick={handlePDF}><KkIcon name="unduh" size={20} strokeWidth={2.2} /> PDF</KkButton>
+            <KkButton variant="secondary" block onClick={handleExcel}><KkIcon name="unduh" size={20} strokeWidth={2.2} /> Excel</KkButton>
+          </div>
+
+          {/* Preview mewah (skala) */}
+          <div className="mt-5 flex justify-center">
+            <div style={{ width: PREVIEW_W, height: Math.round(docH * scale), overflow: 'hidden', borderRadius: 16, boxShadow: '0 18px 50px -22px rgba(120,96,40,.5)' }}>
+              <div style={{ width: 1080, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                <ReportDocument rep={rep} onShow={(k) => setDetail(k)} />
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
-      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
+      {/* Node export tersembunyi (ukuran penuh, tanpa tombol rincian) */}
+      {rep && (
+        <div style={{ position: 'fixed', left: -100000, top: 0, pointerEvents: 'none' }} aria-hidden>
+          <div ref={exportRef}>
+            <ReportDocument rep={rep} forExport />
+          </div>
+        </div>
+      )}
 
-      <style jsx global>{`
-        @media print {
-          body {
-            background: white !important;
-          }
-        }
-      `}</style>
+      {detail && rep && <DetailModal kind={detail} rep={rep} onClose={() => setDetail(null)} />}
+      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
     </>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-3 mt-8">{children}</h2>;
-}
-
-function ReportBody({
-  data,
-  rooms,
-  label,
-  detailKpi,
-  setDetailKpi,
-  onExportExcel,
-}: {
-  data: ReportData;
-  rooms: RoomStatus[] | undefined;
-  label: string;
-  detailKpi: string | null;
-  setDetailKpi: (id: string | null) => void;
-  onExportExcel: () => void;
-}) {
-  const masuk = data.summary.totalIn;
-  const keluar = data.summary.totalOut;
-  const net = masuk - keluar;
-  const untung = net >= 0;
-
-  const money: MoneyData = { masuk, keluar, sisa: data.summary.netCash, label };
-
-  // ── Category breakdowns, derived from real transactions ──
-  const { masukRinci, keluarRinci, maxMasuk, maxKeluar } = useMemo(() => {
-    const inAgg = new Map<string, number>();
-    const outAgg = new Map<string, number>();
-    for (const t of data.transactions) {
-      if (t.direction === 'IN') {
-        const l = MASUK_LABEL[t.type] || t.title || 'Pemasukan lain';
-        inAgg.set(l, (inAgg.get(l) || 0) + t.nominal);
-      } else {
-        const l = KELUAR_LABEL[t.type] || t.title || 'Pengeluaran lain';
-        outAgg.set(l, (outAgg.get(l) || 0) + t.nominal);
-      }
-    }
-    const toRows = (m: Map<string, number>) =>
-      [...m.entries()].map(([l, v]) => ({ l, v })).filter((r) => r.v > 0).sort((a, b) => b.v - a.v);
-    const masukRinci = toRows(inAgg);
-    const keluarRinci = toRows(outAgg);
-    return {
-      masukRinci,
-      keluarRinci,
-      maxMasuk: Math.max(...masukRinci.map((x) => x.v), 1),
-      maxKeluar: Math.max(...keluarRinci.map((x) => x.v), 1),
-    };
-  }, [data.transactions]);
-
-  const breakdown = {
-    masuk: masukRinci,
-    keluar: keluarRinci,
-  };
-
-  // ── Trend: adaptive buckets built from the SELECTED period's daily chart ──
-  // ≤ ~31 days → daily (merged to ≤ MAX_BARS), > ~31 days → calendar months.
-  const trend = useMemo(() => {
-    const MAX_BARS = 12;
-
-    // Normalize + sort the daily series.
-    const days = data.chart
-      .map((c) => ({ d: new Date(c.date), masuk: c.in, keluar: c.out }))
-      .filter((c) => !isNaN(c.d.getTime()))
-      .sort((a, b) => a.d.getTime() - b.d.getTime());
-
-    if (days.length === 0) return [];
-
-    const spanDays =
-      (days[days.length - 1].d.getTime() - days[0].d.getTime()) / 86_400_000 + 1;
-
-    if (spanDays > 31) {
-      // Group by calendar month.
-      const byMonth = new Map<string, { masuk: number; keluar: number; key: string; bln: string }>();
-      for (const c of days) {
-        const key = `${c.d.getFullYear()}-${c.d.getMonth()}`;
-        const cur = byMonth.get(key) || { masuk: 0, keluar: 0, key, bln: MONTH_ID[c.d.getMonth()] };
-        cur.masuk += c.masuk;
-        cur.keluar += c.keluar;
-        byMonth.set(key, cur);
-      }
-      const months = [...byMonth.values()];
-      // Keep the most recent buckets if somehow > MAX_BARS (e.g. very long ranges).
-      return months.slice(-MAX_BARS);
-    }
-
-    // Daily: merge consecutive days into ≤ MAX_BARS groups so phones don't overflow.
-    const group = Math.max(1, Math.ceil(days.length / MAX_BARS));
-    const bars: { masuk: number; keluar: number; key: string; bln: string }[] = [];
-    for (let i = 0; i < days.length; i += group) {
-      const slice = days.slice(i, i + group);
-      const first = slice[0].d;
-      bars.push({
-        key: `${first.getFullYear()}-${first.getMonth()}-${first.getDate()}`,
-        // Label the start of each bucket, e.g. "5 Jun".
-        bln: `${first.getDate()} ${MONTH_ID[first.getMonth()]}`,
-        masuk: slice.reduce((s, c) => s + c.masuk, 0),
-        keluar: slice.reduce((s, c) => s + c.keluar, 0),
-      });
-    }
-    return bars;
-  }, [data.chart]);
-  const maxTrend = Math.max(...trend.flatMap((d) => [d.masuk, d.keluar]), 1);
-
-  // ── Hunian Kamar (occupancy) from room master/status ──
-  const roomList = rooms || [];
-  const totalKamar = roomList.length;
-  const terisi = roomList.filter((r) => mapRoomStatus(r) === 'Terisi').length;
-  const huniPct = totalKamar > 0 ? Math.round((terisi / totalKamar) * 100) : 0;
-
+function DetailModal({ kind, rep, onClose }: { kind: 'bersih' | 'masuk' | 'keluar' | 'sisa'; rep: PeriodReport; onClose: () => void }) {
+  const net = rep.cashIn - rep.cashOut;
+  const sisa = rep.openingBalance + rep.cashIn - rep.cashOut;
+  let title = ''; let rows: { primary: string; secondary: string; amount: string }[] = []; let totalLabel = ''; let totalText = ''; let empty = false; let note = '';
+  if (kind === 'masuk') {
+    title = 'Rincian Uang Masuk';
+    rows = rep.income.map((r: RLine) => ({ primary: r.label, secondary: r.sub, amount: rp(r.amount) }));
+    totalLabel = 'Total uang masuk'; totalText = rp(rep.cashIn);
+    if (!rows.length) { empty = true; note = 'Belum ada pemasukan pada periode ini.'; }
+  } else if (kind === 'keluar') {
+    title = 'Rincian Uang Keluar';
+    if (!rep.expense.length) { empty = true; note = 'Belum ada pengeluaran pada periode ini.'; }
+    else { rows = rep.expense.map((r) => ({ primary: r.label, secondary: r.sub, amount: rp(r.amount) })); totalLabel = 'Total uang keluar'; totalText = rp(rep.cashOut); }
+  } else if (kind === 'bersih') {
+    title = 'Rincian Pendapatan Bersih';
+    rows = [
+      { primary: 'Total uang masuk', secondary: 'semua pemasukan', amount: rp(rep.cashIn) },
+      { primary: 'Total uang keluar', secondary: 'semua pengeluaran', amount: rep.cashOut ? '− ' + rp(rep.cashOut) : rp(0) },
+    ];
+    totalLabel = 'Untung bersih'; totalText = rp(net);
+  } else {
+    title = 'Rincian Sisa Uang';
+    rows = [
+      { primary: 'Saldo awal periode', secondary: 'kas tersedia', amount: rp(rep.openingBalance) },
+      { primary: 'Uang masuk', secondary: 'pemasukan periode', amount: rp(rep.cashIn) },
+      { primary: 'Uang keluar', secondary: 'pengeluaran periode', amount: rep.cashOut ? '− ' + rp(rep.cashOut) : rp(0) },
+    ];
+    totalLabel = 'Sisa uang sekarang'; totalText = rp(sisa);
+  }
   return (
-    <div>
-      {/* Insight bahasa sederhana */}
-      <div
-        className={cn(
-          'rounded-kk-card p-[22px] mb-[18px] text-white',
-          untung ? 'bg-kk-green' : 'bg-kk-orange',
-        )}
-      >
-        <div className="text-body font-semibold mb-1 text-white/90">
-          {label} · {untung ? 'Untung Bersih' : 'Rugi Bersih'}
+    <div onClick={onClose} className="fixed inset-0 z-[70] flex items-center justify-center p-6" style={{ background: 'rgba(44,38,32,.46)', backdropFilter: 'blur(3px)' }}>
+      <div onClick={(e) => e.stopPropagation()} className="w-[560px] max-w-full rounded-[22px] p-7" style={{ background: 'linear-gradient(160deg,#FBF7EE,#F2EBDC)', border: '1px solid rgba(156,122,46,.34)', boxShadow: '0 44px 100px -30px rgba(60,45,20,.55)' }}>
+        <div className="flex justify-between items-start gap-4">
+          <div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif" }} className="font-bold text-[26px] text-[#2C2620] leading-none">{title}</div>
+            <div className="text-[12.5px] text-[#8A8170] mt-1.5">{rep.label}</div>
+          </div>
+          <button onClick={onClose} className="w-[34px] h-[34px] flex-none rounded-full text-[19px]" style={{ border: '1px solid rgba(156,122,46,.35)', background: 'rgba(156,122,46,.07)', color: '#9C7A2E' }}>×</button>
         </div>
-        <div className="font-heading font-black text-[34px] leading-[1.05] tracking-tight tabular-nums">
-          {rupiah(Math.abs(net))}
-        </div>
-        <p className="mt-3 mb-0 text-body leading-relaxed text-white">
-          Anda menerima <b>{rupiah(masuk)}</b> dan mengeluarkan <b>{rupiah(keluar)}</b>
-          {untung ? ', jadi ada keuntungan bersih.' : ', sehingga pengeluaran lebih besar.'}
-        </p>
-      </div>
-
-      {/* 4 angka */}
-      <MoneyKpiGrid data={money} onDetail={setDetailKpi} />
-
-      {/* Tren */}
-      <SectionTitle>Tren {label}</SectionTitle>
-      <KkCard>
-        <div className="flex gap-5 mb-5">
-          <span className="inline-flex items-center gap-2 text-body font-semibold text-kk-navy">
-            <span className="w-3.5 h-3.5 rounded bg-kk-green" /> Masuk
-          </span>
-          <span className="inline-flex items-center gap-2 text-body font-semibold text-kk-navy">
-            <span className="w-3.5 h-3.5 rounded bg-kk-orange" /> Keluar
-          </span>
-        </div>
-        {trend.length === 0 ? (
-          <p className="text-body text-kk-ink m-0">Belum ada data pada periode ini.</p>
+        <div className="h-px my-4" style={{ background: 'linear-gradient(90deg, rgba(156,122,46,.1), rgba(156,122,46,.34), rgba(156,122,46,.1))' }} />
+        {empty ? (
+          <div className="text-center py-8">
+            <div className="w-[50px] h-[50px] mx-auto rounded-full grid place-items-center" style={{ border: '1.5px dashed rgba(156,122,46,.4)' }}><span className="w-[18px] h-0.5 inline-block" style={{ background: 'rgba(156,122,46,.5)' }} /></div>
+            <div className="text-[14px] text-[#5A5446] mt-3.5 font-semibold">{note}</div>
+          </div>
         ) : (
-          <div className="flex items-end justify-between gap-2.5 h-[190px]">
-            {trend.map((d) => (
-              <div key={d.key} className="flex-1 flex flex-col items-center gap-2">
-                <div className="flex gap-[5px] items-end h-[150px]">
-                  <div
-                    className="w-[18px] bg-kk-green rounded-t-[5px]"
-                    style={{ height: `${Math.max(d.masuk > 0 ? 3 : 0, (d.masuk / maxTrend) * 150)}px` }}
-                  />
-                  <div
-                    className="w-[18px] bg-kk-orange rounded-t-[5px]"
-                    style={{ height: `${Math.max(d.keluar > 0 ? 3 : 0, (d.keluar / maxTrend) * 150)}px` }}
-                  />
+          <>
+            {rows.map((r, i) => (
+              <div key={i} className="flex justify-between items-center py-3.5" style={{ borderBottom: '1px solid rgba(60,52,40,.10)' }}>
+                <div>
+                  <div className="text-[15px] text-[#2C2620] font-semibold">{r.primary}</div>
+                  <div className="text-[12.5px] text-[#8A8170] mt-0.5">{r.secondary}</div>
                 </div>
-                <span className="text-body font-semibold text-kk-ink">{d.bln}</span>
+                <div className="text-[15px] text-[#2C2620] font-bold tabular-nums">{r.amount}</div>
               </div>
             ))}
-          </div>
+            <div className="flex justify-between items-baseline pt-4">
+              <span className="text-[11px] tracking-[2px] text-[#9C7A2E] font-bold">{totalLabel}</span>
+              <span style={{ fontFamily: "'Cormorant Garamond',serif" }} className="font-bold text-[32px] text-[#2C2620] tabular-nums">{totalText}</span>
+            </div>
+          </>
         )}
-      </KkCard>
-
-      {/* Dari mana uang masuk */}
-      <SectionTitle>Dari Mana Uang Masuk</SectionTitle>
-      <KkCard className="pb-2">
-        {masukRinci.length === 0 ? (
-          <p className="text-body text-kk-ink m-0 pb-2">Belum ada pemasukan pada periode ini.</p>
-        ) : (
-          masukRinci.map((x, i) => (
-            <BreakBar key={i} label={x.l} val={x.v} max={maxMasuk} color="green" />
-          ))
-        )}
-      </KkCard>
-
-      {/* Ke mana uang keluar */}
-      <SectionTitle>Ke Mana Uang Keluar</SectionTitle>
-      <KkCard className="pb-2">
-        {keluarRinci.length === 0 ? (
-          <p className="text-body text-kk-ink m-0 pb-2">Belum ada pengeluaran pada periode ini.</p>
-        ) : (
-          keluarRinci.map((x, i) => (
-            <BreakBar key={i} label={x.l} val={x.v} max={maxKeluar} color="orange" />
-          ))
-        )}
-      </KkCard>
-
-      {/* Hunian kamar */}
-      <SectionTitle>Hunian Kamar</SectionTitle>
-      <KkCard>
-        <div className="flex justify-between items-baseline mb-3">
-          <span className="text-body font-semibold text-kk-ink">Kamar terisi</span>
-          <span className="font-heading font-black text-[22px] tabular-nums">
-            {terisi} dari {totalKamar}
-          </span>
-        </div>
-        <div className="h-[18px] rounded-kk-pill bg-kk-mauve-soft overflow-hidden">
-          <div className="h-full bg-kk-navy rounded-kk-pill" style={{ width: `${huniPct}%` }} />
-        </div>
-        <div className="text-body text-kk-ink mt-2.5">
-          {totalKamar > 0
-            ? `${huniPct}% kamar Anda sedang disewa.`
-            : 'Belum ada data kamar.'}
-        </div>
-      </KkCard>
-
-      {/* Unduh Excel (Buku Besar) — sekunder */}
-      <div className="mt-7">
-        <KkButton variant="secondary" block onClick={onExportExcel}>
-          <KkIcon name="unduh" size={22} strokeWidth={2.2} /> Unduh Excel (Buku Besar)
-        </KkButton>
       </div>
-
-      {detailKpi && (
-        <MoneyKpiDetail
-          id={detailKpi}
-          data={money}
-          breakdown={breakdown}
-          onClose={() => setDetailKpi(null)}
-        />
-      )}
     </div>
   );
 }
