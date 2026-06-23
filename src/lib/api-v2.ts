@@ -67,6 +67,15 @@ export interface KwitansiSettings {
   sig_title: string;
   alamat: string;
   kontak: string;
+  // ── Invoice (Top Hills) — pembayaran & identitas, editable di Pengaturan ──
+  inv_bank_name?: string;
+  inv_account_no?: string;
+  inv_account_name?: string;
+  inv_wa_resmi?: string;
+  inv_owner_name?: string;
+  inv_owner_title?: string;
+  inv_variant?: 'krem' | 'pita';
+  inv_qris_base64?: string;
 }
 
 export interface BookingExtraPayload {
