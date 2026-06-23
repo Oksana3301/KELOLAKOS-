@@ -12,7 +12,7 @@ import { mapPayStatus } from '@/components/kk/status';
 import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 import { InvoiceDocument } from '@/components/invoice/InvoiceDocument';
 import {
-  bookingToInvoice, digitsOnly, deriveInvoice, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
+  bookingToInvoice, digitsOnly, deriveInvoice, rp, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
   type Invoice, type InvoiceIdentity, type Layanan,
 } from '@/lib/invoice';
 
@@ -152,6 +152,32 @@ export default function InvoicePage() {
     toast.success('Tersalin: ' + text);
   }
 
+  // Teks rincian yang BISA di-copy penyewa di WhatsApp (gambar PNG tidak bisa).
+  function buildWaText(): string {
+    return [
+      `Halo ${invoice.customer.name}, berikut rincian pembayaran Top Hills:`,
+      ``,
+      `No. Invoice: ${invoice.id}`,
+      `Kamar: ${invoice.booking.room}`,
+      fullyPaid ? `Total (LUNAS): ${rp(subtotal)}` : `Sisa Tagihan: ${rp(payNominal)}`,
+      ``,
+      `Pembayaran — Transfer:`,
+      `Bank: ${identity.bankName}`,
+      `No. Rekening: ${digitsOnly(identity.accountNo)}`,
+      `Atas Nama: ${identity.accountName}`,
+      ``,
+      `Mohon transfer & kirim bukti ke WhatsApp ${identity.waResmi}. Terima kasih 🌸`,
+    ].join('\n');
+  }
+
+  function sendWaText() {
+    const raw = digitsOnly(invoice.customer.phone || '');
+    const norm = raw.startsWith('0') ? '62' + raw.slice(1) : raw;
+    const text = encodeURIComponent(buildWaText());
+    const url = norm ? `https://wa.me/${norm}?text=${text}` : `https://wa.me/?text=${text}`;
+    window.open(url, '_blank');
+  }
+
   async function exportPNG(share: boolean) {
     if (!exportRef.current) return;
     const toastId = toast.loading('Menyiapkan invoice…');
@@ -268,12 +294,20 @@ export default function InvoicePage() {
       {/* Aksi */}
       <div className="mt-3 grid sm:grid-cols-2 gap-3">
         <KkButton variant="primary" size="lg" block onClick={() => exportPNG(true)}>
-          <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim lewat WhatsApp
+          <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Gambar (PNG)
         </KkButton>
         <KkButton variant="secondary" block onClick={() => exportPNG(false)}>
           <KkIcon name="unduh" size={22} strokeWidth={2.2} /> Unduh PNG
         </KkButton>
       </div>
+
+      {/* Kirim teks rincian — rekening & total BISA di-copy penyewa (gambar tidak) */}
+      <KkButton variant="primary" size="lg" block className="mt-3" onClick={sendWaText}>
+        <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Rincian (teks) ke WhatsApp
+      </KkButton>
+      <p className="mt-2 text-caption text-kk-ink text-center">
+        Teks rekening &amp; total bisa disalin penyewa di WhatsApp. Gambar PNG hanya untuk dilihat.
+      </p>
 
       {/* Pengaturan Invoice (bank & identitas) */}
       <div className="mt-6">
