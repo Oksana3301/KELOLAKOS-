@@ -85,6 +85,14 @@ const PENGINAPAN_FAS = [
   '🔒 Security & CCTV',
 ];
 
+// Ukuran kamar penginapan per tipe (info fisik tetap, by nama).
+const PENGINAPAN_UKURAN: Record<string, string[]> = {
+  executive: ['Lebar 4,6 m × Panjang 6,7 m', 'Sudah termasuk kamar mandi dalam'],
+  deluxe: ['Lebar 3 m × Panjang 5 m', 'Sudah termasuk kamar mandi dalam'],
+  superior: ['Lebar 3 m × Panjang 6,7 m', 'Sudah termasuk kamar mandi dalam'],
+};
+const KOST_UKURAN = ['Panjang 4 m × Lebar 3 m'];
+
 const FAQ = [
   { q: 'Lokasinya di mana? Dekat UNAND tidak?', a: 'Di Limau Manis, Pauh, Padang — sangat dekat UNAND, ada akses jalan langsung ke gerbang kampus.' },
   { q: 'Harga kost berapa setahun?', a: 'Lantai 1–3: Rp15jt (non-AC) / Rp19jt (AC). Lantai 4: Rp14jt (non-AC) / Rp18jt (AC). Tersedia juga paket 6 bulan. Detail lengkap silakan tanya via WhatsApp.' },
@@ -230,6 +238,30 @@ function FasChips({ items }: { items: string[] }) {
           {t}
         </span>
       ))}
+    </div>
+  );
+}
+
+// Blok "Informasi": ukuran kamar (disorot) + daftar fasilitas. Dipakai di Kost & Penginapan.
+function RoomInfo({ ukuran, fasItems, fasLabel = 'Fasilitas' }: { ukuran: string[]; fasItems: string[]; fasLabel?: string }) {
+  return (
+    <div className="mt-5">
+      <div className="text-[15px] font-bold mb-2.5 flex items-center gap-1.5" style={{ fontFamily: serif, color: C.brown }}>
+        ℹ️ Informasi
+      </div>
+      {ukuran.length > 0 && (
+        <div className="rounded-[12px] px-4 py-3 mb-3 flex items-start gap-2.5" style={{ background: '#FBF3E0', border: `1px solid ${C.gold}` }}>
+          <span className="text-[17px] leading-none mt-0.5">📐</span>
+          <div>
+            <div className="text-[12px] font-semibold mb-0.5" style={{ color: C.brownSoft }}>Ukuran kamar</div>
+            {ukuran.map((u) => (
+              <div key={u} className="text-[14px] font-semibold leading-snug" style={{ color: C.brown }}>{u}</div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="text-[13px] font-semibold mb-1" style={{ color: C.brown }}>{fasLabel}</div>
+      <FasChips items={fasItems} />
     </div>
   );
 }
@@ -488,10 +520,7 @@ export default function InfoPage() {
             <p className="text-[13px] mt-4 italic" style={{ fontFamily: elegant, color: C.brownSoft }}>
               *Estimasi per bulan dari paket tahunan. Harga pasti (AC/non-AC, lantai, 2 orang) dijelaskan admin via WhatsApp.
             </p>
-            <div className="text-[13px] font-semibold mt-5 mb-1" style={{ color: C.brown }}>
-              Fasilitas Kost
-            </div>
-            <FasChips items={KOST_FAS} />
+            <RoomInfo ukuran={KOST_UKURAN} fasItems={KOST_FAS} fasLabel="Fasilitas Kost" />
             <div className="grid grid-cols-2 gap-3 mt-5">
               {(info.fotoKost.length > 0 ? info.fotoKost : ['Kamar kost', 'Koridor gedung']).map((g, i) => (
                 <Img key={i} src={info.fotoKost.length > 0 ? g : undefined} label={info.fotoKost.length === 0 ? g : 'Foto kost'} />
@@ -537,8 +566,8 @@ export default function InfoPage() {
                     </div>
                   )}
 
-                  {/* Fasilitas kamar ini */}
-                  <FasChips items={PENGINAPAN_FAS} />
+                  {/* Informasi: ukuran + fasilitas kamar ini */}
+                  <RoomInfo ukuran={PENGINAPAN_UKURAN[p.nama.trim().toLowerCase()] ?? []} fasItems={PENGINAPAN_FAS} />
 
                   <div className="grid grid-cols-3 gap-2 mt-4 text-center">
                     {[
