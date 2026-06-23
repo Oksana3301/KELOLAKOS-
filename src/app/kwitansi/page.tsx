@@ -127,7 +127,8 @@ export default function InvoicePage() {
     return bookingToInvoice(selectedBooking, detail?.payments);
   }, [mode, manualInv, selectedBooking, detail]);
 
-  const { balance } = deriveInvoice(invoice);
+  const { subtotal, balance, fullyPaid } = deriveInvoice(invoice);
+  const payNominal = fullyPaid ? subtotal : balance;
   const layanan: Layanan = invoice.layanan || 'penginapan';
   const identity = resolveIdentity(settings, layanan);
 
@@ -252,8 +253,20 @@ export default function InvoicePage() {
         </div>
       </div>
 
+      {/* Salin cepat (tetap bisa walau di PNG tombolnya disembunyikan) */}
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <KkButton variant="secondary" block onClick={() => flashCopied('rek', digitsOnly(identity.accountNo))}>
+          <KkIcon name="cek" size={20} strokeWidth={2.2} />
+          {copied === 'rek' ? 'Tersalin ✓' : 'Salin No. Rekening'}
+        </KkButton>
+        <KkButton variant="secondary" block onClick={() => flashCopied('total', String(payNominal))}>
+          <KkIcon name="cek" size={20} strokeWidth={2.2} />
+          {copied === 'total' ? 'Tersalin ✓' : fullyPaid ? 'Salin Total' : 'Salin Sisa Tagihan'}
+        </KkButton>
+      </div>
+
       {/* Aksi */}
-      <div className="mt-5 grid sm:grid-cols-2 gap-3">
+      <div className="mt-3 grid sm:grid-cols-2 gap-3">
         <KkButton variant="primary" size="lg" block onClick={() => exportPNG(true)}>
           <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim lewat WhatsApp
         </KkButton>
