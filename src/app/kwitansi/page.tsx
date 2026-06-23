@@ -97,6 +97,13 @@ export default function InvoicePage() {
     if (settings?.inv_variant === 'krem' || settings?.inv_variant === 'pita') setVariant(settings.inv_variant);
   }, [settings?.inv_variant]);
 
+  // Deep-link dari flow booking: /kwitansi?booking=<id> → langsung tampilkan invoicenya.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const bk = new URLSearchParams(window.location.search).get('booking');
+    if (bk) { setMode('booking'); setSelectedId(bk); }
+  }, []);
+
   // Booking untuk dipilih — termasuk yang Belum Bayar / DP / Lunas (bukan yang batal).
   const tenants: BookingItem[] = useMemo(() => {
     const set = new Map<string, BookingItem>();
@@ -123,8 +130,10 @@ export default function InvoicePage() {
 
   const invoice: Invoice = useMemo(() => {
     if (mode === 'manual') return manualInv;
-    if (!selectedBooking) return SEED_SCENARIOS['penginapan-harian'];
-    return bookingToInvoice(selectedBooking, detail?.payments);
+    // Pakai booking dari daftar; kalau deep-link (belum ada di daftar) pakai detailnya.
+    const bk = selectedBooking || (detail?.booking as unknown as BookingItem | undefined);
+    if (!bk) return SEED_SCENARIOS['penginapan-harian'];
+    return bookingToInvoice(bk, detail?.payments);
   }, [mode, manualInv, selectedBooking, detail]);
 
   const { subtotal, balance, fullyPaid } = deriveInvoice(invoice);
@@ -176,6 +185,28 @@ export default function InvoicePage() {
     const text = encodeURIComponent(buildWaText());
     const url = norm ? `https://wa.me/${norm}?text=${text}` : `https://wa.me/?text=${text}`;
     window.open(url, '_blank');
+  }
+
+  // Kirim sekalian: salin gambar invoice ke clipboard + buka WhatsApp berisi teks
+  // rincian (rekening & total). Penyewa tinggal tempel gambar di chat.
+  async function sendBoth() {
+    const toastId = toast.loading('Menyiapkan invoice…');
+    let imgCopied = false;
+    try {
+      if (exportRef.current) {
+        if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
+        await new Promise((r) => setTimeout(r, 120));
+        const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: null });
+        imgCopied = res.method === 'clipboard';
+      }
+    } catch { /* abaikan — tetap lanjut buka WhatsApp */ }
+    sendWaText();
+    toast.success(
+      imgCopied
+        ? 'WhatsApp terbuka (teks terisi). Tempel (paste) gambar invoice di chat 🌸'
+        : 'WhatsApp terbuka (teks terisi). Untuk gambar, pakai tombol “Unduh PNG” lalu lampirkan.',
+      { id: toastId },
+    );
   }
 
   async function exportPNG(share: boolean) {
@@ -279,35 +310,24 @@ export default function InvoicePage() {
         </div>
       </div>
 
-      {/* Salin cepat (tetap bisa walau di PNG tombolnya disembunyikan) */}
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      {/* Aksi utama — kirim teks (rekening & total) + gambar sekalian */}
+      <KkButton variant="primary" size="lg" block className="mt-5" onClick={sendBoth}>
+        <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim ke WhatsApp (teks + gambar)
+      </KkButton>
+      <p className="mt-2 text-caption text-kk-ink text-center">
+        WhatsApp terbuka berisi teks rekening &amp; total (bisa disalin penyewa). Gambar invoice ikut tersalin — tinggal tempel di chat.
+      </p>
+
+      {/* Aksi tambahan */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <KkButton variant="secondary" block onClick={() => exportPNG(false)}>
+          <KkIcon name="unduh" size={20} strokeWidth={2.2} /> Unduh PNG
+        </KkButton>
         <KkButton variant="secondary" block onClick={() => flashCopied('rek', digitsOnly(identity.accountNo))}>
           <KkIcon name="cek" size={20} strokeWidth={2.2} />
           {copied === 'rek' ? 'Tersalin ✓' : 'Salin No. Rekening'}
         </KkButton>
-        <KkButton variant="secondary" block onClick={() => flashCopied('total', String(payNominal))}>
-          <KkIcon name="cek" size={20} strokeWidth={2.2} />
-          {copied === 'total' ? 'Tersalin ✓' : fullyPaid ? 'Salin Total' : 'Salin Sisa Tagihan'}
-        </KkButton>
       </div>
-
-      {/* Aksi */}
-      <div className="mt-3 grid sm:grid-cols-2 gap-3">
-        <KkButton variant="primary" size="lg" block onClick={() => exportPNG(true)}>
-          <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Gambar (PNG)
-        </KkButton>
-        <KkButton variant="secondary" block onClick={() => exportPNG(false)}>
-          <KkIcon name="unduh" size={22} strokeWidth={2.2} /> Unduh PNG
-        </KkButton>
-      </div>
-
-      {/* Kirim teks rincian — rekening & total BISA di-copy penyewa (gambar tidak) */}
-      <KkButton variant="primary" size="lg" block className="mt-3" onClick={sendWaText}>
-        <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Rincian (teks) ke WhatsApp
-      </KkButton>
-      <p className="mt-2 text-caption text-kk-ink text-center">
-        Teks rekening &amp; total bisa disalin penyewa di WhatsApp. Gambar PNG hanya untuk dilihat.
-      </p>
 
       {/* Pengaturan Invoice (bank & identitas) */}
       <div className="mt-6">
