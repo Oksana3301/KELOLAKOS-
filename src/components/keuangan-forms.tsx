@@ -532,12 +532,11 @@ export function FeeForm({ bookings }: { bookings: BookingItem[] }) {
 // =====================================================
 
 const KATEGORI_BELANJA = [
-  { value: 'Konsumsi', label: '🍽️ Konsumsi / F&B' },
-  { value: 'Cleaning Supplies', label: '🧴 Cleaning Supplies' },
-  { value: 'Listrik', label: '💡 Listrik' },
-  { value: 'Air', label: '💧 Air' },
-  { value: 'Internet', label: '📶 Internet' },
   { value: 'Maintenance', label: '🔧 Maintenance / Perbaikan' },
+  { value: 'Listrik & Air', label: '💡 Listrik & Air' },
+  { value: 'Kebersihan & Laundry', label: '🧺 Kebersihan & Laundry' },
+  { value: 'Gaji / Penjaga', label: '👷 Gaji / Penjaga' },
+  { value: 'Pajak / Retribusi', label: '🧾 Pajak / Retribusi' },
   { value: 'Lain-lain', label: '📦 Lain-lain' },
 ];
 
@@ -546,7 +545,7 @@ const UNIT_OPTIONS = ['Umum', 'Gedung A', 'Gedung B', 'Gedung C'];
 export function ExpenseForm() {
   const queryClient = useQueryClient();
   const [unit, setUnit] = useState('Umum');
-  const [kategori, setKategori] = useState('Konsumsi');
+  const [kategori, setKategori] = useState('Maintenance');
   const [item, setItem] = useState('');
   const [nominal, setNominal] = useState(0);
   const [metode, setMetode] = useState('CASH');
