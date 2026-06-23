@@ -90,8 +90,8 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
         </div>
       </div>
 
-      {/* KPI GRID */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, marginTop: 22 }}>
+      {/* KPI GRID — flex (html2canvas aman) */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 22, marginTop: 22 }}>
         <Kpi label="PENDAPATAN BERSIH" sub="Untung Anda — uang masuk dikurangi uang keluar" value={rp(net)} onClick={showDetailLinks && !forExport ? () => onShow?.('bersih') : undefined} />
         <Kpi label="UANG MASUK" sub="Semua uang yang Anda terima" value={rp(rep.cashIn)} onClick={showDetailLinks && !forExport ? () => onShow?.('masuk') : undefined} />
         <Kpi label="UANG KELUAR" sub="Semua uang yang Anda keluarkan" value={rp(rep.cashOut)} muted={keluarZero} dotMuted={keluarZero} onClick={showDetailLinks && !forExport ? () => onShow?.('keluar') : undefined} />
@@ -132,9 +132,9 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
         </div>
       )}
 
-      {/* BREAKDOWN */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, marginTop: 22, alignItems: 'start' }}>
-        <div style={{ ...GLASS, padding: '26px 28px' }}>
+      {/* BREAKDOWN — flex */}
+      <div style={{ display: 'flex', gap: 22, marginTop: 22, alignItems: 'flex-start' }}>
+        <div style={{ ...GLASS, padding: '26px 28px', width: 483 }}>
           <div style={lbl('')}>DARI MANA UANG MASUK</div>
           {rep.income.length === 0 ? (
             <div style={{ color: '#8A8170', fontSize: 13.5, marginTop: 16 }}>Belum ada pemasukan pada periode ini.</div>
@@ -142,7 +142,7 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
             <BreakRow key={i} label={r.label} amount={rp(r.amount)} pct={rep.cashIn ? Math.round((r.amount / rep.cashIn) * 100) : 0} sub={r.sub} gold />
           ))}
         </div>
-        <div style={{ ...GLASS, padding: '26px 28px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...GLASS, padding: '26px 28px', width: 483, display: 'flex', flexDirection: 'column' }}>
           <div style={lbl('')}>KE MANA UANG KELUAR</div>
           {rep.expense.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '34px 0 14px' }}>
@@ -191,7 +191,7 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
 
 function Kpi({ label, sub, value, muted, dotMuted, onClick }: { label: string; sub: string; value: string; muted?: boolean; dotMuted?: boolean; onClick?: () => void }) {
   return (
-    <div style={{ ...GLASS, padding: '26px 28px', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ ...GLASS, padding: '26px 28px', width: 483, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotMuted ? '#B0966A' : '#9C7A2E', display: 'inline-block' }} />
         <span style={{ fontSize: 11, letterSpacing: 2, color: dotMuted ? '#9A8A6A' : '#9C7A2E', fontWeight: 700 }}>{label}</span>

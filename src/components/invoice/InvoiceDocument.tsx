@@ -1,8 +1,9 @@
 'use client';
 
-// Top Hills — Invoice A4-portrait. Warna & layout SAMA seperti aslinya — hanya
-// ukuran tulisan diperbesar (keterbacaan lansia 60+). Dua variant: 'krem' & 'pita'.
-// forExport: tanpa background halaman — hanya kartu invoice (full warna invoice).
+// Top Hills — Invoice A4-portrait. Layout pakai FLEXBOX (bukan grid) supaya
+// html2canvas merender rapi di semua perangkat (grid sering berantakan saat
+// copy-as-png). Warna sesuai aset; tulisan sedikit diperbesar & seimbang.
+// forExport: tanpa background halaman — full warna invoice (kartu solid).
 
 import { deriveInvoice, rp, type Invoice, type InvoiceIdentity } from '@/lib/invoice';
 
@@ -22,7 +23,7 @@ interface Props {
   variant?: 'krem' | 'pita';
   showStamp?: boolean;
   showQR?: boolean;
-  forExport?: boolean; // sembunyikan tombol salin + tanpa background halaman
+  forExport?: boolean;
   copied?: string | null;
   onCopyRek?: () => void;
   onCopyTotal?: () => void;
@@ -43,7 +44,6 @@ export function InvoiceDocument({
 }: Props) {
   const isPita = variant === 'pita';
   const isKrem = !isPita;
-  // html2canvas tidak mendukung background-clip:text → saat export pakai emas solid.
   const goldText: React.CSSProperties = forExport ? { color: '#9C7A2E' } : goldTextGrad;
   const { subtotal, totalPaid, balance, fullyPaid } = deriveInvoice(inv);
   const balanceLabel = fullyPaid ? 'TOTAL' : 'SISA TAGIHAN';
@@ -56,10 +56,12 @@ export function InvoiceDocument({
     ['JATUH TEMPO', inv.due],
   ];
 
-  // Kartu: solid (full warna invoice) saat export, glass saat preview — warna sama.
   const cardBg = forExport
     ? 'linear-gradient(160deg, #FFFDF7, #F8F2E7)'
     : 'linear-gradient(160deg, rgba(255,253,247,.74), rgba(248,242,231,.56))';
+
+  // Lebar kolom tabel item (flex, bukan grid)
+  const COL_QTY = 64, COL_HARGA = 172, COL_JUMLAH = 184;
 
   return (
     <div
@@ -76,7 +78,6 @@ export function InvoiceDocument({
 
       <div style={{ position: 'relative', borderRadius: forExport ? 0 : 26, overflow: 'hidden', background: cardBg, backdropFilter: forExport ? undefined : 'blur(26px)', WebkitBackdropFilter: forExport ? undefined : 'blur(26px)', border: forExport ? 'none' : '1px solid rgba(156,122,46,.30)', boxShadow: forExport ? 'none' : '0 42px 92px -34px rgba(120,96,40,.40), inset 0 1px 0 rgba(255,255,255,.65)' }}>
 
-        {/* KREM: top accent line */}
         {isKrem && (
           <div style={{ height: 3, background: 'linear-gradient(90deg, rgba(156,122,46,0), #C9A24B 28%, #9C7A2E 50%, #C9A24B 72%, rgba(156,122,46,0))' }} />
         )}
@@ -86,7 +87,7 @@ export function InvoiceDocument({
           <div style={{ background: 'linear-gradient(135deg,#A6802F 0%,#8A6A24 55%,#6E551C 100%)', padding: '34px 56px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'inset 0 -1px 0 rgba(0,0,0,.15)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/invoice/logo-mark-cream.png" alt="Top Hills" style={{ height: 90, width: 'auto', display: 'block', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,.18))' }} />
+              <img src="/invoice/logo-mark-cream.png" alt="Top Hills" style={{ height: 92, width: 'auto', display: 'block', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,.18))' }} />
               <div style={{ borderLeft: '1px solid rgba(243,236,221,.4)', paddingLeft: 18 }}>
                 <div style={{ fontSize: 13, letterSpacing: 3, color: 'rgba(243,236,221,.85)', fontWeight: 600 }}>KOST &amp; PENGINAPAN</div>
                 <div style={{ fontSize: 15, color: 'rgba(243,236,221,.7)', marginTop: 7 }}>Limau Manis, Pauh — Padang</div>
@@ -95,11 +96,7 @@ export function InvoiceDocument({
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 58, letterSpacing: 8, lineHeight: .9, color: '#F6EFDF' }}>INVOICE</div>
               {inv.tag && <div style={{ display: 'inline-block', marginTop: 10, padding: '6px 15px', border: '1px solid rgba(246,239,223,.55)', borderRadius: 20, fontSize: 12, letterSpacing: 2.5, color: '#F6EFDF', fontWeight: 700 }}>{inv.tag}</div>}
-              <div style={{ display: 'inline-grid', gridTemplateColumns: 'auto auto', gap: '7px 16px', marginTop: 14, textAlign: 'right' }}>
-                {metaRows.map(([k, v]) => (
-                  <FragmentRow key={k} k={k} v={v} kColor="rgba(243,236,221,.6)" vColor="#F6EFDF" />
-                ))}
-              </div>
+              <MetaBlock rows={metaRows} kColor="rgba(243,236,221,.62)" vColor="#F6EFDF" />
             </div>
           </div>
         )}
@@ -112,17 +109,13 @@ export function InvoiceDocument({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/invoice/logo-mark.png" alt="Top Hills" style={{ height: 104, width: 'auto', display: 'block', margin: '-2px 0 0 -2px' }} />
+                  <img src="/invoice/logo-mark.png" alt="Top Hills" style={{ height: 106, width: 'auto', display: 'block', margin: '-2px 0 0 -2px' }} />
                   <div style={{ fontSize: 14, color: '#8A8170', marginTop: 6, letterSpacing: .3 }}>Limau Manis, Pauh — Padang</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 62, letterSpacing: 8, lineHeight: .9, ...goldText }}>INVOICE</div>
                   {inv.tag && <div style={{ display: 'inline-block', marginTop: 11, padding: '6px 15px', border: '1px solid rgba(156,122,46,.5)', borderRadius: 20, fontSize: 12, letterSpacing: 2.5, color: GOLD, fontWeight: 700 }}>{inv.tag}</div>}
-                  <div style={{ display: 'inline-grid', gridTemplateColumns: 'auto auto', gap: '8px 18px', marginTop: 18, textAlign: 'right' }}>
-                    {metaRows.map(([k, v]) => (
-                      <FragmentRow key={k} k={k} v={v} kColor="#9C8A6A" vColor="#3A332A" />
-                    ))}
-                  </div>
+                  <MetaBlock rows={metaRows} kColor="#9C8A6A" vColor="#3A332A" />
                 </div>
               </div>
               <div style={{ height: 1, background: 'linear-gradient(90deg, rgba(156,122,46,.08), rgba(156,122,46,.34), rgba(156,122,46,.08))', margin: '26px 0' }} />
@@ -147,23 +140,23 @@ export function InvoiceDocument({
             </div>
           </div>
 
-          {/* LINE ITEMS */}
+          {/* LINE ITEMS — flex table */}
           <div style={{ marginTop: 30 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 64px 168px 180px', padding: '0 4px 12px', borderBottom: '1px solid rgba(156,122,46,.32)' }}>
-              <div style={hdr()}>DESKRIPSI</div>
-              <div style={hdr('center')}>QTY</div>
-              <div style={hdr('right')}>HARGA</div>
-              <div style={hdr('right')}>JUMLAH</div>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '0 4px 12px', borderBottom: '1px solid rgba(156,122,46,.32)' }}>
+              <div style={{ flex: 1, ...hdr() }}>DESKRIPSI</div>
+              <div style={{ width: COL_QTY, ...hdr('center') }}>QTY</div>
+              <div style={{ width: COL_HARGA, ...hdr('right') }}>HARGA</div>
+              <div style={{ width: COL_JUMLAH, ...hdr('right') }}>JUMLAH</div>
             </div>
             {inv.items.map((row, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 64px 168px 180px', alignItems: 'center', padding: '18px 4px', borderBottom: '1px solid rgba(60,52,40,.10)' }}>
-                <div>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '18px 4px', borderBottom: '1px solid rgba(60,52,40,.10)' }}>
+                <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
                   <div style={{ fontSize: 20, color: '#2C2620', fontWeight: 600 }}>{row.desc}</div>
                   {row.note && <div style={{ fontSize: 15, color: '#8A8170', marginTop: 3 }}>{row.note}</div>}
                 </div>
-                <div style={{ fontSize: 18, color: '#5A5446', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{row.qty}</div>
-                <div style={{ fontSize: 18, color: '#5A5446', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{rp(row.price)}</div>
-                <div style={{ fontSize: 18, color: '#2C2620', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{rp(row.qty * row.price)}</div>
+                <div style={{ width: COL_QTY, fontSize: 18, color: '#5A5446', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{row.qty}</div>
+                <div style={{ width: COL_HARGA, fontSize: 18, color: '#5A5446', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{rp(row.price)}</div>
+                <div style={{ width: COL_JUMLAH, fontSize: 18, color: '#2C2620', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{rp(row.qty * row.price)}</div>
               </div>
             ))}
           </div>
@@ -171,13 +164,13 @@ export function InvoiceDocument({
           {/* TOTALS */}
           {isKrem ? (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-              <div style={{ width: 412 }}>
+              <div style={{ width: 420 }}>
                 <TotRow label="Subtotal" value={rp(subtotal)} />
                 {paidLines.map((pl, i) => <TotRow key={i} label={pl.label} value={pl.text} />)}
                 <div style={{ height: 1, background: 'linear-gradient(90deg, rgba(156,122,46,.12), rgba(156,122,46,.42))', margin: '10px 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 4px 0' }}>
-                  <span style={{ fontSize: 13, letterSpacing: 2, color: GOLD, fontWeight: 700 }}>{balanceLabel}</span>
-                  <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 48, lineHeight: 1, ...goldText, fontVariantNumeric: 'tabular-nums' }}>{rp(balanceVal)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '4px 4px 0' }}>
+                  <span style={{ fontSize: 13, letterSpacing: 2, color: GOLD, fontWeight: 700, paddingBottom: 6 }}>{balanceLabel}</span>
+                  <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 46, lineHeight: 1, ...goldText, fontVariantNumeric: 'tabular-nums' }}>{rp(balanceVal)}</span>
                 </div>
                 {!fullyPaid && !forExport && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
@@ -188,13 +181,13 @@ export function InvoiceDocument({
             </div>
           ) : (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 26 }}>
-              <div style={{ width: 430, borderRadius: 16, padding: '22px 26px', background: 'linear-gradient(135deg,#A6802F,#7C5F22)', boxShadow: '0 16px 36px -16px rgba(120,96,40,.6)' }}>
+              <div style={{ width: 440, borderRadius: 16, padding: '22px 26px', background: 'linear-gradient(135deg,#A6802F,#7C5F22)', boxShadow: '0 16px 36px -16px rgba(120,96,40,.6)' }}>
                 <TotRow label="Subtotal" value={rp(subtotal)} cream />
                 {paidLines.map((pl, i) => <TotRow key={i} label={pl.label} value={pl.text} cream />)}
                 <div style={{ height: 1, background: 'rgba(246,239,223,.30)', margin: '11px 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: 13, letterSpacing: 2, color: 'rgba(246,239,223,.9)', fontWeight: 700 }}>{balanceLabel}</span>
-                  <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 48, lineHeight: 1, color: '#FBF6EC', fontVariantNumeric: 'tabular-nums' }}>{rp(balanceVal)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: 13, letterSpacing: 2, color: 'rgba(246,239,223,.9)', fontWeight: 700, paddingBottom: 6 }}>{balanceLabel}</span>
+                  <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 46, lineHeight: 1, color: '#FBF6EC', fontVariantNumeric: 'tabular-nums' }}>{rp(balanceVal)}</span>
                 </div>
                 {!fullyPaid && !forExport && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
@@ -209,17 +202,14 @@ export function InvoiceDocument({
           <div style={{ display: 'flex', gap: 22, marginTop: 34, alignItems: 'stretch' }}>
             <div style={{ flex: 1, border: '1px solid rgba(156,122,46,.26)', borderRadius: 16, padding: '22px 24px', background: 'rgba(156,122,46,.05)' }}>
               <div style={{ fontSize: 13, letterSpacing: 2.2, color: GOLD, fontWeight: 700, marginBottom: 14 }}>PEMBAYARAN · TRANSFER</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '10px 16px' }}>
-                <span style={{ fontSize: 15, color: '#8A8170', alignSelf: 'center' }}>Bank</span>
-                <span style={{ fontSize: 16.5, color: '#2C2620', fontWeight: 600, textAlign: 'right' }}>{identity.bankName}</span>
-                <span style={{ fontSize: 15, color: '#8A8170', alignSelf: 'center' }}>No. Rekening</span>
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+              <PayRow label="Bank" value={<span style={{ fontSize: 16.5, color: '#2C2620', fontWeight: 600 }}>{identity.bankName}</span>} />
+              <PayRow label="No. Rekening" value={
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 16.5, color: '#2C2620', fontWeight: 700, fontVariantNumeric: 'tabular-nums', letterSpacing: 1 }}>{identity.accountNo}</span>
                   {!forExport && <CopyBtn small onClick={onCopyRek} done={copied === 'rek'} doneText="Tersalin ✓" text="Salin" theme="gold" />}
                 </span>
-                <span style={{ fontSize: 15, color: '#8A8170', alignSelf: 'center' }}>Atas Nama</span>
-                <span style={{ fontSize: 16.5, color: '#2C2620', fontWeight: 600, textAlign: 'right' }}>{identity.accountName}</span>
-              </div>
+              } />
+              <PayRow label="Atas Nama" value={<span style={{ fontSize: 16.5, color: '#2C2620', fontWeight: 600 }}>{identity.accountName}</span>} />
               <div style={{ fontSize: 14, color: '#8A8170', marginTop: 16, lineHeight: 1.55 }}>Kirim bukti transfer <span style={{ color: '#5A5446' }}>asli</span> ke WhatsApp Resmi · {identity.waResmi} untuk diverifikasi admin.</div>
             </div>
             {showQR && (
@@ -237,14 +227,18 @@ export function InvoiceDocument({
             )}
           </div>
 
-          {/* TERMS */}
+          {/* TERMS — dua kolom via flex */}
           <div style={{ marginTop: 30 }}>
             <div style={{ fontSize: 13, letterSpacing: 2.2, color: GOLD, fontWeight: 700, marginBottom: 12 }}>SYARAT &amp; KETENTUAN</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 32px' }}>
-              <Term>Uang muka / DP <b style={{ color: '#5A5446', fontWeight: 600 }}>tidak dapat dikembalikan</b> apabila booking dibatalkan.</Term>
-              <Term>Pelunasan dilakukan di awal sebelum menempati kamar.</Term>
-              <Term>Bukti pembayaran asli wajib dikirim &amp; diverifikasi admin.</Term>
-              <Term>Air sudah termasuk · listrik token diisi sendiri (khusus kost).</Term>
+            <div style={{ display: 'flex', gap: 32 }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Term>Uang muka / DP <b style={{ color: '#5A5446', fontWeight: 600 }}>tidak dapat dikembalikan</b> apabila booking dibatalkan.</Term>
+                <Term>Bukti pembayaran asli wajib dikirim &amp; diverifikasi admin.</Term>
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Term>Pelunasan dilakukan di awal sebelum menempati kamar.</Term>
+                <Term>Air sudah termasuk · listrik token diisi sendiri (khusus kost).</Term>
+              </div>
             </div>
           </div>
 
@@ -295,17 +289,30 @@ export function InvoiceDocument({
 function hdr(align: 'left' | 'center' | 'right' = 'left'): React.CSSProperties {
   return { fontSize: 12.5, letterSpacing: 2, color: GOLD, fontWeight: 700, textAlign: align };
 }
-function FragmentRow({ k, v, kColor, vColor }: { k: string; v: string; kColor: string; vColor: string }) {
+// Meta (NO INVOICE / TANGGAL / JATUH TEMPO) — flex rows, nilai rata kanan & sejajar.
+function MetaBlock({ rows, kColor, vColor }: { rows: [string, string][]; kColor: string; vColor: string }) {
   return (
-    <>
-      <div style={{ fontSize: 12, letterSpacing: 1.6, color: kColor, alignSelf: 'center' }}>{k}</div>
-      <div style={{ fontSize: 16, color: vColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-    </>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+      {rows.map(([k, v]) => (
+        <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}>
+          <span style={{ fontSize: 12, letterSpacing: 1.6, color: kColor }}>{k}</span>
+          <span style={{ fontSize: 16, color: vColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 168, textAlign: 'right' }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function PayRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, padding: '5px 0' }}>
+      <span style={{ fontSize: 15, color: '#8A8170' }}>{label}</span>
+      {value}
+    </div>
   );
 }
 function TotRow({ label, value, cream }: { label: string; value: string; cream?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: cream ? '6px 0' : '8px 4px' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: cream ? '6px 0' : '8px 4px' }}>
       <span style={{ fontSize: 16.5, color: cream ? 'rgba(246,239,223,.78)' : '#7A7164' }}>{label}</span>
       <span style={{ fontSize: 16.5, color: cream ? '#F6EFDF' : '#3A332A', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
     </div>
