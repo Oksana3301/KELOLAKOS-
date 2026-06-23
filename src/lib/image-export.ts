@@ -49,6 +49,15 @@ async function captureToBlob({
 }
 
 /**
+ * Capture an element to a PNG Blob (for Web Share API / file sharing).
+ */
+export async function captureToPngBlob(
+  options: Omit<ExportOptions, 'filename'>,
+): Promise<Blob> {
+  return captureToBlob(options);
+}
+
+/**
  * Download captured element as PNG file
  */
 export async function downloadAsPNG(options: ExportOptions): Promise<void> {
