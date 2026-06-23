@@ -101,7 +101,7 @@ const FAQ = [
   { q: 'Kamar mandi di dalam atau di luar?', a: 'Kamar mandi di dalam kamar (KM dalam), baik kost maupun penginapan.' },
   { q: 'Aman tidak untuk anak perempuan? Ada CCTV?', a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB (bila ada keperluan lewat jam itu, kabari penjaga dulu ya), dan tamu laki-laki hanya boleh di area luar dekat minimarket.' },
   { q: 'Boleh survey/lihat kamar dulu?', a: 'Tentu boleh 🌸 Sebaiknya janjian dulu dengan penjaga kami (Bang Mezi). Jam survey 08.00–19.00 WIB.' },
-  { q: 'DP bisa kembali kalau batal?', a: 'DP berfungsi mengamankan kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).' },
+  { q: 'DP bisa kembali kalau batal?', a: 'DP berfungsi untuk booking kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).' },
   { q: 'Penginapan termasuk sarapan?', a: 'Sarapan tidak disediakan. Namun ada minimarket di lokasi yang menyediakan aneka snack & kebutuhan. Pembersihan kamar tetap sudah termasuk.' },
 ];
 
@@ -500,7 +500,7 @@ export default function InfoPage() {
                 {info.kostTeaserUnit}
               </div>
               <div className="inline-flex items-center gap-2 mt-4 rounded-full px-4 py-2 text-[14px] font-semibold" style={{ background: '#FBF3E0', color: C.brown, border: `1px solid ${C.border}` }}>
-                🔒 Amankan kamar pilihanmu dengan DP — chat kami ya
+                🌸 Booking kamar pilihanmu dengan DP — chat kami ya
               </div>
             </div>
             <ul className="space-y-2 text-[15px]" style={{ color: C.brownSoft }}>
@@ -509,7 +509,7 @@ export default function InfoPage() {
                 'Air sudah termasuk · listrik token diisi sendiri.',
                 'Pilihan AC & non-AC (harga lengkap via WhatsApp).',
                 'Minimal sewa 6 bulan · tersedia paket 6 bulan & setahun.',
-                'DP minimal Rp 4 juta untuk mengamankan kamar (berlaku paket 6 bulan & setahun).',
+                'DP minimal Rp 4 juta untuk booking kamar (berlaku paket 6 bulan & setahun).',
               ].map((t) => (
                 <li key={t} className="flex gap-2.5">
                   <span style={{ color: C.gold }}>✦</span>
@@ -727,10 +727,10 @@ export default function InfoPage() {
             <ol className="space-y-4">
               {[
                 ['Pilih kamar / tipe', 'Tentukan dulu kost (Gedung A/B) atau penginapan (Gedung C) yang kamu inginkan.'],
-                ['Bayar DP untuk amankan kamar', 'Kost (6 bulan & setahun): DP minimal Rp 4 juta · Penginapan harian: DP minimal Rp 100rb. Bisa transfer atau tunai langsung di lokasi.'],
+                ['Bayar DP untuk booking kamar', 'Kost (6 bulan & setahun): DP minimal Rp 4 juta · Penginapan harian: DP minimal Rp 100rb. Bisa transfer atau tunai langsung di lokasi.'],
                 ['Minta nomor rekening via WhatsApp Resmi', 'Demi keamanan, nomor rekening kami berikan saat konfirmasi (rekening kost & penginapan berbeda ya).'],
                 ['Kirim bukti pembayaran asli', 'Mohon kirim bukti transfer atau tunai yang asli ke WhatsApp Resmi — akan kami verifikasi kembali oleh admin.'],
-                ['Kamar diamankan ✅', 'Begitu bukti diterima & dicek, kamarmu langsung kami amankan. Selamat, sampai jumpa di Top Hills! 🌸'],
+                ['Booking selesai ✅', 'Begitu bukti diterima & dicek, booking kamarmu langsung kami proses. Selamat, sampai jumpa di Top Hills! 🌸'],
               ].map(([t, d], i) => (
                 <li key={t} className="flex gap-3">
                   <span className="flex-shrink-0 w-7 h-7 rounded-full grid place-items-center text-[14px] font-bold" style={{ background: C.gold, color: '#fff', fontFamily: serif }}>
