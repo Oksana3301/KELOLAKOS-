@@ -44,21 +44,6 @@ function ytEmbed(url: string): string | null {
   return m ? `https://www.youtube.com/embed/${m[1]}` : null;
 }
 
-const FASILITAS = [
-  { i: '🛏️', t: 'Kasur & lemari' },
-  { i: '📚', t: 'Meja & kursi belajar' },
-  { i: '🚿', t: 'Kamar mandi dalam' },
-  { i: '❄️', t: 'AC (penginapan & opsi kost)' },
-  { i: '📶', t: 'WiFi unlimited' },
-  { i: '💡', t: 'Listrik token' },
-  { i: '💧', t: 'Air sudah termasuk' },
-  { i: '🏙️', t: 'Rooftop belajar & balkon view' },
-  { i: '🧺', t: 'Laundry' },
-  { i: '🏪', t: 'Minimarket' },
-  { i: '🛵', t: 'Cuci motor' },
-  { i: '🔒', t: 'Security & CCTV 24 jam' },
-];
-
 // Fasilitas yang ditampilkan sebagai chip di tiap section (ala Traveloka).
 const KOST_FAS = [
   '🚿 KM dalam',
@@ -399,7 +384,6 @@ export default function InfoPage() {
     { id: 'tersedia', label: 'Ketersediaan' },
     { id: 'kost', label: 'Kost' },
     { id: 'penginapan', label: 'Penginapan' },
-    { id: 'fasilitas', label: 'Fasilitas' },
     { id: 'lokasi', label: 'Lokasi' },
   ];
 
@@ -630,27 +614,9 @@ export default function InfoPage() {
           </div>
         </section>
 
-        {/* Fasilitas */}
-        <section id="fasilitas" className="py-8 scroll-mt-20">
-          <SectionHead n="4" title="Fasilitas" sub="Berbagai fasilitas yang bisa kamu nikmati di Gedung A, B & C." />
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {FASILITAS.map((f) => (
-              <div key={f.t} className="rounded-[14px] p-4 flex items-center gap-3" style={{ background: C.card, border: `1px solid ${C.border}` }}>
-                <span className="text-[22px]">{f.i}</span>
-                <span className="text-[14px] font-medium" style={{ color: C.brown }}>
-                  {f.t}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-[13px] mt-4 italic" style={{ fontFamily: elegant, color: C.brownSoft }}>
-            Laundry, minimarket & cuci motor tersedia dengan biaya terpisah. Untuk cuci motor, silakan tanyakan ke penjaga ya.
-          </p>
-        </section>
-
         {/* Galeri + video */}
         <section className="py-8">
-          <SectionHead n="5" title="Galeri" sub="Intip suasana & sudut-sudut nyaman di Top Hills." />
+          <SectionHead n="4" title="Galeri" sub="Intip suasana & sudut-sudut nyaman di Top Hills. Laundry, minimarket & cuci motor juga tersedia di lokasi (biaya terpisah)." />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(info.fotoArea.length > 0
               ? info.fotoArea
@@ -679,7 +645,7 @@ export default function InfoPage() {
 
         {/* Aturan */}
         <section className="py-8">
-          <SectionHead n="6" title="Aturan" />
+          <SectionHead n="5" title="Aturan" />
           <div className="grid sm:grid-cols-2 gap-4">
             <Card>
               <h3 style={{ fontFamily: serif, color: C.brown }} className="text-[17px] font-bold mb-3 m-0">
@@ -722,7 +688,7 @@ export default function InfoPage() {
 
         {/* Cara Booking */}
         <section id="booking" className="py-8 scroll-mt-20">
-          <SectionHead n="7" title="Cara Booking" />
+          <SectionHead n="6" title="Cara Booking" />
           <Card>
             <ol className="space-y-4">
               {[
@@ -760,7 +726,7 @@ export default function InfoPage() {
 
         {/* Lokasi & Survey */}
         <section id="lokasi" className="py-8 scroll-mt-20">
-          <SectionHead n="8" title="Lokasi & Survey" />
+          <SectionHead n="7" title="Lokasi & Survey" />
           <Card>
             <div className="flex gap-3 items-start">
               <span className="text-[22px]">📍</span>
@@ -792,7 +758,7 @@ export default function InfoPage() {
 
         {/* FAQ */}
         <section className="py-8">
-          <SectionHead n="9" title="Pertanyaan Umum" />
+          <SectionHead n="8" title="Pertanyaan Umum" />
           <Card className="!py-1">
             {FAQ.map((f) => (
               <Accordion key={f.q} q={f.q} a={f.a} />
