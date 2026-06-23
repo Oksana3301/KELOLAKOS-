@@ -93,7 +93,7 @@ const FAQ = [
   { q: 'Aman tidak untuk anak perempuan? Ada CCTV?', a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB, dan tamu laki-laki hanya boleh di area luar/ruang tamu.' },
   { q: 'Boleh survey/lihat kamar dulu?', a: 'Boleh. Sebaiknya janjian dulu dengan penjaga (Bang Mezi). Jam survey 08.00–19.00 WIB.' },
   { q: 'DP bisa kembali kalau batal?', a: 'DP berfungsi mengamankan kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).' },
-  { q: 'Penginapan termasuk sarapan?', a: 'Belum termasuk sarapan, tetapi bisa dibantu pesankan bila diminta. Pembersihan kamar sudah termasuk.' },
+  { q: 'Penginapan termasuk sarapan?', a: 'Sarapan tidak disediakan. Namun ada minimarket di lokasi yang menyediakan aneka snack & kebutuhan. Pembersihan kamar tetap sudah termasuk.' },
 ];
 
 // ───────────────────────── small UI pieces ─────────────────────────
@@ -466,7 +466,7 @@ export default function InfoPage() {
                 'Air sudah termasuk · listrik token diisi sendiri.',
                 'Pilihan AC & non-AC (harga lengkap via WhatsApp).',
                 'Minimal sewa 6 bulan · tersedia paket 6 bulan & setahun.',
-                'DP: mulai Rp 2 juta (6 bulan) / Rp 4 juta (setahun) untuk mengamankan kamar.',
+                'DP minimal Rp 4 juta untuk mengamankan kamar (berlaku paket 6 bulan & setahun).',
               ].map((t) => (
                 <li key={t} className="flex gap-2.5">
                   <span style={{ color: C.gold }}>✦</span>
@@ -689,7 +689,7 @@ export default function InfoPage() {
             <ol className="space-y-4">
               {[
                 ['Pilih kamar / tipe', 'Tentukan kost (Gedung A/B) atau penginapan (Gedung C) yang kamu mau.'],
-                ['Bayar DP untuk amankan kamar', 'Kost setahun min. Rp 4jt · 6 bulan min. Rp 2jt · Penginapan harian min. Rp 100rb. Bisa transfer atau tunai di lokasi.'],
+                ['Bayar DP untuk amankan kamar', 'Kost (6 bulan & setahun): DP minimal Rp 4 juta · Penginapan harian: DP minimal Rp 100rb. Bisa transfer atau tunai di lokasi.'],
                 ['Minta nomor rekening via WhatsApp Resmi', 'Demi keamanan, nomor rekening diberikan admin saat konfirmasi (rekening kost & penginapan berbeda).'],
                 ['WAJIB kirim bukti pembayaran ASLI', 'Upload/kirim bukti transfer atau tunai yang asli ke WhatsApp Resmi — akan diverifikasi kembali oleh admin.'],
                 ['Kamar diamankan ✅', 'Setelah bukti diterima & dicek, kamarmu langsung kami amankan.'],
