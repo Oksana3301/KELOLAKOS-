@@ -94,13 +94,13 @@ const PENGINAPAN_UKURAN: Record<string, string[]> = {
 const KOST_UKURAN = ['Panjang 4 m × Lebar 3 m'];
 
 const FAQ = [
-  { q: 'Lokasinya di mana? Dekat UNAND tidak?', a: 'Di Limau Manis, Pauh, Padang — sangat dekat UNAND, ada akses jalan langsung ke gerbang kampus.' },
+  { q: 'Lokasinya di mana? Dekat UNAND tidak?', a: 'Kami berada di Limau Manis, Pauh, Padang — sangat dekat UNAND, bahkan ada akses jalan langsung ke gerbang kampus.' },
   { q: 'Harga kost berapa setahun?', a: 'Lantai 1–3: Rp15jt (non-AC) / Rp19jt (AC). Lantai 4: Rp14jt (non-AC) / Rp18jt (AC). Tersedia juga paket 6 bulan. Detail lengkap silakan tanya via WhatsApp.' },
-  { q: 'Bisa sewa kost bulanan saja?', a: 'Minimal sewa kost adalah 6 bulan. Tersedia paket 6 bulan dan setahun.' },
+  { q: 'Bisa sewa kost bulanan saja?', a: 'Untuk kost, minimal sewa adalah 6 bulan ya. Tersedia paket 6 bulan dan setahun, silakan pilih yang paling pas.' },
   { q: 'Ada AC tidak?', a: 'Untuk kost ada pilihan AC dan non-AC (harga berbeda). Untuk penginapan, semua kamar sudah ber-AC.' },
   { q: 'Kamar mandi di dalam atau di luar?', a: 'Kamar mandi di dalam kamar (KM dalam), baik kost maupun penginapan.' },
   { q: 'Aman tidak untuk anak perempuan? Ada CCTV?', a: 'Ada security dan CCTV, gerbang ditutup pukul 22.00 WIB (bila ada keperluan lewat jam itu, kabari penjaga dulu ya), dan tamu laki-laki hanya boleh di area luar dekat minimarket.' },
-  { q: 'Boleh survey/lihat kamar dulu?', a: 'Boleh. Sebaiknya janjian dulu dengan penjaga (Bang Mezi). Jam survey 08.00–19.00 WIB.' },
+  { q: 'Boleh survey/lihat kamar dulu?', a: 'Tentu boleh 🌸 Sebaiknya janjian dulu dengan penjaga kami (Bang Mezi). Jam survey 08.00–19.00 WIB.' },
   { q: 'DP bisa kembali kalau batal?', a: 'DP berfungsi mengamankan kamar. Apabila batal, DP tidak dapat dikembalikan (hangus).' },
   { q: 'Penginapan termasuk sarapan?', a: 'Sarapan tidak disediakan. Namun ada minimarket di lokasi yang menyediakan aneka snack & kebutuhan. Pembersihan kamar tetap sudah termasuk.' },
 ];
@@ -475,7 +475,7 @@ export default function InfoPage() {
 
         {/* Tentang */}
         <section className="py-8">
-          <SectionHead n="1" title="Tentang Top Hills" sub="Kost putri sekaligus penginapan di Padang — cocok untuk mahasiswi, orang tua yang mengantar anak, atau tamu yang butuh menginap sementara." />
+          <SectionHead n="1" title="Tentang Top Hills" sub="Satu lokasi, dua layanan — kost putri untuk jangka panjang dan penginapan untuk umum. Cocok untuk mahasiswi, orang tua yang mengantar anak, maupun tamu yang sedang singgah di Padang." />
           <Card>
             <p className="text-[15px] leading-relaxed" style={{ color: C.brownSoft }}>
               Area terdiri dari beberapa gedung: <b style={{ color: C.brown }}>Gedung A & B</b> untuk{' '}
@@ -487,7 +487,7 @@ export default function InfoPage() {
 
         {/* Kost */}
         <section id="kost" className="py-8 scroll-mt-20">
-          <SectionHead n="2" title="Kost Putri — Gedung A & B" sub="Sewa jangka panjang, khusus putri." />
+          <SectionHead n="2" title="Kost Putri — Gedung A & B" sub="Hunian nyaman khusus putri untuk sewa jangka panjang — biar betah seperti di rumah sendiri." />
           <Card>
             <div className="text-center pb-5 mb-5" style={{ borderBottom: `1px solid ${C.border}` }}>
               <div className="text-[14px]" style={{ color: C.brownSoft }}>
@@ -500,7 +500,7 @@ export default function InfoPage() {
                 {info.kostTeaserUnit}
               </div>
               <div className="inline-flex items-center gap-2 mt-4 rounded-full px-4 py-2 text-[14px] font-semibold" style={{ background: '#FBF3E0', color: C.brown, border: `1px solid ${C.border}` }}>
-                🔒 Amankan kamarmu — Booking DP sekarang!
+                🔒 Amankan kamar pilihanmu dengan DP — chat kami ya
               </div>
             </div>
             <ul className="space-y-2 text-[15px]" style={{ color: C.brownSoft }}>
@@ -607,7 +607,7 @@ export default function InfoPage() {
           <SectionHead
             badge="LIVE · diperbarui otomatis"
             title="Ketersediaan Kamar"
-            sub="Status kamar langsung dari sistem. Untuk kepastian & booking, konfirmasi via WhatsApp ya."
+            sub="Status kamar diperbarui langsung dari sistem kami. Untuk memastikan ketersediaan & booking, silakan konfirmasi via WhatsApp ya. 🌸"
           />
           {rooms && rooms.length > 0 ? (
             <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
@@ -632,7 +632,7 @@ export default function InfoPage() {
 
         {/* Fasilitas */}
         <section id="fasilitas" className="py-8 scroll-mt-20">
-          <SectionHead n="4" title="Fasilitas" sub="Tersedia di Gedung A, B & C." />
+          <SectionHead n="4" title="Fasilitas" sub="Berbagai fasilitas yang bisa kamu nikmati di Gedung A, B & C." />
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {FASILITAS.map((f) => (
               <div key={f.t} className="rounded-[14px] p-4 flex items-center gap-3" style={{ background: C.card, border: `1px solid ${C.border}` }}>
@@ -644,13 +644,13 @@ export default function InfoPage() {
             ))}
           </div>
           <p className="text-center text-[13px] mt-4 italic" style={{ fontFamily: elegant, color: C.brownSoft }}>
-            Laundry, minimarket & cuci motor berbayar terpisah. Untuk cuci motor, tanyakan ke penjaga.
+            Laundry, minimarket & cuci motor tersedia dengan biaya terpisah. Untuk cuci motor, silakan tanyakan ke penjaga ya.
           </p>
         </section>
 
         {/* Galeri + video */}
         <section className="py-8">
-          <SectionHead n="5" title="Galeri" sub="Suasana Top Hills." />
+          <SectionHead n="5" title="Galeri" sub="Intip suasana & sudut-sudut nyaman di Top Hills." />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(info.fotoArea.length > 0
               ? info.fotoArea
@@ -687,10 +687,10 @@ export default function InfoPage() {
               </h3>
               <ul className="space-y-2 text-[14px]" style={{ color: C.brownSoft }}>
                 {[
-                  'Khusus putri, terbuka untuk umum (mahasiswi & non-mahasiswi).',
+                  'Khusus penghuni putri — terbuka untuk umum (mahasiswi maupun non-mahasiswi).',
                   'Gerbang ditutup pukul 22.00 WIB. Bila ada keperluan hingga lewat jam tersebut, mohon kabari penjaga terlebih dahulu ya 🙏',
-                  'Tamu laki-laki hanya diperbolehkan di area luar, dekat minimarket.',
-                  'Tamu menginap di kamar lebih dari 2 hari: Rp 50.000/orang.',
+                  'Demi kenyamanan bersama, tamu laki-laki mohon menunggu di area luar (dekat minimarket).',
+                  'Tamu yang menginap di kamar lebih dari 2 hari dikenakan Rp 50.000/orang.',
                 ].map((t) => (
                   <li key={t} className="flex gap-2">
                     <span style={{ color: C.gold }}>•</span>
@@ -705,10 +705,10 @@ export default function InfoPage() {
               </h3>
               <ul className="space-y-2 text-[14px]" style={{ color: C.brownSoft }}>
                 {[
-                  'Check-in 13.00 · check-out 12.00 (check-in lewat 13.00 tetap dihitung check-out 12.00).',
-                  'Sudah bayar DP tapi batal → DP hangus.',
-                  'Lebih dari 3 orang: Executive +Rp 50rb, Superior +Rp 60rb, Deluxe +Rp 75rb /orang/malam.',
-                  'Extra bed +Rp 100.000/malam.',
+                  'Check-in pukul 13.00 · check-out pukul 12.00 (check-in lewat 13.00 tetap dihitung check-out 12.00).',
+                  'DP yang sudah dibayarkan tidak dapat dikembalikan apabila booking dibatalkan.',
+                  'Tambahan orang di atas 3: Executive +Rp 50rb · Superior +Rp 60rb · Deluxe +Rp 75rb /orang/malam.',
+                  'Extra bed +Rp 100.000/malam (bila diperlukan).',
                 ].map((t) => (
                   <li key={t} className="flex gap-2">
                     <span style={{ color: C.gold }}>•</span>
@@ -726,11 +726,11 @@ export default function InfoPage() {
           <Card>
             <ol className="space-y-4">
               {[
-                ['Pilih kamar / tipe', 'Tentukan kost (Gedung A/B) atau penginapan (Gedung C) yang kamu mau.'],
-                ['Bayar DP untuk amankan kamar', 'Kost (6 bulan & setahun): DP minimal Rp 4 juta · Penginapan harian: DP minimal Rp 100rb. Bisa transfer atau tunai di lokasi.'],
-                ['Minta nomor rekening via WhatsApp Resmi', 'Demi keamanan, nomor rekening diberikan admin saat konfirmasi (rekening kost & penginapan berbeda).'],
-                ['WAJIB kirim bukti pembayaran ASLI', 'Upload/kirim bukti transfer atau tunai yang asli ke WhatsApp Resmi — akan diverifikasi kembali oleh admin.'],
-                ['Kamar diamankan ✅', 'Setelah bukti diterima & dicek, kamarmu langsung kami amankan.'],
+                ['Pilih kamar / tipe', 'Tentukan dulu kost (Gedung A/B) atau penginapan (Gedung C) yang kamu inginkan.'],
+                ['Bayar DP untuk amankan kamar', 'Kost (6 bulan & setahun): DP minimal Rp 4 juta · Penginapan harian: DP minimal Rp 100rb. Bisa transfer atau tunai langsung di lokasi.'],
+                ['Minta nomor rekening via WhatsApp Resmi', 'Demi keamanan, nomor rekening kami berikan saat konfirmasi (rekening kost & penginapan berbeda ya).'],
+                ['Kirim bukti pembayaran asli', 'Mohon kirim bukti transfer atau tunai yang asli ke WhatsApp Resmi — akan kami verifikasi kembali oleh admin.'],
+                ['Kamar diamankan ✅', 'Begitu bukti diterima & dicek, kamarmu langsung kami amankan. Selamat, sampai jumpa di Top Hills! 🌸'],
               ].map(([t, d], i) => (
                 <li key={t} className="flex gap-3">
                   <span className="flex-shrink-0 w-7 h-7 rounded-full grid place-items-center text-[14px] font-bold" style={{ background: C.gold, color: '#fff', fontFamily: serif }}>
@@ -748,7 +748,7 @@ export default function InfoPage() {
               ))}
             </ol>
             <div className="mt-5 rounded-[14px] p-4 text-[14px] leading-snug" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
-              ⚠️ <b>Penting:</b> bukti pembayaran <b>asli wajib dikirim</b> ke WhatsApp Resmi dan akan <b>dicek ulang</b> oleh admin. Pelunasan dilakukan di awal sebelum menempati. DP tidak dapat dikembalikan bila batal.
+              ⚠️ <b>Mohon diperhatikan:</b> bukti pembayaran <b>asli wajib dikirim</b> ke WhatsApp Resmi dan akan <b>dicek ulang</b> oleh admin demi keamanan bersama. Pelunasan dilakukan di awal sebelum menempati, dan DP tidak dapat dikembalikan apabila booking dibatalkan. Terima kasih atas pengertiannya 🙏
             </div>
             <div className="mt-5">
               <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya sudah baca cara booking. Saya mau lanjut booking ...')}>
@@ -785,7 +785,7 @@ export default function InfoPage() {
               </WAButton>
             </div>
             <p className="text-[13px] mt-3 text-center" style={{ color: C.brownSoft }}>
-              Boleh lihat kamar dulu sebelum booking. Jam survey 08.00–19.00 WIB — sebaiknya janjian dulu.
+              Ingin lihat kamar dulu sebelum booking? Tentu boleh 🌸 Jam survey 08.00–19.00 WIB — sebaiknya janjian dulu dengan penjaga ya.
             </p>
           </Card>
         </section>
