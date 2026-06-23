@@ -4,7 +4,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, type RoomStatus, type PriceItem, type BookingFullData } from '@/lib/api';
 import { facilityApi, type Fasilitas } from '@/lib/api-v2';
-import { formatRupiah, formatRupiahShort, formatDate } from '@/lib/utils';
+import { formatRupiah, formatRupiahShort } from '@/lib/utils';
+import { normalizePhone62, formatPhoneDisplay } from '@/lib/phone';
+import { DatePicker } from './ui/date-picker';
 import { toast } from 'sonner';
 
 export type BookingFormMode = 'create' | 'edit';
@@ -31,9 +33,11 @@ export function BookingFormModal({
   // Form state
   const [customerName, setCustomerName] = useState(existingBooking?.Nama_Customer || '');
   const [whatsapp, setWhatsapp] = useState(existingBooking?.WhatsApp || '');
+  // Layanan: 'KOS' | 'PENGINAPAN' — dipilih dulu di create mode untuk memfilter kamar
+  const [selectedLayanan, setSelectedLayanan] = useState(existingBooking?.Layanan || '');
   const [selectedRoomId, setSelectedRoomId] = useState(existingBooking?.RoomID || '');
   const [selectedPaket, setSelectedPaket] = useState(existingBooking?.Paket || 'Bulanan');
-  const [jumlahPeriode, setJumlahPeriode] = useState(existingBooking?.Jumlah_Periode || 3);
+  const [jumlahPeriode, setJumlahPeriode] = useState(existingBooking?.Jumlah_Periode || 1);
   const [checkIn, setCheckIn] = useState(
     existingBooking?.CheckIn
       ? new Date(existingBooking.CheckIn).toISOString().split('T')[0]
@@ -43,6 +47,9 @@ export function BookingFormModal({
   const [extraCharge, setExtraCharge] = useState(existingBooking?.Extra_Charge || 0);
   const [diskon, setDiskon] = useState(existingBooking?.Diskon || 0);
   const [dpAwal, setDpAwal] = useState(0); // Hanya untuk create mode
+  const [dpTanggal, setDpTanggal] = useState(''); // opsional
+  const [pelunasanNominal, setPelunasanNominal] = useState(0); // opsional
+  const [pelunasanTanggal, setPelunasanTanggal] = useState(''); // opsional
   const [extraRequest, setExtraRequest] = useState(existingBooking?.Extra_Request || '');
   const [isEkstra, setIsEkstra] = useState(existingBooking?.Is_Ekstra === 'YA');
   const [catatan, setCatatan] = useState(existingBooking?.Catatan || '');
@@ -70,16 +77,57 @@ export function BookingFormModal({
     }
   }, [isEdit, bookingDetail]);
 
-  // For create mode: lock available rooms to status READY only
+  // For create mode: rooms must be READY *and* match the chosen layanan (Kost/Penginapan).
+  // Layanan dipilih lebih dulu, lalu daftar kamar muncul terfilter.
   const availableRooms = useMemo(() => {
-    if (isEdit) {
-      // In edit mode, show all rooms but selected room is locked
-      return rooms;
-    }
-    return rooms.filter((r) => r.Status_Code === 'READY');
-  }, [rooms, isEdit]);
+    if (isEdit) return rooms; // edit: selected room is locked anyway
+    if (!selectedLayanan) return [];
+    return rooms.filter((r) => r.Status_Code === 'READY' && r.Layanan_Default === selectedLayanan);
+  }, [rooms, isEdit, selectedLayanan]);
 
   const selectedRoom = rooms.find((r) => r.RoomID === selectedRoomId);
+
+  // Paket yang tersedia untuk kamar terpilih — diambil dari price list, lalu
+  // dibatasi sesuai layanan (Kost: 6 Bulan/Setahun · Penginapan: Harian/Bulanan/Tahunan).
+  const availablePakets = useMemo(() => {
+    if (isEdit || !selectedRoom) return [];
+    const fromPrices = [
+      ...new Set(
+        prices
+          .filter(
+            (p) =>
+              p.Layanan === selectedRoom.Layanan_Default &&
+              p.Gedung === selectedRoom.Gedung &&
+              p.Tipe_Kamar === selectedRoom.Tipe_Kamar,
+          )
+          .map((p) => p.Paket),
+      ),
+    ];
+    const allowed =
+      selectedRoom.Layanan_Default === 'KOS'
+        ? ['6 Bulan', 'Setahun']
+        : ['Harian', 'Bulanan', 'Tahunan', 'Setahun', 'Mingguan'];
+    const ordered = allowed.filter((a) => fromPrices.includes(a));
+    if (ordered.length) return ordered;
+    if (fromPrices.length) return fromPrices;
+    // fallback bila price list belum diisi: tampilkan opsi sesuai layanan
+    return selectedRoom.Layanan_Default === 'KOS'
+      ? ['6 Bulan', 'Setahun']
+      : ['Harian', 'Bulanan', 'Tahunan'];
+  }, [isEdit, selectedRoom, prices]);
+
+  // Saat ganti layanan → reset kamar terpilih (create mode)
+  useEffect(() => {
+    if (!isEdit) setSelectedRoomId('');
+  }, [selectedLayanan, isEdit]);
+
+  // Pastikan paket terpilih valid untuk kamar ini (create mode)
+  useEffect(() => {
+    if (!isEdit && availablePakets.length && !availablePakets.includes(selectedPaket)) {
+      setSelectedPaket(availablePakets[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availablePakets, isEdit]);
 
   // Find matching price for selected room + paket
   const matchingPrice = useMemo(() => {
@@ -114,7 +162,8 @@ export function BookingFormModal({
   const baseTotal = isEdit ? hargaKamar : hargaKamar * jumlahPeriode;
   const facTotal = isEdit ? 0 : facSubtotalPerPeriode * jumlahPeriode; // Facility add only in create
   const totalNet = Math.max(baseTotal + facTotal + extraCharge - diskon, 0);
-  const sisa = isEdit ? 0 : Math.max(totalNet - dpAwal, 0);
+  const totalBayarAwal = dpAwal + pelunasanNominal;
+  const sisa = isEdit ? 0 : Math.max(totalNet - totalBayarAwal, 0);
 
   // Auto-calc checkout date (create mode only — edit lets user set directly)
   const checkOut = useMemo(() => {
@@ -165,7 +214,7 @@ export function BookingFormModal({
         await api.submitBookingEdit({
           bookingId: existingBooking.BookingID,
           customerName: customerName.trim(),
-          whatsapp,
+          whatsapp: whatsapp ? normalizePhone62(whatsapp) : '',
           checkIn,
           checkOut: checkOutEdit,
           hargaKamar,
@@ -184,7 +233,7 @@ export function BookingFormModal({
         await api.submitBooking({
           roomId: selectedRoom.RoomID,
           customerName: customerName.trim(),
-          whatsapp,
+          whatsapp: whatsapp ? normalizePhone62(whatsapp) : '',
           checkIn,
           checkOut: checkOutEdit,
           paket: selectedPaket,
@@ -193,6 +242,9 @@ export function BookingFormModal({
           extraCharge,
           diskon,
           dpAwal,
+          dpTanggal,
+          pelunasanNominal,
+          pelunasanTanggal,
           catatan,
           extraRequest,
           isEkstra,
@@ -261,15 +313,49 @@ export function BookingFormModal({
                   type="tel"
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)}
-                  placeholder="+62 812-..."
+                  placeholder="0812... / +62 812-..."
                   className="input"
                 />
+                {whatsapp.trim() && (
+                  <div className="text-tx3 text-[10px] mt-1">
+                    Tersimpan sebagai{' '}
+                    <span className="font-semibold text-gr tabular-nums">{formatPhoneDisplay(whatsapp)}</span>{' '}
+                    — siap dihubungi
+                  </div>
+                )}
               </FormField>
             </div>
           </Section>
 
-          {/* 2. Kamar & Paket */}
-          <Section number={2} title="Kamar & Paket">
+          {/* 2. Layanan & Kamar */}
+          <Section number={2} title="Layanan & Kamar">
+            {!isEdit && (
+              <FormField label="Mau booking apa?" required>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { v: 'KOS', emoji: '🏠', label: 'Kost Putri', desc: 'Gedung A & B · jangka panjang' },
+                    { v: 'PENGINAPAN', emoji: '🛏️', label: 'Penginapan', desc: 'Gedung C · harian–tahunan' },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => setSelectedLayanan(o.v)}
+                      className={
+                        'text-left p-3 rounded-md border-2 transition-all ' +
+                        (selectedLayanan === o.v
+                          ? 'border-ac bg-sf2 shadow-sm'
+                          : 'border-bd bg-white hover:border-bds')
+                      }
+                    >
+                      <div className="text-sm font-bold">
+                        {o.emoji} {o.label}
+                      </div>
+                      <div className="text-[10px] text-tx3 mt-0.5">{o.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </FormField>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Pilih Kamar" required>
                 {isEdit ? (
@@ -285,17 +371,25 @@ export function BookingFormModal({
                     onChange={(e) => setSelectedRoomId(e.target.value)}
                     className="input"
                     required
+                    disabled={!selectedLayanan}
                   >
-                    <option value="">— Pilih kamar tersedia —</option>
+                    <option value="">
+                      {selectedLayanan ? '— Pilih kamar tersedia —' : '— pilih layanan dulu —'}
+                    </option>
                     {availableRooms.map((r) => (
                       <option key={r.RoomID} value={r.RoomID}>
-                        {r.Nama_Kamar} · {r.Tipe_Kamar}
+                        {r.Nama_Kamar} · {r.Gedung} · {r.Tipe_Kamar}
                       </option>
                     ))}
                   </select>
                 )}
-                {!isEdit && availableRooms.length === 0 && (
-                  <div className="text-rd text-[11px] mt-1">⚠️ Tidak ada kamar tersedia</div>
+                {!isEdit && !selectedLayanan && (
+                  <div className="text-tx3 text-[11px] mt-1">Pilih layanan dulu untuk melihat daftar kamar.</div>
+                )}
+                {!isEdit && selectedLayanan && availableRooms.length === 0 && (
+                  <div className="text-rd text-[11px] mt-1">
+                    ⚠️ Tidak ada kamar {selectedLayanan === 'KOS' ? 'kost' : 'penginapan'} yang tersedia.
+                  </div>
                 )}
               </FormField>
               <FormField label="Paket" required>
@@ -309,13 +403,22 @@ export function BookingFormModal({
                     value={selectedPaket}
                     onChange={(e) => setSelectedPaket(e.target.value)}
                     className="input"
+                    disabled={!selectedRoom}
                   >
-                    <option value="Harian">Harian</option>
-                    <option value="Mingguan">Mingguan</option>
-                    <option value="Bulanan">Bulanan</option>
-                    <option value="6 Bulan">6 Bulan</option>
-                    <option value="Setahun">Setahun</option>
+                    {availablePakets.length === 0 && <option value="">— pilih kamar dulu —</option>}
+                    {availablePakets.map((pk) => (
+                      <option key={pk} value={pk}>
+                        {pk}
+                      </option>
+                    ))}
                   </select>
+                )}
+                {!isEdit && selectedRoom && (
+                  <div className="text-tx3 text-[10px] mt-1">
+                    {selectedRoom.Layanan_Default === 'KOS'
+                      ? 'Kost: pilihan 6 Bulan atau Setahun.'
+                      : 'Penginapan: harian, bulanan, atau tahunan.'}
+                  </div>
                 )}
                 {!isEdit && selectedRoom && !matchingPrice && (
                   <div className="text-am text-[11px] mt-1">
@@ -368,31 +471,30 @@ export function BookingFormModal({
             )}
           </Section>
 
-          {/* 3. Tanggal */}
-          <Section number={3} title="Tanggal">
+          {/* 3. Tanggal menginap (opsional) */}
+          <Section number={3} title="Tanggal Menginap">
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Check-in" required>
-                <input
-                  type="date"
-                  value={checkIn}
-                  onChange={(e) => setCheckIn(e.target.value)}
-                  className="input"
-                  required
-                />
+              <FormField label="Check-in">
+                <DatePicker value={checkIn} onChange={setCheckIn} clearable placeholder="Pilih tanggal" />
               </FormField>
               <FormField label={isEdit ? 'Check-out' : 'Check-out (auto)'}>
-                {isEdit ? (
-                  <input
-                    type="date"
-                    value={checkOutEdit}
-                    onChange={(e) => setCheckOutEdit(e.target.value)}
-                    className="input"
-                  />
-                ) : (
-                  <div className="input bg-sf2 tabular-nums">{formatDate(checkOutEdit)}</div>
+                <DatePicker
+                  value={checkOutEdit}
+                  onChange={setCheckOutEdit}
+                  clearable
+                  min={checkIn || undefined}
+                  placeholder="Pilih tanggal"
+                />
+                {!isEdit && (
+                  <div className="text-tx3 text-[10px] mt-1">
+                    Otomatis dari check-in + periode · bisa diubah manual
+                  </div>
                 )}
               </FormField>
             </div>
+            {!isEdit && (
+              <div className="text-tx3 text-[10px]">Semua tanggal opsional — boleh dikosongkan dulu.</div>
+            )}
           </Section>
 
           {/* 4. Harga */}
@@ -414,13 +516,33 @@ export function BookingFormModal({
               <FormField label="Diskon">
                 <RupiahInput value={diskon} onChange={setDiskon} />
               </FormField>
-              {!isEdit && (
-                <FormField label="DP / Bayar Awal">
-                  <RupiahInput value={dpAwal} onChange={setDpAwal} />
-                  <div className="text-tx3 text-[10px] mt-1">Boleh 0 = belum bayar</div>
-                </FormField>
-              )}
             </div>
+
+            {/* Pembayaran awal: DP + Pelunasan (opsional) — create mode */}
+            {!isEdit && (
+              <div className="bg-sf2 border border-bd rounded-md p-3 space-y-3">
+                <div className="text-[11px] font-semibold text-tx2">💸 Pembayaran Awal (opsional)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Tanggal DP">
+                    <DatePicker value={dpTanggal} onChange={setDpTanggal} clearable placeholder="—" />
+                  </FormField>
+                  <FormField label="Nominal DP">
+                    <RupiahInput value={dpAwal} onChange={setDpAwal} />
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Tanggal Pelunasan">
+                    <DatePicker value={pelunasanTanggal} onChange={setPelunasanTanggal} clearable placeholder="—" />
+                  </FormField>
+                  <FormField label="Nominal Pelunasan">
+                    <RupiahInput value={pelunasanNominal} onChange={setPelunasanNominal} />
+                  </FormField>
+                </div>
+                <div className="text-tx3 text-[10px]">
+                  Isi tanggal & nominal bila ingin sekalian mencatat pembayaran. Boleh dikosongkan = belum bayar.
+                </div>
+              </div>
+            )}
 
             {/* Live calc */}
             <div className="bg-sf2 border border-bd rounded-md p-3 space-y-1.5">
@@ -447,8 +569,14 @@ export function BookingFormModal({
                 <span className="font-bold">Total Net</span>
                 <span className="font-bold tabular-nums">{formatRupiah(totalNet)}</span>
               </div>
+              {!isEdit && dpAwal > 0 && (
+                <CalcRow label="DP" value={'-' + formatRupiah(dpAwal)} accent="text-gr" />
+              )}
+              {!isEdit && pelunasanNominal > 0 && (
+                <CalcRow label="Pelunasan" value={'-' + formatRupiah(pelunasanNominal)} accent="text-gr" />
+              )}
               {!isEdit && (
-                <CalcRow label="Sisa Setelah DP" value={formatRupiah(sisa)} muted />
+                <CalcRow label="Sisa" value={formatRupiah(sisa)} muted />
               )}
               {isEdit && existingBooking && (
                 <>

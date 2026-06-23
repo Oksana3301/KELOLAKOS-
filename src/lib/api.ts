@@ -187,6 +187,8 @@ export interface SubmitBookingPayload {
   hargaKamar: number; extraCharge?: number; diskon?: number; dpAwal?: number;
   dpMetode?: string; catatan?: string; extraRequest?: string;
   isEkstra?: boolean; fasilitasIds?: string[];
+  /** Optional: tanggal DP & pelunasan (YYYY-MM-DD). Backend backward-compatible. */
+  dpTanggal?: string; pelunasanNominal?: number; pelunasanTanggal?: string;
   /** Full computed total (periode × harga + fasilitas). Authoritative on the backend. */
   hargaTotal?: number;
   buktiFiles?: BuktiFile[];
@@ -341,6 +343,9 @@ export const api = {
       extra_charge_final: data.extraCharge || 0,
       dp_awal: data.dpAwal || 0,
       dp_metode: data.dpMetode || '',
+      dp_tanggal: data.dpTanggal || '',
+      pelunasan_nominal: data.pelunasanNominal || 0,
+      pelunasan_tanggal: data.pelunasanTanggal || '',
       extra_request: data.extraRequest || '',
       is_ekstra: data.isEkstra || false,
       fasilitas_ids: data.fasilitasIds || [],
