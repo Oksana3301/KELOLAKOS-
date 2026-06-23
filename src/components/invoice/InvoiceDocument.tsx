@@ -43,6 +43,9 @@ export function InvoiceDocument({
 }: Props) {
   const isPita = variant === 'pita';
   const isKrem = !isPita;
+  // html2canvas tidak mendukung background-clip:text → saat export, teks emas
+  // gradient diganti warna emas solid supaya tidak blank (kotak emas kosong).
+  const goldText: React.CSSProperties = forExport ? { color: '#9C7A2E' } : goldTextGrad;
   const { subtotal, totalPaid, balance, fullyPaid } = deriveInvoice(inv);
   const balanceLabel = fullyPaid ? 'TOTAL' : 'SISA TAGIHAN';
   const balanceVal = fullyPaid ? subtotal : balance;
@@ -106,7 +109,7 @@ export function InvoiceDocument({
                   <div style={{ fontSize: 12, color: '#8A8170', marginTop: 6, letterSpacing: .3 }}>Limau Manis, Pauh — Padang</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 54, letterSpacing: 8, lineHeight: .9, ...goldTextGrad }}>INVOICE</div>
+                  <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 54, letterSpacing: 8, lineHeight: .9, ...goldText }}>INVOICE</div>
                   {inv.tag && <div style={{ display: 'inline-block', marginTop: 11, padding: '5px 14px', border: '1px solid rgba(156,122,46,.5)', borderRadius: 20, fontSize: 10, letterSpacing: 2.5, color: GOLD, fontWeight: 700 }}>{inv.tag}</div>}
                   <div style={{ display: 'inline-grid', gridTemplateColumns: 'auto auto', gap: '7px 18px', marginTop: 18, textAlign: 'right' }}>
                     {metaRows.map(([k, v]) => (
@@ -167,7 +170,7 @@ export function InvoiceDocument({
                 <div style={{ height: 1, background: 'linear-gradient(90deg, rgba(156,122,46,.12), rgba(156,122,46,.42))', margin: '10px 0' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 4px 0' }}>
                   <span style={{ fontSize: 11, letterSpacing: 2, color: GOLD, fontWeight: 700 }}>{balanceLabel}</span>
-                  <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 40, lineHeight: 1, ...goldTextGrad, fontVariantNumeric: 'tabular-nums' }}>{rp(balanceVal)}</span>
+                  <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 40, lineHeight: 1, ...goldText, fontVariantNumeric: 'tabular-nums' }}>{rp(balanceVal)}</span>
                 </div>
                 {!fullyPaid && !forExport && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
