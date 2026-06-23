@@ -322,6 +322,18 @@ export function buildRoomOptions(
   });
 }
 
+// Section yang tampil di nav samping/pintas — buat loncat antar-bagian form.
+const BK_SECTIONS = [
+  { id: 'bk-penyewa', n: 1, label: 'Penyewa' },
+  { id: 'bk-kamar', n: 2, label: 'Kamar' },
+  { id: 'bk-periode', n: 3, label: 'Periode' },
+  { id: 'bk-bayar', n: 4, label: 'Pembayaran' },
+];
+
+function gotoBkSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 // ═════════════════════════ TAMBAH / UBAH BOOKING FLOW ═════════════════════════
 export function BookingFlow({
   open,
@@ -374,6 +386,8 @@ export function BookingFlow({
   // Tanggal pembayaran (opsional). Untuk DP → tanggal DP · untuk Lunas → tanggal pelunasan.
   const [tglBayar, setTglBayar] = useState('');
   const [bukti, setBukti] = useState<BuktiFile[]>([]);
+  // Section aktif untuk highlight nav samping (scroll-spy).
+  const [activeSec, setActiveSec] = useState('bk-penyewa');
 
   // Step-2 room filters (UI only — never affects submit payload).
   const [fLayanan, setFLayanan] = useState<'Semua' | 'Kos' | 'Penginapan'>('Semua');
@@ -421,6 +435,25 @@ export function BookingFlow({
     setFLantai('Semua');
     setStep(1);
   }, [open, editBooking]);
+
+  // Scroll-spy: tandai section yang sedang dilihat untuk highlight nav.
+  useEffect(() => {
+    if (!open) return;
+    const els = BK_SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean) as HTMLElement[];
+    if (!els.length) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting);
+        if (vis.length) {
+          vis.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          setActiveSec((vis[0].target as HTMLElement).id);
+        }
+      },
+      { root: null, rootMargin: '-8% 0px -72% 0px', threshold: 0 },
+    );
+    els.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, [open, step]);
 
   // Scroll the sheet to the top each time the step changes.
   useEffect(() => {
@@ -678,9 +711,52 @@ export function BookingFlow({
       <div className="px-6 pb-8 pt-2">
         <div ref={headRef} />
 
+        <div className="flex gap-5 items-start">
+          {/* Nav samping (layar lebar) — loncat antar bagian */}
+          <nav className="hidden min-[760px]:flex flex-col gap-1.5 w-[132px] flex-shrink-0 sticky top-1 self-start">
+            {BK_SECTIONS.map((s) => {
+              const on = activeSec === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => gotoBkSection(s.id)}
+                  className={
+                    'flex items-center gap-2 px-3 py-2.5 rounded-kk-card text-left font-heading font-bold text-[14px] transition-colors ' +
+                    (on ? 'bg-kk-navy text-white' : 'bg-white text-kk-navy border-2 border-kk-mauve hover:bg-kk-mauve-soft')
+                  }
+                >
+                  <span className={'w-[22px] h-[22px] rounded-full grid place-items-center text-[12px] flex-shrink-0 ' + (on ? 'bg-white text-kk-navy' : 'bg-kk-mauve-soft text-kk-navy')}>{s.n}</span>
+                  {s.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="flex-1 min-w-0">
+            {/* Nav pintas (mobile) — pill sticky */}
+            <div className="min-[760px]:hidden sticky top-0 z-10 -mx-6 px-6 py-2 mb-4 bg-kk-paper border-b border-kk-mauve flex gap-1.5 overflow-x-auto">
+              {BK_SECTIONS.map((s) => {
+                const on = activeSec === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => gotoBkSection(s.id)}
+                    className={
+                      'px-3 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap flex-shrink-0 ' +
+                      (on ? 'bg-kk-navy text-white' : 'bg-white text-kk-navy border-2 border-kk-mauve')
+                    }
+                  >
+                    {s.n}. {s.label}
+                  </button>
+                );
+              })}
+            </div>
+
         {/* 1 — DATA PENYEWA */}
         {(
-          <div>
+          <div id="bk-penyewa" className="scroll-mt-2">
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               1. Siapa penyewanya?
             </h3>
@@ -722,7 +798,7 @@ export function BookingFlow({
 
         {/* 2 — PILIH KAMAR */}
         {(
-          <div className="mt-9 pt-7 border-t-2 border-kk-mauve-soft">
+          <div id="bk-kamar" className="mt-9 pt-7 border-t-2 border-kk-mauve-soft scroll-mt-2">
             <div ref={topRef} />
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               2. Pilih kamar
@@ -891,7 +967,7 @@ export function BookingFlow({
 
         {/* LANGKAH 3 — LAMA SEWA */}
         {(
-          <div className="mt-9 pt-7 border-t-2 border-kk-mauve-soft">
+          <div id="bk-periode" className="mt-9 pt-7 border-t-2 border-kk-mauve-soft scroll-mt-2">
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               3. Berapa lama menyewa?
             </h3>
@@ -1118,7 +1194,7 @@ export function BookingFlow({
 
         {/* LANGKAH 4 — PEMBAYARAN */}
         {(
-          <div className="mt-9 pt-7 border-t-2 border-kk-mauve-soft">
+          <div id="bk-bayar" className="mt-9 pt-7 border-t-2 border-kk-mauve-soft scroll-mt-2">
             <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-5">
               4. Bagaimana pembayarannya?
             </h3>
@@ -1235,6 +1311,8 @@ export function BookingFlow({
             <KkIcon name="cek" size={22} strokeWidth={2.4} />{' '}
             {saveMutation.isPending ? 'Menyimpan…' : isEdit ? 'Simpan Perubahan' : 'Simpan Booking'}
           </KkButton>
+        </div>
+          </div>
         </div>
       </div>
       </Sheet>
