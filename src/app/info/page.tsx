@@ -79,7 +79,7 @@ const PENGINAPAN_FAS = [
   '🚿 KM dalam',
   '🚽 WC duduk',
   '♨️ Water heater',
-  '💧 Air mineral gratis',
+  '💧 Free air mineral',
   '📶 WiFi unlimited',
   '🧹 Pembersihan kamar',
   '🔒 Security & CCTV',
@@ -497,7 +497,7 @@ export default function InfoPage() {
 
         {/* Penginapan */}
         <section id="penginapan" className="py-8 scroll-mt-20">
-          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & gratis air mineral di kamar. 💧" />
+          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & free air mineral di kamar. 💧" />
           <div className="space-y-4">
             {info.penginapan.map((p) => (
               <Card key={p.nama} className="!p-0 overflow-hidden">
