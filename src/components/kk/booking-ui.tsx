@@ -470,9 +470,17 @@ export function BookingFlow({
   // Pakets this room actually has a price for (sorted Harian→Setahun).
   const availablePakets = useMemo<PaketKind[]>(() => {
     if (!chosen) return [];
-    return (Object.keys(chosen.paketPrices) as PaketKind[]).sort(
+    let kinds = (Object.keys(chosen.paketPrices) as PaketKind[]).sort(
       (a, b) => PAKET_META[a].order - PAKET_META[b].order,
     );
+    // Kost: hanya 6 Bulan & Setahun (opsi harian/mingguan/bulanan diskret
+    // dihilangkan). Untuk hitungan per-hari, pakai mode "Atur tanggal sendiri".
+    const isKost = (chosen.room.Layanan_Default || '').trim().toUpperCase() === 'KOS';
+    if (isKost) {
+      const only = kinds.filter((k) => k === '6bulan' || k === 'setahun');
+      kinds = only.length ? only : (['6bulan', 'setahun'] as PaketKind[]);
+    }
+    return kinds;
   }, [chosen]);
 
   // When the chosen room (or its pakets) changes, keep paketKind valid: prefer
