@@ -70,7 +70,7 @@ export default function LaporanPage() {
     if (!data) return;
     const toastId = toast.loading('⏳ Menyiapkan file Excel…');
     try {
-      let businessName = 'KelolaKos';
+      let businessName = 'Top Hills & Co';
       try {
         const settings = await kwitansiApi.get();
         if (settings?.business_name) businessName = settings.business_name;

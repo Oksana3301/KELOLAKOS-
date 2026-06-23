@@ -131,10 +131,10 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-md bg-ac text-inv grid place-items-center font-extrabold text-xl">
-            K
+            T
           </div>
           <div>
-            <h1 className="font-bold text-base leading-tight">KelolaKos</h1>
+            <h1 className="font-bold text-base leading-tight">{'Top Hills & Co'}</h1>
             <p className="text-tx3 text-xs">Property OS</p>
           </div>
         </div>

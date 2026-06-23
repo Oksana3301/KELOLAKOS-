@@ -4,8 +4,8 @@ import { Providers } from './providers';
 import { AppShell } from '@/components/kk/app-shell';
 
 export const metadata: Metadata = {
-  title: 'KelolaKos · Property OS',
-  description: 'Kos & Penginapan Management System',
+  title: 'Top Hills & Co · Property OS',
+  description: 'Top Hills & Co — Kos & Penginapan Management System',
   icons: {
     icon: '/favicon.ico',
   },

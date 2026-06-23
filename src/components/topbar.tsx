@@ -25,7 +25,7 @@ export function Topbar({ action }: TopbarProps) {
   const router = useRouter();
 
   function handleLogout() {
-    if (confirm('Logout dari KelolaKos? Lo perlu input access code lagi setelah ini.')) {
+    if (confirm('Logout dari Top Hills & Co? Lo perlu input access code lagi setelah ini.')) {
       clearStoredAccessCode();
       toast.success('Logout berhasil');
       setTimeout(() => router.refresh(), 500);
@@ -39,10 +39,10 @@ export function Topbar({ action }: TopbarProps) {
         {/* Brand */}
         <div className="flex items-center gap-3 pr-4 border-r border-bd">
           <div className="w-9 h-9 rounded-md bg-ac text-inv grid place-items-center font-extrabold text-lg">
-            K
+            T
           </div>
           <div className="hidden sm:block">
-            <div className="font-bold text-sm leading-tight">KelolaKos</div>
+            <div className="font-bold text-sm leading-tight">{'Top Hills & Co'}</div>
             <div className="text-tx3 text-[11px] font-medium mt-0.5">Property OS</div>
           </div>
         </div>
