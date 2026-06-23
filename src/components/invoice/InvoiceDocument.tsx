@@ -271,7 +271,7 @@ export function InvoiceDocument({
             <div style={{ position: 'absolute', bottom: 120, left: '51%', transform: 'translateX(-50%) rotate(-13deg)', pointerEvents: 'none' }}>
               <div style={{ border: '3px double #B05C3B', borderRadius: 14, padding: '13px 26px 11px', textAlign: 'center', boxShadow: '0 0 26px rgba(176,92,59,.16)', background: 'rgba(176,92,59,.05)' }}>
                 <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 31, letterSpacing: 4, lineHeight: .92, color: '#B05C3B' }}>BELUM LUNAS</div>
-                <div style={{ fontSize: 11, letterSpacing: 3, color: '#B05C3B', marginTop: 6, opacity: .9 }}>DP {rp(totalPaid)} DITERIMA</div>
+                <div style={{ fontSize: 11, letterSpacing: 3, color: '#B05C3B', marginTop: 6, opacity: .9 }}>{totalPaid > 0 ? `DP ${rp(totalPaid)} DITERIMA` : 'TAGIHAN BELUM DIBAYAR'}</div>
                 <div style={{ fontSize: 10, letterSpacing: 1.5, color: '#B05C3B', marginTop: 4, opacity: .65 }}>{inv.date}</div>
               </div>
             </div>
