@@ -9,7 +9,7 @@ import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { mapPayStatus } from '@/components/kk/status';
-import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
+import { downloadAsPNG, copyAsPNGToClipboard, captureToPngBlob } from '@/lib/image-export';
 import { InvoiceDocument } from '@/components/invoice/InvoiceDocument';
 import {
   bookingToInvoice, digitsOnly, deriveInvoice, rp, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
@@ -187,26 +187,47 @@ export default function InvoicePage() {
     window.open(url, '_blank');
   }
 
-  // Kirim sekalian: salin gambar invoice ke clipboard + buka WhatsApp berisi teks
-  // rincian (rekening & total). Penyewa tinggal tempel gambar di chat.
+  // Kirim sekalian (gambar + teks). Di HP: pakai Web Share API → pilih WhatsApp,
+  // gambar & teks terkirim BERSAMA. Di desktop: salin gambar + buka WhatsApp teks.
   async function sendBoth() {
+    if (!exportRef.current) return;
     const toastId = toast.loading('Menyiapkan invoice…');
-    let imgCopied = false;
     try {
-      if (exportRef.current) {
-        if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
-        await new Promise((r) => setTimeout(r, 120));
+      if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
+      await new Promise((r) => setTimeout(r, 120));
+      const nm = (invoice.customer.name || 'invoice').replace(/\s+/g, '_');
+      const blob = await captureToPngBlob({ element: exportRef.current, scale: 2, backgroundColor: null });
+      const file = new File([blob], `invoice-${nm}.png`, { type: 'image/png' });
+      const text = buildWaText();
+
+      const nav = navigator as Navigator & { canShare?: (d: { files?: File[] }) => boolean };
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        try {
+          await nav.share({ files: [file], text });
+          toast.success('Pilih WhatsApp di menu berbagi — gambar & teks terkirim bersama 🌸', { id: toastId });
+          return;
+        } catch (e) {
+          if ((e as Error).name === 'AbortError') { toast.dismiss(toastId); return; }
+          // selain dibatalkan → lanjut ke cara desktop di bawah
+        }
+      }
+
+      // Desktop / browser tanpa Web Share: salin gambar ke clipboard + buka WhatsApp teks.
+      let imgCopied = false;
+      try {
         const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: null });
         imgCopied = res.method === 'clipboard';
-      }
-    } catch { /* abaikan — tetap lanjut buka WhatsApp */ }
-    sendWaText();
-    toast.success(
-      imgCopied
-        ? 'WhatsApp terbuka (teks terisi). Tempel (paste) gambar invoice di chat 🌸'
-        : 'WhatsApp terbuka (teks terisi). Untuk gambar, pakai tombol “Unduh PNG” lalu lampirkan.',
-      { id: toastId },
-    );
+      } catch { /* abaikan */ }
+      sendWaText();
+      toast.success(
+        imgCopied
+          ? 'WhatsApp terbuka (teks). Tempel (paste) gambar invoice di chat 🌸'
+          : 'WhatsApp terbuka (teks). Untuk gambar, pakai “Unduh PNG” lalu lampirkan.',
+        { id: toastId },
+      );
+    } catch (e) {
+      toast.error('Gagal: ' + (e as Error).message, { id: toastId });
+    }
   }
 
   async function exportPNG(share: boolean) {
@@ -315,7 +336,7 @@ export default function InvoicePage() {
         <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim ke WhatsApp (teks + gambar)
       </KkButton>
       <p className="mt-2 text-caption text-kk-ink text-center">
-        WhatsApp terbuka berisi teks rekening &amp; total (bisa disalin penyewa). Gambar invoice ikut tersalin — tinggal tempel di chat.
+        Di HP: muncul menu berbagi → pilih <b className="text-kk-navy">WhatsApp</b>, gambar &amp; teks terkirim bersama. Di komputer: WhatsApp Web terbuka berisi teks, gambar tersalin untuk ditempel.
       </p>
 
       {/* Aksi tambahan */}
