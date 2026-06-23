@@ -401,6 +401,16 @@ export default function InfoPage() {
             {info.deskripsi}
           </p>
 
+          {/* Dua layanan — perjelas: kost putri & penginapan untuk umum */}
+          <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] sm:text-[14px] font-semibold" style={{ background: '#FBF3E0', color: C.brown, border: `1px solid ${C.gold}` }}>
+              🌸 Kost Putri
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] sm:text-[14px] font-semibold" style={{ background: '#FBF3E0', color: C.brown, border: `1px solid ${C.gold}` }}>
+              🏨 Penginapan untuk umum (putra & putri)
+            </span>
+          </div>
+
           {/* Hero video — hook utama: sedekat apa ke kampus */}
           <div className="mt-7">
             <HeroVideo poster={info.fotoHero} />
