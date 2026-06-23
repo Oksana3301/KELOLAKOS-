@@ -6,6 +6,7 @@
 // / submitStatusAction / submitRefund). Reuses the shared KK primitives.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -358,7 +359,9 @@ export function BookingFlow({
   editFacilityIds?: string[];
 }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const isEdit = !!editBooking;
+  const [newBookingId, setNewBookingId] = useState('');
   // Selected rental paket (price unit). Options come from the chosen room's
   // configured prices so the count is always multiplied against the right paket.
   const [paketKind, setPaketKind] = useState<PaketKind>('bulanan');
@@ -643,13 +646,15 @@ export function BookingFlow({
         buktiFiles: bukti,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['initial-data'] });
       qc.invalidateQueries({ queryKey: ['recent-transactions'] });
       qc.invalidateQueries({ queryKey: ['report-data'] });
       if (editBooking) {
         qc.invalidateQueries({ queryKey: ['booking-detail', editBooking.BookingID] });
       }
+      const id = editBooking ? editBooking.BookingID : (data as { bookingId?: string })?.bookingId || '';
+      setNewBookingId(id);
       setStep('sukses');
     },
     onError: (e) => toast.error('Gagal menyimpan: ' + (e as Error).message),
@@ -685,9 +690,25 @@ export function BookingFlow({
               accent={bayar === 'Lunas' ? 'green' : bayar === 'Belum Bayar' ? 'orange' : 'navy'}
             />
           </KkCard>
-          <KkButton variant="primary" size="lg" block onClick={onClose}>
+          {/* Opsional: langsung kirim invoice ke penyewa (Belum Lunas kalau DP, dll). */}
+          {newBookingId && (
+            <KkButton
+              variant="primary"
+              size="lg"
+              block
+              className="mb-3"
+              onClick={() => { onClose(); router.push(`/kwitansi?booking=${encodeURIComponent(newBookingId)}`); }}
+            >
+              <KkIcon name="kirim" size={22} strokeWidth={2.2} />
+              {bayar === 'Lunas' ? 'Kirim Invoice (Lunas)' : bayar === 'Belum Bayar' ? 'Kirim Invoice (Tagihan)' : 'Kirim Invoice (Belum Lunas)'}
+            </KkButton>
+          )}
+          <KkButton variant={newBookingId ? 'secondary' : 'primary'} size="lg" block onClick={onClose}>
             Selesai
           </KkButton>
+          {newBookingId && (
+            <p className="text-caption text-kk-ink mt-3 mb-0">Kirim invoice opsional — bisa dilewati dengan menekan “Selesai”.</p>
+          )}
         </div>
       </Sheet>
     );
