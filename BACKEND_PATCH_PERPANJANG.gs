@@ -9,15 +9,16 @@
  *
  * ┌─ CARA DEPLOY (Apps Script editor) ────────────────────────────────────────┐
  * │ 1) Tempel seluruh isi file ini ke project Apps Script (paling bawah).      │
- * │ 2) Di router doPost/doGet, tambahkan 2 case:                               │
- * │      case 'lookupPenyewaByWa':  return { ok: true, data: lookupPenyewaByWa(data) };   │
- * │      case 'lookupPenyewaById':  return { ok: true, data: lookupPenyewaById(data) };   │
- * │ 3) Masukkan 2 action ini ke daftar PUBLIC (skip cek lisensi), sejajar      │
+ * │ 2) Di router doPost/doGet, tambahkan 3 case:                               │
+ * │      case 'lookupPenyewaByWa':    return { ok: true, data: lookupPenyewaByWa(data) };    │
+ * │      case 'lookupPenyewaById':    return { ok: true, data: lookupPenyewaById(data) };    │
+ * │      case 'submitBookingRequest': return { ok: true, data: submitBookingRequest(data) }; │
+ * │ 3) Masukkan 3 action ini ke daftar PUBLIC (skip cek lisensi), sejajar      │
  * │    'getPublicRooms' / 'getHalamanInfo'. Contoh:                            │
- * │      var PUBLIC_ACTIONS = ['verifyAccessCode','getHalamanInfo',            │
- * │        'getPublicRooms','lookupPenyewaByWa','lookupPenyewaById'];          │
- * │ 4) (Sekali saja, untuk PR-2 nanti) jalankan fungsi                         │
- * │    tambahKolomTagPerpanjangan() untuk menambah kolom 'tag_perpanjangan'.   │
+ * │      var PUBLIC_ACTIONS = ['verifyAccessCode','getHalamanInfo','getPublicRooms', │
+ * │        'lookupPenyewaByWa','lookupPenyewaById','submitBookingRequest'];    │
+ * │ 4) Jalankan SEKALI fungsi tambahKolomTagPerpanjangan() (tambah kolom        │
+ * │    'tag_perpanjangan' ke sheet BOOKINGS).                                   │
  * │ 5) Deploy ulang Web App (New deployment / kelola versi).                    │
  * └────────────────────────────────────────────────────────────────────────────┘
  *
@@ -85,6 +86,50 @@ function lookupPenyewaById(data) {
     }
   }
   return null;
+}
+
+/**
+ * Submit booking dari halaman publik /info → tersimpan sebagai booking PENDING
+ * (Status_Booking = MENUNGGU_KONFIRMASI, Status_Bayar = Belum Bayar).
+ * Owner menerima/menolak manual via /booking. Header-driven append: hanya mengisi
+ * kolom yang dikenal, sisanya dibiarkan kosong/0 — tidak mengubah struktur sheet.
+ * Booking PENDING TIDAK memblokir kamar (harga di-set owner saat menerima).
+ */
+function submitBookingRequest(data) {
+  data = data || {};
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.BOOKINGS);
+  if (!sh) throw new Error('Sheet BOOKINGS tidak ditemukan: ' + SHEETS.BOOKINGS);
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h); });
+
+  var id = 'TH-REQ-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss');
+
+  // "Nama — Gedung" → pisah.
+  var kamar = String(data.kamar || '');
+  var namaKamar = kamar, gedung = '';
+  var parts = kamar.split('—');
+  if (parts.length >= 2) { namaKamar = parts[0].trim(); gedung = parts.slice(1).join('—').trim(); }
+
+  var vals = {
+    BookingID: id,
+    Nama_Customer: data.nama || '',
+    WhatsApp: _perpanjangNormWa_(data.whatsapp),
+    Nama_Kamar: namaKamar,
+    Gedung: gedung,
+    Layanan: String(data.layanan || '').toUpperCase(),
+    Paket: data.durasi || '',
+    Durasi: data.durasi || '',
+    CheckIn: data.tglMulai || '',
+    Status_Booking: 'MENUNGGU_KONFIRMASI',
+    Status_Bayar: 'Belum Bayar',
+    Catatan: (data.catatan || '') + (data.jenis === 'perpanjang' ? ' [perpanjang/web]' : ' [baru/web]'),
+    tag_perpanjangan: data.tagPerpanjangan || '',
+    Timestamp: new Date()
+  };
+
+  var row = headers.map(function (h) { return Object.prototype.hasOwnProperty.call(vals, h) ? vals[h] : ''; });
+  sh.appendRow(row);
+  return { bookingId: id, message: 'Permintaan booking tersimpan (PENDING).' };
 }
 
 /**
