@@ -14,11 +14,15 @@ export const DEMO_HINT = '08522 6390 1187 (1 kamar) · 0813 7781 4502 (2 kamar)'
 
 export type LookupResult = { rows: PenyewaLookup[]; demo: boolean };
 
-export async function lookupPenyewa(input: { wa?: string; bookingId?: string }): Promise<LookupResult> {
+export async function lookupPenyewa(input: { wa?: string; bookingId?: string; room?: string }): Promise<LookupResult> {
   try {
     if (input.bookingId) {
       const one = await api.lookupPenyewaById(input.bookingId.trim());
       return { rows: one ? [one] : [], demo: false };
+    }
+    if (input.room) {
+      const rows = await api.lookupPenyewaByRoom(input.room);
+      return { rows: Array.isArray(rows) ? rows : [], demo: false };
     }
     const rows = await api.lookupPenyewaByWa(normWa(input.wa || ''));
     return { rows: Array.isArray(rows) ? rows : [], demo: false };
@@ -27,6 +31,10 @@ export async function lookupPenyewa(input: { wa?: string; bookingId?: string }):
     if (input.bookingId) {
       const id = input.bookingId.trim().toUpperCase();
       return { rows: DEMO.filter((d) => d.bookingId.toUpperCase() === id), demo: true };
+    }
+    if (input.room) {
+      const q = input.room.split('—')[0].trim().toLowerCase();
+      return { rows: DEMO.filter((d) => d.kamar.toLowerCase().startsWith(q)), demo: true };
     }
     const key = normWa(input.wa || '');
     return { rows: DEMO.filter((d) => d.whatsapp === key), demo: true };

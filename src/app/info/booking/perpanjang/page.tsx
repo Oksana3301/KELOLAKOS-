@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
+import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { TH, TH_SERIF, isValidWa, normWa } from '@/lib/tophills-theme';
 import { lookupPenyewa, DEMO_HINT } from '@/lib/perpanjang-demo';
 import { submitBookingRequest } from '@/lib/booking-request';
-import type { PenyewaLookup } from '@/lib/api';
+import { halamanInfoApi } from '@/lib/api-v2';
+import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
+import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed } from '@/lib/booking-pricing';
+import { api, type PenyewaLookup } from '@/lib/api';
 
 type Step = 'input' | 'pilih' | 'form';
 
@@ -25,6 +30,7 @@ export default function PerpanjangPage() {
   const [step, setStep] = useState<Step>('input');
   const [wa, setWa] = useState('');
   const [bookingId, setBookingId] = useState('');
+  const [kamarPilih, setKamarPilih] = useState('');
   const [waErr, setWaErr] = useState('');
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<PenyewaLookup[]>([]);
@@ -39,17 +45,26 @@ export default function PerpanjangPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [submitDemo, setSubmitDemo] = useState(false);
+  const [selFac, setSelFac] = useState<string[]>([]);
+  const [extraBedQty, setExtraBedQty] = useState(0);
+
+  const { data: rooms } = useQuery({ queryKey: ['public-rooms'], queryFn: api.getPublicRooms, retry: 0, staleTime: 60_000 });
+  const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
+  const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
+  const info = mergeInfo(infoRaw || DEFAULT_INFO);
+  const fasilitas = fasData?.list || [];
+  const kamarTerisi = (Array.isArray(rooms) ? rooms : []).filter((r) => r.status === 'terisi');
 
   async function cari() {
     setWaErr('');
-    if (!bookingId.trim() && !isValidWa(wa)) {
-      setWaErr('Format WA belum benar. Contoh: 6281234567890');
+    if (!kamarPilih && !bookingId.trim() && !isValidWa(wa)) {
+      setWaErr('Isi salah satu: nomor WA, ID booking, atau pilih nomor kamar.');
       return;
     }
     setLoading(true);
     setNotFound(false);
     try {
-      const res = await lookupPenyewa(bookingId.trim() ? { bookingId } : { wa });
+      const res = await lookupPenyewa(kamarPilih ? { room: kamarPilih } : bookingId.trim() ? { bookingId } : { wa });
       setDemo(res.demo);
       const active = res.rows.filter((r) => !['BATAL', 'CANCELLED', 'DITOLAK', 'REJECTED'].includes(String(r.status || '').toUpperCase()));
       setRows(active);
@@ -72,19 +87,46 @@ export default function PerpanjangPage() {
     setStep('form');
   }
 
+  const isKost = String(sel?.layanan).toUpperCase() === 'KOS';
+
+  const base = useMemo(() => {
+    if (!sel) return { price: 0, label: 'Perpanjangan' };
+    const room = (Array.isArray(rooms) ? rooms : []).find((r) => sel.kamar.toLowerCase().startsWith(r.nama.toLowerCase()));
+    if (isKost) {
+      const monthly = room?.harga && room.harga > 0 ? room.harga : parseRupiah(info.kostTeaser);
+      const months = durasi === '1 Tahun' ? 12 : 6;
+      return { price: monthly * months, label: `Kost × ${months} bln` };
+    }
+    const tipe = info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); const rt = (sel.tipe || '').toLowerCase(); return rt && (rt.includes(pn) || pn.includes(rt)); });
+    return { price: tipe ? parseRupiah(tipe.malam) : room?.harga || 0, label: 'Per malam' };
+  }, [sel, rooms, isKost, durasi, info]);
+
+  const addonTotal = useMemo(() => {
+    const eb = fasilitas.find(isExtraBed);
+    return selFac.reduce((s, id) => { const f = fasilitas.find((x) => x.id === id); return s + (f ? Number(f.price_adjust) || 0 : 0); }, 0)
+      + (eb ? extraBedQty * (Number(eb.price_adjust) || 0) : 0);
+  }, [selFac, extraBedQty, fasilitas]);
+
+  function toggleFac(id: string) { setSelFac((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
+
   async function kirim() {
     if (!sel) return;
+    const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
+    const catat = [
+      `Perpanjangan dari ${sel.bookingId}`,
+      facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
+      extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
+      base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal)}` : '',
+    ].filter(Boolean).join(' — ');
     setSubmitting(true);
     const res = await submitBookingRequest({
       jenis: 'perpanjang', nama: sel.nama, whatsapp: normWa(sel.whatsapp), layanan: sel.layanan, kamar: sel.kamar,
-      durasi, tglMulai, bayar, catatan: `Perpanjangan dari ${sel.bookingId}`, tagPerpanjangan: sel.bookingId,
+      durasi, tglMulai, bayar, catatan: catat, tagPerpanjangan: sel.bookingId,
     });
     setSubmitting(false);
     setSubmitDemo(res.demo);
     setDone(true);
   }
-
-  const isKost = String(sel?.layanan).toUpperCase() === 'KOS';
 
   if (done) {
     return (
@@ -111,6 +153,19 @@ export default function PerpanjangPage() {
           </div>
           <THField label="ID Booking lama (opsional)" hint="Contoh: TH-2026-0148">
             <THInput placeholder="TH-2026-XXXX" value={bookingId} onChange={(e) => setBookingId(e.target.value)} />
+          </THField>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px" style={{ background: TH.border }} />
+            <span className="text-[12px]" style={{ color: TH.brownSoft }}>atau lupa keduanya?</span>
+            <div className="flex-1 h-px" style={{ background: TH.border }} />
+          </div>
+          <THField label="Pilih nomor kamar (yang masih kamu tempati)" hint="Khusus penyewa yang kontraknya masih berjalan">
+            <THSelect value={kamarPilih} onChange={(e) => setKamarPilih(e.target.value)}>
+              <option value="">— pilih kamar terisi —</option>
+              {kamarTerisi.map((r) => (
+                <option key={`${r.nama}-${r.gedung}`} value={`${r.nama} — ${r.gedung}`}>{r.nama} — {r.gedung}</option>
+              ))}
+            </THSelect>
           </THField>
           <THBtn variant="gold" block onClick={cari} disabled={loading}>
             {loading ? 'Mencari…' : '🔎 Cari Data Saya'}
@@ -176,6 +231,14 @@ export default function PerpanjangPage() {
             <THField label="Tanggal mulai perpanjangan" hint="Default: sehari setelah kontrak lama berakhir">
               <THInput type="date" value={tglMulai} onChange={(e) => setTglMulai(e.target.value)} />
             </THField>
+
+            <FasilitasEstimasi
+              fasilitas={fasilitas} demo={fasData?.demo}
+              selectedIds={selFac} onToggle={toggleFac}
+              extraBedQty={extraBedQty} onExtraBed={setExtraBedQty}
+              basePrice={base.price} baseLabel={base.label}
+            />
+
             <THField label="Pembayaran">
               <div className="grid grid-cols-2 gap-2">
                 {(['DP', 'Full'] as const).map((b) => (

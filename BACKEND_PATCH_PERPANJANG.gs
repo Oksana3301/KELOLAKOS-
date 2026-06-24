@@ -90,6 +90,26 @@ function lookupPenyewaById(data) {
   return null;
 }
 
+/** Cari booking AKTIF (non-batal) berdasarkan nomor/nama kamar — untuk Perpanjang
+ *  ketika penyewa lupa WA & ID. Hanya kamar yang masih TERISI yang relevan. */
+function lookupPenyewaByRoom(data) {
+  var q = String((data && (data.kamar || data.room)) || '').trim().toLowerCase();
+  if (!q) return [];
+  // "Kamar 12A — Gedung A" → ambil bagian nama kamar saja untuk pencocokan.
+  var qNama = q.split('—')[0].trim();
+  var rows = getSheetObjects_(SHEETS.BOOKINGS) || [];
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var b = rows[i];
+    if (_perpanjangStatusDibuang_(b.Status_Booking)) continue;
+    var nk = String(b.Nama_Kamar || '').trim().toLowerCase();
+    if (nk !== qNama && nk !== q) continue;
+    out.push(_perpanjangMap_(b));
+  }
+  out.sort(function (a, c) { return String(c.tglAkhirKontrak).localeCompare(String(a.tglAkhirKontrak)); });
+  return out;
+}
+
 /**
  * Submit booking dari halaman publik /info → tersimpan sebagai booking PENDING
  * (Status_Booking = MENUNGGU_KONFIRMASI, Status_Bayar = Belum Bayar).
