@@ -22,7 +22,7 @@ const JSON_LD = {
   description:
     'Kost putri & penginapan umum dekat kampus UNAND, Limau Manis, Pauh — Padang. Rooftop belajar, free air mineral, AC, kamar mandi dalam, WiFi unlimited, security & CCTV.',
   url: INFO_URL,
-  image: `${SITE_URL}/og-tophills-v2.jpg`,
+  image: `${SITE_URL}/og-tophills-v3.jpg`,
   telephone: '+62811-6646-615',
   priceRange: 'Rp 200.000 – Rp 4.000.000',
   currenciesAccepted: 'IDR',
