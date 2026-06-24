@@ -2,13 +2,13 @@ import type { Metadata } from 'next';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
 
 const TITLE = 'Kost Putri & Penginapan Top Hills — Dekat UNAND Padang';
-// Meta description (Google ~150–160 char).
+// Meta description — tanpa "&" (opengraph/Google menghitung &amp; sebagai 5 char). ~140.
 const DESCRIPTION =
-  'Kost putri & penginapan nyaman dekat kampus UNAND, Limau Manis — Padang. AC, kamar mandi dalam, WiFi, rooftop belajar, free air mineral. Booking via WhatsApp.';
+  'Kost putri dan penginapan nyaman dekat kampus UNAND, Limau Manis Padang. AC, kamar mandi dalam, WiFi, rooftop belajar. Booking via WhatsApp.';
 // Deskripsi pendek untuk social preview (OG/X ~110 char, anti-truncate).
 const DESCRIPTION_SHORT =
-  'Kost putri & penginapan nyaman dekat UNAND, Padang. AC, KM dalam, WiFi, rooftop belajar. Booking via WhatsApp 🌸';
-const OG_IMAGE = '/og-tophills.jpg';
+  'Kost putri dan penginapan nyaman dekat UNAND, Padang. AC, KM dalam, WiFi, rooftop belajar. Booking via WhatsApp 🌸';
+const OG_IMAGE = '/og-tophills-v2.jpg';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
