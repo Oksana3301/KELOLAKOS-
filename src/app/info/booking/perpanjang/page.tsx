@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
+import { PostFormActions } from '@/components/info/post-form-actions';
 import { TH, TH_SERIF, isValidWa, normWa } from '@/lib/tophills-theme';
 import { lookupPenyewa, DEMO_HINT } from '@/lib/perpanjang-demo';
 import { submitBookingRequest } from '@/lib/booking-request';
@@ -273,12 +274,12 @@ export default function PerpanjangPage() {
             </THField>
           </THCard>
 
-          <THBtn variant="gold" block onClick={kirim} disabled={submitting}>
-            {submitting ? 'Mengirim…' : 'Kirim Permintaan Perpanjangan ›'}
-          </THBtn>
-          <p className="text-[11.5px] text-center" style={{ color: TH.brownSoft }}>
-            Tim kami akan menghubungi via WhatsApp untuk konfirmasi &amp; pembayaran. Aktif setelah dikonfirmasi.
-          </p>
+          <PostFormActions
+            nama={sel.nama}
+            ringkas={`${sel.kamar}${durasi ? ' · ' + durasi : ''}${orang > 1 ? ' · ' + orang + ' org' : ''}${base.price > 0 ? ' · est ' + formatRupiah(base.price + addonTotal + extraOrang) : ''}`}
+            onLanjut={kirim}
+            submitting={submitting}
+          />
         </div>
       )}
     </BookingShell>
