@@ -53,7 +53,11 @@ export default function PerpanjangPage() {
   const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
   const fasilitas = fasData?.list || [];
-  const kamarTerisi = (Array.isArray(rooms) ? rooms : []).filter((r) => r.status === 'terisi');
+  const kamarTerisi = useMemo(() => {
+    const arr = Array.isArray(rooms) ? rooms : [];
+    const terisi = arr.filter((r) => r.status === 'terisi');
+    return terisi.length ? terisi : arr; // fallback: kalau status belum rapi, tampilkan semua
+  }, [rooms]);
 
   async function cari() {
     setWaErr('');
@@ -159,11 +163,13 @@ export default function PerpanjangPage() {
             <span className="text-[12px]" style={{ color: TH.brownSoft }}>atau lupa keduanya?</span>
             <div className="flex-1 h-px" style={{ background: TH.border }} />
           </div>
-          <THField label="Pilih nomor kamar (yang masih kamu tempati)" hint="Khusus penyewa yang kontraknya masih berjalan">
+          <THField label="Pilih nomor kamar (yang masih kamu tempati)" hint={!rooms ? 'Memuat data kamar…' : kamarTerisi.length === 0 ? 'Belum ada data kamar' : 'Khusus penyewa yang kontraknya masih berjalan'}>
             <THSelect value={kamarPilih} onChange={(e) => setKamarPilih(e.target.value)}>
-              <option value="">— pilih kamar terisi —</option>
+              <option value="">— pilih kamar —</option>
               {kamarTerisi.map((r) => (
-                <option key={`${r.nama}-${r.gedung}`} value={`${r.nama} — ${r.gedung}`}>{r.nama} — {r.gedung}</option>
+                <option key={`${r.nama}-${r.gedung}`} value={`${r.nama} — ${r.gedung}`}>
+                  {r.nama} — {r.gedung}{r.tipe ? ` (${r.tipe})` : ''}
+                </option>
               ))}
             </THSelect>
           </THField>

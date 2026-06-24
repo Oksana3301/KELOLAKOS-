@@ -38,11 +38,15 @@ export default function BookingBaruPage() {
   const kamarOptions = useMemo(() => {
     const arr = Array.isArray(rooms) ? rooms : [];
     const isKost = layanan === 'KOS';
-    return arr.filter((r: PublicRoom) => {
+    const matchLayanan = (r: PublicRoom) => {
       const lay = String(r.layanan || '').toUpperCase();
-      const matchLayanan = isKost ? lay.includes('KOS') : lay.includes('PENGINAPAN') || lay.includes('INAP');
-      return matchLayanan && r.status === 'kosong';
-    });
+      if (!lay) return true; // layanan tak diset → tampilkan di dua-duanya
+      return isKost ? lay.includes('KOS') : lay.includes('PENGINAP') || lay.includes('INAP');
+    };
+    const matched = arr.filter(matchLayanan);
+    const kosong = matched.filter((r) => r.status === 'kosong');
+    // Utamakan yang kosong; kalau tidak ada (status belum rapi), tampilkan semua.
+    return kosong.length ? kosong : matched.length ? matched : arr;
   }, [rooms, layanan]);
 
   const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Bulanan'];
@@ -129,11 +133,13 @@ export default function BookingBaruPage() {
           </div>
         </THField>
 
-        <THField label="Pilih kamar (yang kosong)" hint={kamarOptions.length === 0 ? 'Memuat / belum ada kamar kosong untuk layanan ini' : undefined}>
+        <THField label="Pilih kamar" hint={!rooms ? 'Memuat data kamar…' : kamarOptions.length === 0 ? 'Belum ada data kamar — chat Helpdesk di bawah ya' : undefined}>
           <THSelect value={kamar} onChange={(e) => setKamar(e.target.value)}>
             <option value="">— pilih kamar —</option>
             {kamarOptions.map((r) => (
-              <option key={r.nama} value={`${r.nama} — ${r.gedung}`}>{r.nama} — {r.gedung} ({r.tipe})</option>
+              <option key={`${r.nama}-${r.gedung}`} value={`${r.nama} — ${r.gedung}`}>
+                {r.nama} — {r.gedung}{r.tipe ? ` (${r.tipe})` : ''}{r.status && r.status !== 'kosong' ? ` · ${r.status}` : ''}
+              </option>
             ))}
           </THSelect>
         </THField>
