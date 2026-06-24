@@ -8,7 +8,7 @@ const DESCRIPTION =
 // Deskripsi pendek untuk social preview (OG/X ~110 char, anti-truncate).
 const DESCRIPTION_SHORT =
   'Kost putri dan penginapan nyaman dekat UNAND, Padang. AC, KM dalam, WiFi, rooftop belajar. Booking via WhatsApp 🌸';
-const OG_IMAGE = '/og-tophills-v2.jpg';
+const OG_IMAGE = '/og-tophills-v3.jpg';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
