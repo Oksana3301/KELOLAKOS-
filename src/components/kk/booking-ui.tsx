@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   api,
@@ -18,7 +18,9 @@ import {
   type BuktiFile,
   type PaymentRecord,
 } from '@/lib/api';
-import { type Fasilitas } from '@/lib/api-v2';
+import { type Fasilitas, halamanInfoApi } from '@/lib/api-v2';
+import { DEFAULT_INFO, mergeInfo, type HalamanInfo } from '@/lib/halaman-info';
+import { kostBasePrice, parseRupiah } from '@/lib/booking-pricing';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
 import { MoneyInput } from './money-input';
@@ -336,6 +338,45 @@ function gotoBkSection(id: string) {
 }
 
 // ═════════════════════════ TAMBAH / UBAH BOOKING FLOW ═════════════════════════
+// ── Harga dari Pengaturan (Halaman Info) — disamakan dengan form publik /info ──
+function matchTipe(room: RoomStatus, info: HalamanInfo) {
+  const rt = String(room.Tipe_Kamar || '').toLowerCase();
+  return info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); return rt && (rt.includes(pn) || pn.includes(rt)); });
+}
+/** Harga per-unit paket dari config; 0 = tidak ada (pakai harga lama/price-rules). */
+function configHargaSatuan(room: RoomStatus | undefined, paketKind: PaketKind, info: HalamanInfo): number {
+  if (!room) return 0;
+  const lay = String(room.Layanan_Default || '').toUpperCase();
+  if (lay.includes('KOS')) {
+    if (paketKind === '6bulan') return kostBasePrice(info, '6 Bulan', { nama: room.Nama_Kamar, gedung: room.Gedung }).price;
+    if (paketKind === 'setahun') return kostBasePrice(info, '1 Tahun', { nama: room.Nama_Kamar, gedung: room.Gedung }).price;
+    return 0;
+  }
+  if (lay.includes('INAP') || lay.includes('PENGINAP')) {
+    const tipe = matchTipe(room, info);
+    if (!tipe) return 0;
+    if (paketKind === 'harian') return parseRupiah(tipe.malam);
+    if (paketKind === 'bulanan') return parseRupiah(tipe.bulan);
+    if (paketKind === 'setahun') return parseRupiah(tipe.tahun);
+    return 0;
+  }
+  return 0;
+}
+function extraOrangCharge(room: RoomStatus | undefined, paketKind: PaketKind, orang: number, lamaEff: number, info: HalamanInfo): number {
+  if (!room || orang <= 1) return 0;
+  const lay = String(room.Layanan_Default || '').toUpperCase();
+  if (lay.includes('KOS')) return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
+  if (lay.includes('INAP') || lay.includes('PENGINAP')) {
+    const base = info.penginapanBaseOrang || 1;
+    const extra = Math.max(0, orang - base);
+    if (!extra) return 0;
+    const rate = matchTipe(room, info)?.extraPerOrang || 0;
+    const nights = paketKind === 'harian' ? lamaEff : 30;
+    return extra * rate * nights;
+  }
+  return 0;
+}
+
 export function BookingFlow({
   open,
   onClose,
@@ -361,6 +402,9 @@ export function BookingFlow({
   const qc = useQueryClient();
   const router = useRouter();
   const isEdit = !!editBooking;
+  // Harga & aturan dari Pengaturan (sama dengan form publik /info).
+  const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, staleTime: 60_000 });
+  const info = useMemo(() => mergeInfo(infoRaw || DEFAULT_INFO), [infoRaw]);
   const [newBookingId, setNewBookingId] = useState('');
   // Selected rental paket (price unit). Options come from the chosen room's
   // configured prices so the count is always multiplied against the right paket.
@@ -383,6 +427,7 @@ export function BookingFlow({
   const [hp, setHp] = useState('');
   const [roomId, setRoomId] = useState('');
   const [lama, setLama] = useState(1);
+  const [jumlahOrang, setJumlahOrang] = useState(1);
   const [masuk, setMasuk] = useState(TODAY());
   const [bayar, setBayar] = useState<PayStatus>('Lunas');
   const [dp, setDp] = useState('');
@@ -417,6 +462,7 @@ export function BookingFlow({
       const ps = mapPayStatus(editBooking);
       setBayar(ps === 'Batal' ? 'Lunas' : ps);
       setDp(ps === 'DP' ? String(editBooking.Net_Diterima || 0) : '');
+      setJumlahOrang(editBooking.Jumlah_Orang || 1);
     } else {
       setNama('');
       setHp('');
@@ -429,6 +475,7 @@ export function BookingFlow({
       setBayar('Lunas');
       setDp('');
       setTglBayar('');
+      setJumlahOrang(1);
     }
     setSelFas(new Set(editBooking ? editFacilityIds || [] : []));
     setBukti([]);
@@ -554,10 +601,14 @@ export function BookingFlow({
 
   // Room unit price for the active paket. Custom (per-day) mode uses the daily
   // price, deriving from the monthly one (/30) only when no daily price is set.
-  const hargaSatuanRoom = customDate
-    ? chosen?.paketPrices.harian ??
-      (chosen?.paketPrices.bulanan ? Math.round(chosen.paketPrices.bulanan / 30) : 0)
-    : chosen?.paketPrices[paketKind] || 0;
+  // Harga dari Pengaturan (sama dgn /info) bila tersedia; jika 0 → pakai harga lama.
+  const configHarga = !customDate ? configHargaSatuan(chosen?.room, paketKind, info) : 0;
+  const hargaSatuanRoom = configHarga > 0
+    ? configHarga
+    : customDate
+      ? chosen?.paketPrices.harian ??
+        (chosen?.paketPrices.bulanan ? Math.round(chosen.paketPrices.bulanan / 30) : 0)
+      : chosen?.paketPrices[paketKind] || 0;
 
   // Biaya fasilitas — pakai satuan tiap fasilitas (per bulan / per hari),
   // dikonversi memakai jumlah hari kalender nyata (bukan 30 tetap).
@@ -584,7 +635,11 @@ export function BookingFlow({
   // fasilitas. Di edit, harga kamar pakai nilai per-unit tersimpan booking.
   const hargaSatuan = hargaSatuanRoom;
   const hargaKamarEff = isEdit ? Number(editBooking!.Harga_Kamar) || hargaSatuan : hargaSatuan;
-  const total = hargaKamarEff * lamaEff + fasTotal;
+  // Biaya orang tambahan (rate dari Pengaturan) — hanya untuk booking baru.
+  const extraOrang = isEdit ? 0 : extraOrangCharge(chosen?.room, paketKind, jumlahOrang, lamaEff, info);
+  const isKostRoom = String(chosen?.room.Layanan_Default || '').toUpperCase().includes('KOS');
+  const maxOrang = isKostRoom ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
+  const total = hargaKamarEff * lamaEff + fasTotal + extraOrang;
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
 
@@ -636,6 +691,7 @@ export function BookingFlow({
         checkOut: keluar,
         paket: PAKET_BACKEND[customDate ? 'harian' : paketKind],
         jumlahPeriode: lamaEff,
+        jumlahOrang,
         hargaKamar: hargaSatuan,
         hargaTotal: total,
         dpAwal: dibayar,
@@ -1140,6 +1196,26 @@ export function BookingFlow({
               </>
             )}
 
+            {/* Jumlah orang (rate extra dari Pengaturan — sama dgn /info) */}
+            {chosen && !isEdit && (
+              <div className="mb-6">
+                <div className="font-heading font-bold text-[18px] text-kk-navy mb-1">Jumlah orang</div>
+                <p className="kk-help mb-3">
+                  {isKostRoom
+                    ? `Maks ${maxOrang}. Orang ke-2+ + ${rupiah(info.kostExtraPerOrang || 0)}.`
+                    : `Maks ${maxOrang}. Lebih dari ${info.penginapanBaseOrang || 1} kena tambahan/orang/malam.`}
+                </p>
+                <div className="flex items-center gap-4">
+                  <button type="button" onClick={() => setJumlahOrang((o) => Math.max(1, o - 1))}
+                    className="w-12 h-12 rounded-kk-card border-2 border-kk-mauve text-[24px] font-bold text-kk-navy grid place-items-center">−</button>
+                  <span className="font-heading font-black text-[22px] text-kk-navy w-8 text-center">{jumlahOrang}</span>
+                  <button type="button" onClick={() => setJumlahOrang((o) => Math.min(maxOrang, o + 1))}
+                    className="w-12 h-12 rounded-kk-card border-2 border-kk-mauve text-[24px] font-bold text-kk-navy grid place-items-center">+</button>
+                  {extraOrang > 0 && <span className="font-heading font-bold text-[17px] text-kk-green">+ {rupiah(extraOrang)}</span>}
+                </div>
+              </div>
+            )}
+
             {/* Fasilitas tambahan (opsional) — harga otomatis ditambah ke total */}
             {activeFas.length > 0 && (
               <div className="mb-6">
@@ -1204,6 +1280,12 @@ export function BookingFlow({
                     sampai {keluar ? tglPendek(keluar) : '—'}
                   </span>
                 </div>
+                {extraOrang > 0 && (
+                  <div className="flex justify-between items-baseline text-body mb-1.5">
+                    <span className="text-kk-navy">Tambahan {jumlahOrang} orang</span>
+                    <span className="text-caption font-semibold text-kk-green">+ {rupiah(extraOrang)}</span>
+                  </div>
+                )}
                 {fasTotal > 0 && (
                   <div className="flex justify-between items-baseline text-body mb-1.5">
                     <span className="text-kk-navy">Fasilitas tambahan</span>
