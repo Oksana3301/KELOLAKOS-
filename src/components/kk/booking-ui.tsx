@@ -233,6 +233,7 @@ export function buildRoomOptions(
   prices: PriceItem[],
   currentRoomId?: string,
   roomRules: RoomPriceRule[] = [],
+  info?: HalamanInfo,
 ): RoomOption[] {
   // Normalize so "Superior", " superior " and "SUPERIOR" all match — string
   // mismatches (case/spasi) were making configured prices show "belum diatur".
@@ -321,7 +322,13 @@ export function buildRoomOptions(
   return sorted.map((r) => {
     const paketPrices = paketPricesFor(r);
     const primaryKind = primaryKindOf(paketPrices);
-    return { room: r, paketPrices, primaryKind, harga: primaryKind ? paketPrices[primaryKind] || 0 : 0 };
+    let harga = primaryKind ? paketPrices[primaryKind] || 0 : 0;
+    // Selaraskan harga tampilan kartu dgn config /info (bila config terisi).
+    if (info && primaryKind) {
+      const cfg = configHargaSatuan(r, primaryKind, info);
+      if (cfg > 0) harga = cfg;
+    }
+    return { room: r, paketPrices, primaryKind, harga };
   });
 }
 
@@ -512,8 +519,8 @@ export function BookingFlow({
   }, [step, open]);
 
   const options = useMemo(
-    () => buildRoomOptions(rooms, prices, editBooking?.RoomID, roomPriceRules),
-    [rooms, prices, editBooking, roomPriceRules],
+    () => buildRoomOptions(rooms, prices, editBooking?.RoomID, roomPriceRules, info),
+    [rooms, prices, editBooking, roomPriceRules, info],
   );
   const chosen = options.find((o) => o.room.RoomID === roomId) || null;
 
