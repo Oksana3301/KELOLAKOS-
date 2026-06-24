@@ -3,12 +3,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api, type PublicRoom } from '@/lib/api';
+import { api, type PublicRoom, type BuktiFile } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
 import { BookingShell, BookingDone, THCard, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { PostFormActions } from '@/components/info/post-form-actions';
+import { PaymentStep } from '@/components/info/payment-step';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
@@ -28,6 +29,7 @@ export default function BookingBaruPage() {
   const [extraBedQty, setExtraBedQty] = useState(0);
   const [orang, setOrang] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [payStep, setPayStep] = useState(false);
   const [done, setDone] = useState(false);
   const [demo, setDemo] = useState(false);
 
@@ -91,11 +93,15 @@ export default function BookingBaruPage() {
 
   function toggleFac(id: string) { setSelFac((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
 
-  async function lanjut() {
+  function lanjut() {
     setWaErr('');
     if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
     if (!isValidWa(wa)) { setWaErr('Format WA belum benar. Contoh: 6281234567890'); return; }
     if (!kamar) { toast.error('Pilih kamar dulu'); return; }
+    setPayStep(true);
+  }
+
+  async function doSubmit(bukti: BuktiFile | null) {
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
     const catat = [
       catatan.trim(),
@@ -108,7 +114,7 @@ export default function BookingBaruPage() {
     const res = await submitBookingRequest({
       jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar,
       durasi: layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? `${Math.max(1, malamQty)} malam` : durasi,
-      tglMulai: mulai, bayar, catatan: catat, jumlahOrang: orang,
+      tglMulai: mulai, bayar, catatan: catat, jumlahOrang: orang, bukti: bukti || undefined,
     });
     setSubmitting(false);
     setDemo(res.demo);
@@ -117,6 +123,23 @@ export default function BookingBaruPage() {
 
   if (done) {
     return <BookingShell back={{ href: '/info', label: 'Beranda' }}><BookingDone nama={nama} demo={demo} /></BookingShell>;
+  }
+
+  if (payStep) {
+    return (
+      <BookingShell back={{ href: '/info/booking', label: 'Pilihan' }}>
+        <SectionTitle sub="Langkah terakhir — selesaikan pembayaran.">Pembayaran</SectionTitle>
+        <PaymentStep
+          layanan={layanan}
+          total={base.price + addonTotal + extraOrang}
+          ringkas={`${kamar} · ${durasi}${orang > 1 ? ' · ' + orang + ' org' : ''}`}
+          bayar={bayar}
+          onSubmit={doSubmit}
+          submitting={submitting}
+          onBack={() => setPayStep(false)}
+        />
+      </BookingShell>
+    );
   }
 
   return (
