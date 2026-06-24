@@ -7,7 +7,11 @@ export const metadata: Metadata = {
   title: 'Top Hills & Co · Property OS',
   description: 'Top Hills & Co — Kos & Penginapan Management System',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/apple-touch-icon.png',
   },
 };
 

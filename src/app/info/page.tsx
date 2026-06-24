@@ -12,6 +12,42 @@ import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/halaman-info';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
+import { SITE_URL, INFO_URL } from '@/lib/seo';
+
+// JSON-LD (LodgingBusiness) — bantu Google menampilkan rich result untuk /info.
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'LodgingBusiness',
+  name: 'Top Hills Kost Putri',
+  description:
+    'Kost putri & penginapan umum dekat kampus UNAND, Limau Manis, Pauh — Padang. Rooftop belajar, free air mineral, AC, kamar mandi dalam, WiFi unlimited, security & CCTV.',
+  url: INFO_URL,
+  image: `${SITE_URL}/og-tophills.jpg`,
+  telephone: '+62811-6646-615',
+  priceRange: 'Rp 200.000 – Rp 4.000.000',
+  currenciesAccepted: 'IDR',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Limau Manis, Pauh',
+    addressLocality: 'Kota Padang',
+    addressRegion: 'Sumatera Barat',
+    postalCode: '25176',
+    addressCountry: 'ID',
+  },
+  hasMap: 'https://maps.app.goo.gl/6sJz6tiH9Px1b1AGA',
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      opens: '00:00',
+      closes: '23:59',
+    },
+  ],
+  amenityFeature: [
+    'Rooftop untuk belajar', 'Free air mineral', 'AC', 'Kamar mandi dalam',
+    'WiFi unlimited', 'Security 24 jam', 'CCTV',
+  ].map((name) => ({ '@type': 'LocationFeatureSpecification', name, value: true })),
+};
 
 // ───────────────────────── theme ─────────────────────────
 const C = {
@@ -389,6 +425,8 @@ export default function InfoPage() {
 
   return (
     <div style={{ background: C.cream, fontFamily: body, color: C.brown }} className="min-h-screen">
+      {/* JSON-LD (LodgingBusiness) — ter-render di HTML SSR untuk crawler. */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       {/* Sticky top bar */}
       <header className="sticky top-0 z-40 backdrop-blur" style={{ background: 'rgba(244,236,221,0.92)', borderBottom: `1px solid ${C.border}` }}>
         <div className="mx-auto max-w-[900px] px-4 h-14 flex items-center justify-between gap-3">
