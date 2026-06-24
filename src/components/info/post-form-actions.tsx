@@ -41,12 +41,14 @@ export function PostFormActions({ nama, ringkas, onLanjut, submitting }: {
 
   return (
     <div className="mt-4 space-y-3">
-      <p className="text-[13px] text-center font-semibold" style={{ color: TH.brown }}>Mau survey / tanya dulu, atau langsung bayar?</p>
+      <p className="text-[12.5px] text-center" style={{ color: TH.brownSoft }}>
+        <b style={{ color: TH.brown }}>Opsional</b> — mau survey / tanya Bang Mezi dulu? Atau langsung lanjut bayar 👇
+      </p>
 
       {/* Janji survey (expandable date + jam) */}
       <div className="rounded-[14px] overflow-hidden" style={{ border: `1.5px solid ${TH.border}`, background: '#fff' }}>
         <button onClick={() => setSurveyOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
-          <span className="text-[14px] font-bold" style={{ color: TH.brown }}>📅 Janji Survey / lihat kamar</span>
+          <span className="text-[14px] font-bold" style={{ color: TH.brown }}>📅 Janji Survey / lihat kamar <span className="font-normal text-[12px]" style={{ color: TH.brownSoft }}>(opsional)</span></span>
           <span style={{ color: TH.brownSoft }}>{surveyOpen ? '▲' : '▼'}</span>
         </button>
         {surveyOpen && (
@@ -61,7 +63,7 @@ export function PostFormActions({ nama, ringkas, onLanjut, submitting }: {
       </div>
 
       {/* Tanya lebih detail */}
-      <THBtn variant="ghost" block onClick={tanyaMezi}>💬 Tanya Lebih Detail ke Bang Mezi</THBtn>
+      <THBtn variant="ghost" block onClick={tanyaMezi}>💬 Tanya Lebih Detail ke Bang Mezi (opsional)</THBtn>
 
       {/* Lanjut pembayaran (submit) */}
       <THBtn variant="gold" block onClick={onLanjut} disabled={submitting}>
