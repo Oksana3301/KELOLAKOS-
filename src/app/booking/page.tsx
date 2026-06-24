@@ -12,6 +12,7 @@ import { HelpSheet } from '@/components/kk/help-sheet';
 import { PaymentConfirm, DeleteConfirm } from '@/components/kk/confirm';
 import { mapPayStatus, rupiah, tglPendek, type PayStatus } from '@/components/kk/status';
 import { BookingFlow, BookingDetail, CancelConfirm, RefundForm, TagihWa } from '@/components/kk/booking-ui';
+import { PendingConfirmations } from '@/components/kk/pending-confirmations';
 
 const HELP = {
   title: 'Booking',
@@ -315,6 +316,9 @@ function BookingPageInner() {
           <KkIcon name="tambah" size={24} /> Tambah Penyewa Baru
         </KkButton>
       </StickyCTA>
+
+      {/* Booking dari /info yang butuh konfirmasi */}
+      <PendingConfirmations />
 
       {/* Search */}
       <div className="mb-4">

@@ -174,6 +174,44 @@ function submitBookingRequest(data) {
   return { bookingId: id, buktiUrl: buktiUrl, message: 'Permintaan booking tersimpan (PENDING).' };
 }
 
+// ── Konfirmasi booking online (internal /booking) ──────────────────────────
+function getPendingBookings() {
+  var rows = getSheetObjects_(SHEETS.BOOKINGS) || [];
+  return rows.filter(function (b) {
+    return String(b.Status_Booking || '').toUpperCase().indexOf('MENUNGGU') >= 0;
+  });
+}
+
+function _setBookingStatus_(bookingId, updates) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.BOOKINGS);
+  if (!sh) throw new Error('Sheet BOOKINGS tidak ditemukan: ' + SHEETS.BOOKINGS);
+  var data = sh.getDataRange().getValues();
+  var headers = data[0].map(function (h) { return String(h); });
+  var idCol = headers.indexOf('BookingID');
+  if (idCol < 0) throw new Error('Kolom BookingID tidak ada');
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]).trim() === String(bookingId).trim()) {
+      Object.keys(updates).forEach(function (k) {
+        var c = headers.indexOf(k);
+        if (c >= 0) sh.getRange(i + 1, c + 1).setValue(updates[k]);
+      });
+      return { ok: true, bookingId: bookingId };
+    }
+  }
+  return { ok: false, error: 'Booking tidak ditemukan: ' + bookingId };
+}
+
+function confirmBooking(data) {
+  data = data || {};
+  var status = (data.status === 'Lunas') ? 'Lunas' : 'DP';
+  return _setBookingStatus_(data.bookingId, { Status_Booking: 'AKTIF', Status_Bayar: status });
+}
+
+function rejectBooking(data) {
+  data = data || {};
+  return _setBookingStatus_(data.bookingId, { Status_Booking: 'DITOLAK' });
+}
+
 /**
  * (Jalankan SEKALI, untuk PR-2) Tambahkan kolom 'tag_perpanjangan' ke sheet
  * BOOKINGS bila belum ada. Aman dijalankan berulang (idempotent).

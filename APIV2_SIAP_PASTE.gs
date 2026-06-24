@@ -502,6 +502,10 @@ function dispatchV2_(action, payload) {
     case 'lookupPenyewaByRoom':  return { ok: true, data: lookupPenyewaByRoom(payload) };
     case 'submitBookingRequest': return { ok: true, data: submitBookingRequest(payload) };
     case 'getPaymentInfo':       return { ok: true, data: getPaymentInfo() };
+    // Konfirmasi booking /info (internal /booking — TIDAK publik)
+    case 'getPendingBookings':   return { ok: true, data: getPendingBookings() };
+    case 'confirmBooking':       return confirmBooking(payload);
+    case 'rejectBooking':        return rejectBooking(payload);
     default:                     return null; // Not a V2 action
   }
 }
