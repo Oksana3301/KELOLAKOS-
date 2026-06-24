@@ -2,8 +2,12 @@ import type { Metadata } from 'next';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
 
 const TITLE = 'Kost Putri & Penginapan Top Hills — Dekat UNAND Padang';
+// Meta description (Google ~150–160 char).
 const DESCRIPTION =
-  'Kost putri & penginapan umum yang nyaman di Limau Manis, Pauh — dekat kampus UNAND, Padang. Ada rooftop untuk belajar, free air mineral, AC, kamar mandi dalam, WiFi unlimited, security & CCTV. Booking via WhatsApp 0811-6646-615.';
+  'Kost putri & penginapan nyaman dekat kampus UNAND, Limau Manis — Padang. AC, kamar mandi dalam, WiFi, rooftop belajar, free air mineral. Booking via WhatsApp.';
+// Deskripsi pendek untuk social preview (OG/X ~110 char, anti-truncate).
+const DESCRIPTION_SHORT =
+  'Kost putri & penginapan nyaman dekat UNAND, Padang. AC, KM dalam, WiFi, rooftop belajar. Booking via WhatsApp 🌸';
 const OG_IMAGE = '/og-tophills.jpg';
 
 export const metadata: Metadata = {
@@ -17,7 +21,7 @@ export const metadata: Metadata = {
   alternates: { canonical: INFO_URL },
   openGraph: {
     title: TITLE,
-    description: DESCRIPTION,
+    description: DESCRIPTION_SHORT,
     url: INFO_URL,
     siteName: 'Top Hills Kost Putri',
     locale: 'id_ID',
@@ -29,7 +33,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: TITLE,
-    description: DESCRIPTION,
+    description: DESCRIPTION_SHORT,
     images: [OG_IMAGE],
   },
   robots: {
