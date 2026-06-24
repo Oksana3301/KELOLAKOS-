@@ -90,7 +90,7 @@ export function PaymentStep({ layanan, total, ringkas, bayar, onSubmit, submitti
 
       {/* Upload bukti */}
       <THCard className="space-y-3">
-        <THField label="Upload bukti transfer" hint="Foto / screenshot bukti bayar (jpg/png)">
+        <THField label="Upload bukti transfer (wajib)" hint="Foto / screenshot bukti bayar (jpg/png)">
           <label className="flex items-center justify-center gap-2 min-h-[52px] rounded-[12px] cursor-pointer text-[14px] font-semibold" style={{ border: `1.5px dashed ${TH.goldSoft}`, background: '#fff', color: TH.gold }}>
             {busy ? 'Memproses…' : bukti ? '✓ Ganti bukti' : '📎 Pilih file bukti'}
             <input type="file" accept="image/*" className="hidden" onChange={onPick} />
@@ -106,11 +106,17 @@ export function PaymentStep({ layanan, total, ringkas, bayar, onSubmit, submitti
         )}
       </THCard>
 
-      <THBtn variant="gold" block onClick={() => onSubmit(bukti)} disabled={submitting || busy}>
+      {!bukti && (
+        <div className="rounded-[12px] px-4 py-3 text-[12.5px] text-center" style={{ background: '#FBE9E2', border: '1px solid #E8C3B3', color: TH.danger }}>
+          ⚠️ Bukti transfer <b>wajib diupload</b> dulu untuk bisa konfirmasi booking.
+        </div>
+      )}
+
+      <THBtn variant="gold" block onClick={() => bukti && onSubmit(bukti)} disabled={submitting || busy || !bukti}>
         {submitting ? 'Mengirim…' : 'Kirim Bukti & Selesaikan Booking ›'}
       </THBtn>
       <p className="text-[11.5px] text-center" style={{ color: TH.brownSoft }}>
-        Belum sempat transfer? Bisa kirim dulu tanpa bukti — admin akan menghubungimu via WhatsApp.
+        Booking dikonfirmasi admin setelah bukti diverifikasi (maks 1×24 jam).
       </p>
     </div>
   );
