@@ -6,8 +6,9 @@ import { toast } from 'sonner';
 import { api, type PublicRoom } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
-import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
+import { BookingShell, BookingDone, THCard, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
+import { PostFormActions } from '@/components/info/post-form-actions';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
@@ -205,14 +206,12 @@ export default function BookingBaruPage() {
         </THField>
       </THCard>
 
-      <div className="mt-4">
-        <THBtn variant="gold" block onClick={lanjut} disabled={submitting}>
-          {submitting ? 'Mengirim…' : 'Kirim Permintaan Booking ›'}
-        </THBtn>
-        <p className="text-[11.5px] text-center mt-2" style={{ color: TH.brownSoft }}>
-          Tim kami akan menghubungi via WhatsApp untuk konfirmasi &amp; pembayaran. Booking aktif setelah dikonfirmasi.
-        </p>
-      </div>
+      <PostFormActions
+        nama={nama}
+        ringkas={kamar ? `${kamar}${durasi ? ' · ' + durasi : ''}${orang > 1 ? ' · ' + orang + ' org' : ''}${base.price > 0 ? ' · est ' + formatRupiah(base.price + addonTotal + extraOrang) : ''}` : ''}
+        onLanjut={lanjut}
+        submitting={submitting}
+      />
     </BookingShell>
   );
 }
