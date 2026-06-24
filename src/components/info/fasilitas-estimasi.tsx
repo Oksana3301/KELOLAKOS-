@@ -7,6 +7,7 @@ import { THField } from '@/components/info/booking-shell';
 
 export function FasilitasEstimasi({
   fasilitas, demo, selectedIds, onToggle, extraBedQty, onExtraBed, basePrice, baseLabel,
+  orang = 1, extraOrangCharge = 0,
 }: {
   fasilitas: Fasilitas[];
   demo?: boolean;
@@ -16,6 +17,8 @@ export function FasilitasEstimasi({
   onExtraBed: (qty: number) => void;
   basePrice: number;
   baseLabel: string;
+  orang?: number;
+  extraOrangCharge?: number;
 }) {
   const extraBed = fasilitas.find(isExtraBed);
   const addons = fasilitas.filter((f) => !isExtraBed(f));
@@ -24,7 +27,7 @@ export function FasilitasEstimasi({
       const f = fasilitas.find((x) => x.id === id);
       return s + (f ? Number(f.price_adjust) || 0 : 0);
     }, 0) + (extraBed ? extraBedQty * (Number(extraBed.price_adjust) || 0) : 0);
-  const total = basePrice + addonTotal;
+  const total = basePrice + addonTotal + (extraOrangCharge || 0);
 
   return (
     <>
@@ -66,9 +69,15 @@ export function FasilitasEstimasi({
           <span>{baseLabel}</span>
           <span>{basePrice > 0 ? formatRupiah(basePrice) : '—'}</span>
         </div>
+        {extraOrangCharge > 0 && (
+          <div className="flex justify-between text-[13px] mt-1" style={{ color: TH.brownSoft }}>
+            <span>Tambahan {orang} orang</span>
+            <span>+{formatRupiah(extraOrangCharge)}</span>
+          </div>
+        )}
         {addonTotal > 0 && (
           <div className="flex justify-between text-[13px] mt-1" style={{ color: TH.brownSoft }}>
-            <span>Tambahan</span>
+            <span>Fasilitas</span>
             <span>+{formatRupiah(addonTotal)}</span>
           </div>
         )}

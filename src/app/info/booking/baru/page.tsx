@@ -25,6 +25,7 @@ export default function BookingBaruPage() {
   const [catatan, setCatatan] = useState('');
   const [selFac, setSelFac] = useState<string[]>([]);
   const [extraBedQty, setExtraBedQty] = useState(0);
+  const [orang, setOrang] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [demo, setDemo] = useState(false);
@@ -80,6 +81,17 @@ export default function BookingBaruPage() {
       + (eb ? extraBedQty * (Number(eb.price_adjust) || 0) : 0);
   }, [selFac, extraBedQty, fasilitas]);
 
+  const maxOrang = layanan === 'KOS' ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
+  const extraOrang = useMemo(() => {
+    if (layanan === 'KOS') return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
+    const baseOrang = info.penginapanBaseOrang || 1;
+    const extra = Math.max(0, orang - baseOrang);
+    if (!extra) return 0;
+    const tipe = info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); const rt = (selRoom?.tipe || '').toLowerCase(); const rn = (selRoom?.nama || '').toLowerCase(); return (rt && (rt.includes(pn) || pn.includes(rt))) || rn.includes(pn); });
+    const nights = durasi === 'Per Malam' ? Math.max(1, malamQty) : 30;
+    return extra * (tipe?.extraPerOrang || 0) * nights;
+  }, [layanan, orang, info, selRoom, durasi, malamQty]);
+
   function toggleFac(id: string) { setSelFac((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
 
   async function lanjut() {
@@ -90,15 +102,16 @@ export default function BookingBaruPage() {
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
     const catat = [
       catatan.trim(),
+      orang > 1 ? `${orang} orang` : '',
       facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
       extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
-      base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal)}` : '',
+      base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal + extraOrang)}` : '',
     ].filter(Boolean).join(' — ');
     setSubmitting(true);
     const res = await submitBookingRequest({
       jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar,
       durasi: layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? `${Math.max(1, malamQty)} malam` : durasi,
-      tglMulai: mulai, bayar, catatan: catat,
+      tglMulai: mulai, bayar, catatan: catat, jumlahOrang: orang,
     });
     setSubmitting(false);
     setDemo(res.demo);
@@ -166,11 +179,17 @@ export default function BookingBaruPage() {
           </THField>
         )}
 
+        <THField label="Jumlah orang" hint={layanan === 'KOS' ? `Maks ${maxOrang} orang (6bln/1thn). Orang ke-2 +${formatRupiah(info.kostExtraPerOrang || 0)}` : `Maks ${maxOrang} per kamar. Lebih dari ${info.penginapanBaseOrang || 1} kena +rate/orang/malam`}>
+          <THInput type="number" min={1} max={maxOrang} value={orang}
+            onChange={(e) => setOrang(Math.max(1, Math.min(maxOrang, Number(e.target.value) || 1)))} />
+        </THField>
+
         <FasilitasEstimasi
           fasilitas={fasilitas} demo={fasData?.demo}
           selectedIds={selFac} onToggle={toggleFac}
           extraBedQty={extraBedQty} onExtraBed={setExtraBedQty}
           basePrice={base.price} baseLabel={base.label}
+          orang={orang} extraOrangCharge={extraOrang}
         />
 
         <THField label="Pembayaran">

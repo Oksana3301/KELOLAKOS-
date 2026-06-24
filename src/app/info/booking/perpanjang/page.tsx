@@ -47,6 +47,7 @@ export default function PerpanjangPage() {
   const [submitDemo, setSubmitDemo] = useState(false);
   const [selFac, setSelFac] = useState<string[]>([]);
   const [extraBedQty, setExtraBedQty] = useState(0);
+  const [orang, setOrang] = useState(1);
 
   const { data: rooms } = useQuery({ queryKey: ['public-rooms'], queryFn: api.getPublicRooms, retry: 0, staleTime: 60_000 });
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
@@ -111,6 +112,16 @@ export default function PerpanjangPage() {
       + (eb ? extraBedQty * (Number(eb.price_adjust) || 0) : 0);
   }, [selFac, extraBedQty, fasilitas]);
 
+  const maxOrang = isKost ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
+  const extraOrang = useMemo(() => {
+    if (!sel) return 0;
+    if (isKost) return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
+    const extra = Math.max(0, orang - (info.penginapanBaseOrang || 1));
+    if (!extra) return 0;
+    const tipe = info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); const rt = (sel.tipe || '').toLowerCase(); return rt && (rt.includes(pn) || pn.includes(rt)); });
+    return extra * (tipe?.extraPerOrang || 0);
+  }, [sel, isKost, orang, info]);
+
   function toggleFac(id: string) { setSelFac((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
 
   async function kirim() {
@@ -118,14 +129,15 @@ export default function PerpanjangPage() {
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
     const catat = [
       `Perpanjangan dari ${sel.bookingId}`,
+      orang > 1 ? `${orang} orang` : '',
       facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
       extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
-      base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal)}` : '',
+      base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal + extraOrang)}` : '',
     ].filter(Boolean).join(' — ');
     setSubmitting(true);
     const res = await submitBookingRequest({
       jenis: 'perpanjang', nama: sel.nama, whatsapp: normWa(sel.whatsapp), layanan: sel.layanan, kamar: sel.kamar,
-      durasi, tglMulai, bayar, catatan: catat, tagPerpanjangan: sel.bookingId,
+      durasi, tglMulai, bayar, catatan: catat, tagPerpanjangan: sel.bookingId, jumlahOrang: orang,
     });
     setSubmitting(false);
     setSubmitDemo(res.demo);
@@ -238,11 +250,17 @@ export default function PerpanjangPage() {
               <THInput type="date" value={tglMulai} onChange={(e) => setTglMulai(e.target.value)} />
             </THField>
 
+            <THField label="Jumlah orang" hint={isKost ? `Maks ${maxOrang} orang. Orang ke-2 +${formatRupiah(info.kostExtraPerOrang || 0)}` : `Maks ${maxOrang} per kamar`}>
+              <THInput type="number" min={1} max={maxOrang} value={orang}
+                onChange={(e) => setOrang(Math.max(1, Math.min(maxOrang, Number(e.target.value) || 1)))} />
+            </THField>
+
             <FasilitasEstimasi
               fasilitas={fasilitas} demo={fasData?.demo}
               selectedIds={selFac} onToggle={toggleFac}
               extraBedQty={extraBedQty} onExtraBed={setExtraBedQty}
               basePrice={base.price} baseLabel={base.label}
+              orang={orang} extraOrangCharge={extraOrang}
             />
 
             <THField label="Pembayaran">

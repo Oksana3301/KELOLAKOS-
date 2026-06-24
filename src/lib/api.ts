@@ -205,6 +205,7 @@ export interface BookingRequestPayload {
   bayar: 'DP' | 'Full';
   catatan?: string;
   tagPerpanjangan?: string; // ID booking lama (khusus perpanjang)
+  jumlahOrang?: number;
 }
 
 /** Hasil lookup penyewa lama untuk fitur Perpanjang Kontrak (publik, read-only). */
