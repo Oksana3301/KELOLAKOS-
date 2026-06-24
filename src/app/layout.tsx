@@ -3,6 +3,10 @@ import type { Metadata } from 'next';
 import { Providers } from './providers';
 import { AppShell } from '@/components/kk/app-shell';
 
+// Token verifikasi Google Search Console (metode "HTML tag").
+// Isi NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION di Vercel dengan token dari GSC.
+const GOOGLE_SITE_VERIFICATION = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
+
 export const metadata: Metadata = {
   title: 'Top Hills & Co · Property OS',
   description: 'Top Hills & Co — Kos & Penginapan Management System',
@@ -13,6 +17,7 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-touch-icon.png',
   },
+  ...(GOOGLE_SITE_VERIFICATION ? { verification: { google: GOOGLE_SITE_VERIFICATION } } : {}),
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
