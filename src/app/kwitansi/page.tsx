@@ -19,18 +19,19 @@ import {
 /** Pilih rekening & QR sesuai jenis (kost / penginapan), fallback ke field lama. */
 function resolveIdentity(s: KwitansiSettings | undefined, layanan: Layanan): InvoiceIdentity {
   const isKost = layanan === 'kost';
+  const t = (v: unknown) => String(v ?? '').trim(); // aman walau value berupa angka
   const bank = isKost ? s?.inv_kost_bank_name : s?.inv_png_bank_name;
   const acc = isKost ? s?.inv_kost_account_no : s?.inv_png_account_no;
   const accName = isKost ? s?.inv_kost_account_name : s?.inv_png_account_name;
   const qr = isKost ? s?.inv_kost_qris_base64 : s?.inv_png_qris_base64;
   return {
-    bankName: bank?.trim() || s?.inv_bank_name?.trim() || DEFAULT_IDENTITY.bankName,
-    accountNo: acc?.trim() || s?.inv_account_no?.trim() || DEFAULT_IDENTITY.accountNo,
-    accountName: accName?.trim() || s?.inv_account_name?.trim() || DEFAULT_IDENTITY.accountName,
-    waResmi: s?.inv_wa_resmi?.trim() || DEFAULT_IDENTITY.waResmi,
-    ownerName: s?.inv_owner_name?.trim() || s?.sig_name?.trim() || DEFAULT_IDENTITY.ownerName,
-    ownerTitle: s?.inv_owner_title?.trim() || s?.sig_title?.trim() || DEFAULT_IDENTITY.ownerTitle,
-    qrisBase64: qr || s?.inv_qris_base64 || '',
+    bankName: t(bank) || t(s?.inv_bank_name) || DEFAULT_IDENTITY.bankName,
+    accountNo: t(acc) || t(s?.inv_account_no) || DEFAULT_IDENTITY.accountNo,
+    accountName: t(accName) || t(s?.inv_account_name) || DEFAULT_IDENTITY.accountName,
+    waResmi: t(s?.inv_wa_resmi) || DEFAULT_IDENTITY.waResmi,
+    ownerName: t(s?.inv_owner_name) || t(s?.sig_name) || DEFAULT_IDENTITY.ownerName,
+    ownerTitle: t(s?.inv_owner_title) || t(s?.sig_title) || DEFAULT_IDENTITY.ownerTitle,
+    qrisBase64: String(qr || s?.inv_qris_base64 || ''),
   };
 }
 
@@ -399,19 +400,20 @@ function field(label: string, el: React.ReactNode) {
 // ── Editor identitas (disimpan ke kwitansi-settings) ─────────────────────────
 function IdentityEditor({ settings, variant, onSave }: { settings: KwitansiSettings | undefined; variant: 'krem' | 'pita'; onSave: (n: Partial<KwitansiSettings>) => void }) {
   const s = settings;
-  const [wa, setWa] = useState(s?.inv_wa_resmi || DEFAULT_IDENTITY.waResmi);
-  const [owner, setOwner] = useState(s?.inv_owner_name || s?.sig_name || DEFAULT_IDENTITY.ownerName);
-  const [ownerTitle, setOwnerTitle] = useState(s?.inv_owner_title || s?.sig_title || DEFAULT_IDENTITY.ownerTitle);
+  const t = (v: unknown) => String(v ?? ''); // value bisa angka (nomor rekening) → paksa string
+  const [wa, setWa] = useState(t(s?.inv_wa_resmi) || DEFAULT_IDENTITY.waResmi);
+  const [owner, setOwner] = useState(t(s?.inv_owner_name) || t(s?.sig_name) || DEFAULT_IDENTITY.ownerName);
+  const [ownerTitle, setOwnerTitle] = useState(t(s?.inv_owner_title) || t(s?.sig_title) || DEFAULT_IDENTITY.ownerTitle);
 
-  const [kBank, setKBank] = useState(s?.inv_kost_bank_name || s?.inv_bank_name || DEFAULT_IDENTITY.bankName);
-  const [kAcc, setKAcc] = useState(s?.inv_kost_account_no || s?.inv_account_no || DEFAULT_IDENTITY.accountNo);
-  const [kName, setKName] = useState(s?.inv_kost_account_name || s?.inv_account_name || DEFAULT_IDENTITY.accountName);
-  const [kQr, setKQr] = useState(s?.inv_kost_qris_base64 || '');
+  const [kBank, setKBank] = useState(t(s?.inv_kost_bank_name) || t(s?.inv_bank_name) || DEFAULT_IDENTITY.bankName);
+  const [kAcc, setKAcc] = useState(t(s?.inv_kost_account_no) || t(s?.inv_account_no) || DEFAULT_IDENTITY.accountNo);
+  const [kName, setKName] = useState(t(s?.inv_kost_account_name) || t(s?.inv_account_name) || DEFAULT_IDENTITY.accountName);
+  const [kQr, setKQr] = useState(t(s?.inv_kost_qris_base64));
 
-  const [pBank, setPBank] = useState(s?.inv_png_bank_name || s?.inv_bank_name || DEFAULT_IDENTITY.bankName);
-  const [pAcc, setPAcc] = useState(s?.inv_png_account_no || s?.inv_account_no || DEFAULT_IDENTITY.accountNo);
-  const [pName, setPName] = useState(s?.inv_png_account_name || s?.inv_account_name || DEFAULT_IDENTITY.accountName);
-  const [pQr, setPQr] = useState(s?.inv_png_qris_base64 || '');
+  const [pBank, setPBank] = useState(t(s?.inv_png_bank_name) || t(s?.inv_bank_name) || DEFAULT_IDENTITY.bankName);
+  const [pAcc, setPAcc] = useState(t(s?.inv_png_account_no) || t(s?.inv_account_no) || DEFAULT_IDENTITY.accountNo);
+  const [pName, setPName] = useState(t(s?.inv_png_account_name) || t(s?.inv_account_name) || DEFAULT_IDENTITY.accountName);
+  const [pQr, setPQr] = useState(t(s?.inv_png_qris_base64));
 
   return (
     <KkCard className="mt-3 space-y-4">
