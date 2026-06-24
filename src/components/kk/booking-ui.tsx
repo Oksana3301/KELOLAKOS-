@@ -1411,6 +1411,18 @@ export function BookingDetail({
   const batal = status === 'Batal';
   const sisa = booking.Sisa_Bayar ?? 0;
   const dibayar = booking.Net_Diterima ?? 0;
+  const router = useRouter();
+
+  // Semi-auto WA (PR-2): kabari penjaga (Mezi) booking yang sudah diterima.
+  function kabariMezi() {
+    const MEZI = '6283841614871'; // Bang Mezi (penjaga). Ganti bila nomornya beda.
+    const msg =
+      `Halo Bang Mezi 🙏, ada booking:\n` +
+      `${booking.Nama_Customer || '-'} — ${booking.Nama_Kamar || '-'}${booking.Gedung ? ' (' + booking.Gedung + ')' : ''}\n` +
+      `${String(booking.Layanan).toUpperCase() === 'KOS' ? 'Kost' : 'Penginapan'}${booking.Paket ? ' · ' + booking.Paket : ''} · Status: ${status}\n` +
+      `Mohon disiapkan ya, makasih 🌸`;
+    window.open(`https://wa.me/${MEZI}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
 
   return (
     <Sheet open onClose={onClose}>
@@ -1509,6 +1521,20 @@ export function BookingDetail({
                 )}
               </>
             )}
+
+            {/* Terima → kirim invoice ke penyewa + kabari Mezi (semi-auto WA) */}
+            <KkButton
+              variant="primary"
+              size="lg"
+              block
+              onClick={() => { onClose(); router.push(`/kwitansi?booking=${encodeURIComponent(booking.BookingID)}`); }}
+            >
+              <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Invoice ke penyewa
+            </KkButton>
+            <KkButton variant="secondary" block onClick={kabariMezi}>
+              <KkIcon name="kirim" size={20} strokeWidth={2.2} /> Kabari Mezi (penjaga)
+            </KkButton>
+
             <div className="flex gap-3">
               <KkButton variant="secondary" block onClick={onEdit}>
                 Ubah Booking
