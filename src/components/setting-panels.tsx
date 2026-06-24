@@ -1287,6 +1287,15 @@ export function HalamanInfoPanel() {
       penginapan: p.penginapan.map((x, idx) => (idx === i ? { ...x, foto: list } : x)),
     }));
   }
+  function setPengExtra(i: number, value: string) {
+    setForm((p) => ({
+      ...p,
+      penginapan: p.penginapan.map((x, idx) => (idx === i ? { ...x, extraPerOrang: Number(value) || 0 } : x)),
+    }));
+  }
+  function setNum<K extends keyof HalamanInfo>(key: K, value: string, min = 0) {
+    set(key, (Number(value) || min) as HalamanInfo[K]);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -1352,6 +1361,36 @@ export function HalamanInfoPanel() {
             <MediaListField label={`Foto ${p.nama} (maks 10)`} value={p.foto} onChange={(l) => setPengFoto(i, l)} max={10} />
           </div>
         ))}
+      </div>
+
+      {/* Harga & Kapasitas (Booking Online) */}
+      <div className="space-y-3">
+        <h4 className="font-bold text-sm">💰 Harga & Kapasitas (Booking Online)</h4>
+        <div className="bg-sf2 border border-bd rounded-md p-2.5 text-[10px] text-tx3 leading-relaxed">
+          Dipakai untuk hitung estimasi di form booking <strong>/info</strong>. Mengubah ini tidak menghapus data lain.
+        </div>
+
+        <div className="text-xs font-semibold text-tx2">🏠 Kost — harga paket (flat)</div>
+        <div className="grid grid-cols-2 gap-2">
+          <FormField label="6 bulan (Rp)"><input type="number" className="input" value={form.kostHarga6Bulan} onChange={(e) => setNum('kostHarga6Bulan', e.target.value)} /></FormField>
+          <FormField label="1 tahun (Rp)"><input type="number" className="input" value={form.kostHargaSetahun} onChange={(e) => setNum('kostHargaSetahun', e.target.value)} /></FormField>
+          <FormField label="6 bulan — Lantai 4 (Rp)"><input type="number" className="input" value={form.kostHarga6BulanLt4} onChange={(e) => setNum('kostHarga6BulanLt4', e.target.value)} /></FormField>
+          <FormField label="1 tahun — Lantai 4 (Rp)"><input type="number" className="input" value={form.kostHargaSetahunLt4} onChange={(e) => setNum('kostHargaSetahunLt4', e.target.value)} /></FormField>
+          <FormField label="Maks orang"><input type="number" className="input" value={form.kostMaxOrang} onChange={(e) => setNum('kostMaxOrang', e.target.value, 1)} /></FormField>
+          <FormField label="Biaya / orang ke-2+ (Rp)"><input type="number" className="input" value={form.kostExtraPerOrang} onChange={(e) => setNum('kostExtraPerOrang', e.target.value)} /></FormField>
+        </div>
+
+        <div className="text-xs font-semibold text-tx2 mt-2">🛏️ Penginapan — kapasitas & biaya orang</div>
+        <div className="grid grid-cols-2 gap-2">
+          <FormField label="Termasuk berapa orang" hint="Harga base sudah termasuk segini; di atasnya kena tambahan."><input type="number" className="input" value={form.penginapanBaseOrang} onChange={(e) => setNum('penginapanBaseOrang', e.target.value, 1)} /></FormField>
+          <FormField label="Maks orang"><input type="number" className="input" value={form.penginapanMaxOrang} onChange={(e) => setNum('penginapanMaxOrang', e.target.value, 1)} /></FormField>
+        </div>
+        <div className="text-[10px] text-tx3">Biaya tambahan per orang per malam (berlaku untuk orang di atas &ldquo;Termasuk berapa orang&rdquo;):</div>
+        <div className="grid grid-cols-3 gap-2">
+          {form.penginapan.map((p, i) => (
+            <FormField key={i} label={`${p.nama} (Rp)`}><input type="number" className="input text-xs" value={p.extraPerOrang ?? 0} onChange={(e) => setPengExtra(i, e.target.value)} /></FormField>
+          ))}
+        </div>
       </div>
 
       {/* Foto & Video */}
