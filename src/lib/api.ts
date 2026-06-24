@@ -236,7 +236,7 @@ export interface SubmitBookingPayload {
   checkIn: string; checkOut: string; paket: string; jumlahPeriode: number;
   hargaKamar: number; extraCharge?: number; diskon?: number; dpAwal?: number;
   dpMetode?: string; catatan?: string; extraRequest?: string;
-  isEkstra?: boolean; fasilitasIds?: string[];
+  isEkstra?: boolean; fasilitasIds?: string[]; jumlahOrang?: number;
   /** Optional: tanggal DP & pelunasan (YYYY-MM-DD). Backend backward-compatible. */
   dpTanggal?: string; pelunasanNominal?: number; pelunasanTanggal?: string;
   /** Full computed total (periode × harga + fasilitas). Authoritative on the backend. */
