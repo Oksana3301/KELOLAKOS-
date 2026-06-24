@@ -4,8 +4,9 @@ import { Providers } from './providers';
 import { AppShell } from '@/components/kk/app-shell';
 
 // Token verifikasi Google Search Console (metode "HTML tag").
-// Isi NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION di Vercel dengan token dari GSC.
-const GOOGLE_SITE_VERIFICATION = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
+// Default = token properti kelolakos-eta.vercel.app; bisa di-override via env.
+const GOOGLE_SITE_VERIFICATION =
+  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || 'W0Qc61B_d_AIwdXbVNs2HygwoIwwYAs3U79TpN7R2zs';
 
 export const metadata: Metadata = {
   title: 'Top Hills & Co · Property OS',
