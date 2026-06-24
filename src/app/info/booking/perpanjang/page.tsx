@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { toast } from 'sonner';
-import { BookingShell, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
-import { TH, TH_SERIF, isValidWa } from '@/lib/tophills-theme';
+import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
+import { TH, TH_SERIF, isValidWa, normWa } from '@/lib/tophills-theme';
 import { lookupPenyewa, DEMO_HINT } from '@/lib/perpanjang-demo';
+import { submitBookingRequest } from '@/lib/booking-request';
 import type { PenyewaLookup } from '@/lib/api';
 
 type Step = 'input' | 'pilih' | 'form';
@@ -36,6 +36,9 @@ export default function PerpanjangPage() {
   const [durasi, setDurasi] = useState('');
   const [tglMulai, setTglMulai] = useState('');
   const [bayar, setBayar] = useState<'DP' | 'Full'>('Full');
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [submitDemo, setSubmitDemo] = useState(false);
 
   async function cari() {
     setWaErr('');
@@ -69,12 +72,27 @@ export default function PerpanjangPage() {
     setStep('form');
   }
 
-  function lanjutBayar() {
-    // PR-1 berhenti di sini. Pembayaran (Midtrans) menyusul di PR-2.
-    toast('Pembayaran via Midtrans menyusul di update berikutnya 🌸', { description: `Perpanjangan ${sel?.kamar} • ${durasi} • mulai ${tglPanjang(tglMulai)} • ${bayar}` });
+  async function kirim() {
+    if (!sel) return;
+    setSubmitting(true);
+    const res = await submitBookingRequest({
+      jenis: 'perpanjang', nama: sel.nama, whatsapp: normWa(sel.whatsapp), layanan: sel.layanan, kamar: sel.kamar,
+      durasi, tglMulai, bayar, catatan: `Perpanjangan dari ${sel.bookingId}`, tagPerpanjangan: sel.bookingId,
+    });
+    setSubmitting(false);
+    setSubmitDemo(res.demo);
+    setDone(true);
   }
 
   const isKost = String(sel?.layanan).toUpperCase() === 'KOS';
+
+  if (done) {
+    return (
+      <BookingShell back={{ href: '/info', label: 'Beranda' }}>
+        <BookingDone nama={sel?.nama} demo={submitDemo} />
+      </BookingShell>
+    );
+  }
 
   return (
     <BookingShell back={{ href: '/info/booking', label: 'Pilihan' }}>
@@ -170,9 +188,11 @@ export default function PerpanjangPage() {
             </THField>
           </THCard>
 
-          <THBtn variant="gold" block onClick={lanjutBayar}>Lanjut ke Pembayaran ›</THBtn>
+          <THBtn variant="gold" block onClick={kirim} disabled={submitting}>
+            {submitting ? 'Mengirim…' : 'Kirim Permintaan Perpanjangan ›'}
+          </THBtn>
           <p className="text-[11.5px] text-center" style={{ color: TH.brownSoft }}>
-            Pembayaran aman lewat Midtrans (QRIS / transfer bank) — <i>segera hadir</i>.
+            Tim kami akan menghubungi via WhatsApp untuk konfirmasi &amp; pembayaran. Aktif setelah dikonfirmasi.
           </p>
         </div>
       )}

@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type PublicRoom } from '@/lib/api';
-import { BookingShell, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
-import { TH, isValidWa } from '@/lib/tophills-theme';
+import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
+import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
+import { submitBookingRequest } from '@/lib/booking-request';
 
 export default function BookingBaruPage() {
   const [nama, setNama] = useState('');
@@ -17,6 +18,9 @@ export default function BookingBaruPage() {
   const [mulai, setMulai] = useState(new Date().toISOString().slice(0, 10));
   const [bayar, setBayar] = useState<'DP' | 'Full'>('DP');
   const [catatan, setCatatan] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [demo, setDemo] = useState(false);
 
   const { data: rooms } = useQuery({ queryKey: ['public-rooms'], queryFn: api.getPublicRooms, retry: 0, staleTime: 60_000 });
 
@@ -32,13 +36,26 @@ export default function BookingBaruPage() {
 
   const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Bulanan'];
 
-  function lanjut() {
+  async function lanjut() {
     setWaErr('');
     if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
     if (!isValidWa(wa)) { setWaErr('Format WA belum benar. Contoh: 6281234567890'); return; }
     if (!kamar) { toast.error('Pilih kamar dulu'); return; }
-    // PR-1 berhenti di sini. Pembayaran (Midtrans) menyusul di PR-2.
-    toast('Pembayaran via Midtrans menyusul di update berikutnya 🌸', { description: `${nama} • ${kamar} • ${durasi} • ${bayar}` });
+    setSubmitting(true);
+    const res = await submitBookingRequest({
+      jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar, durasi, tglMulai: mulai, bayar, catatan: catatan.trim(),
+    });
+    setSubmitting(false);
+    setDemo(res.demo);
+    setDone(true);
+  }
+
+  if (done) {
+    return (
+      <BookingShell back={{ href: '/info', label: 'Beranda' }}>
+        <BookingDone nama={nama} demo={demo} />
+      </BookingShell>
+    );
   }
 
   return (
@@ -103,9 +120,11 @@ export default function BookingBaruPage() {
       </THCard>
 
       <div className="mt-4">
-        <THBtn variant="gold" block onClick={lanjut}>Lanjut ke Pembayaran ›</THBtn>
+        <THBtn variant="gold" block onClick={lanjut} disabled={submitting}>
+          {submitting ? 'Mengirim…' : 'Kirim Permintaan Booking ›'}
+        </THBtn>
         <p className="text-[11.5px] text-center mt-2" style={{ color: TH.brownSoft }}>
-          Pembayaran aman lewat Midtrans (QRIS / transfer bank) — <i>segera hadir</i>. Booking baru aktif setelah pembayaran dikonfirmasi.
+          Tim kami akan menghubungi via WhatsApp untuk konfirmasi &amp; pembayaran. Booking aktif setelah dikonfirmasi.
         </p>
       </div>
     </BookingShell>
