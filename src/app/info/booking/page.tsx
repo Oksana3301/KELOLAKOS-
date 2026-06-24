@@ -27,9 +27,6 @@ export default function BookingLanding() {
         />
       </div>
 
-      <p className="text-center text-[12.5px] mt-7" style={{ color: TH.brownSoft }}>
-        Butuh bantuan? <Link href="/info" className="font-semibold no-underline" style={{ color: TH.gold }}>Hubungi kami</Link>
-      </p>
     </BookingShell>
   );
 }

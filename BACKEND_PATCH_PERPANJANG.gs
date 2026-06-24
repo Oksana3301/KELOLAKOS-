@@ -7,19 +7,21 @@
  *   - lookupPenyewaById(data)   → 1 booking (atau null)
  * Keduanya WAJIB publik (tanpa access code), seperti getPublicRooms.
  *
- * ┌─ CARA DEPLOY (Apps Script editor) ────────────────────────────────────────┐
- * │ 1) Tempel seluruh isi file ini ke project Apps Script (paling bawah).      │
- * │ 2) Di router doPost/doGet, tambahkan 3 case:                               │
- * │      case 'lookupPenyewaByWa':    return { ok: true, data: lookupPenyewaByWa(data) };    │
- * │      case 'lookupPenyewaById':    return { ok: true, data: lookupPenyewaById(data) };    │
- * │      case 'submitBookingRequest': return { ok: true, data: submitBookingRequest(data) }; │
- * │ 3) Masukkan 3 action ini ke daftar PUBLIC (skip cek lisensi), sejajar      │
- * │    'getPublicRooms' / 'getHalamanInfo'. Contoh:                            │
- * │      var PUBLIC_ACTIONS = ['verifyAccessCode','getHalamanInfo','getPublicRooms', │
- * │        'lookupPenyewaByWa','lookupPenyewaById','submitBookingRequest'];    │
- * │ 4) Jalankan SEKALI fungsi tambahKolomTagPerpanjangan() (tambah kolom        │
+ * ┌─ CARA DEPLOY (3 langkah, persis pola getPublicRooms) ─────────────────────┐
+ * │ 1) Tempel SELURUH isi file ini ke project Apps Script (file/tab baru).      │
+ * │ 2) Di apiv2.gs → dispatchV2_(action,payload), tambahkan 3 case sebelum      │
+ * │    "default:" (SUDAH ditambahkan bila kamu re-paste APIV2_SIAP_PASTE.gs):  │
+ * │      case 'lookupPenyewaByWa':    return { ok: true, data: lookupPenyewaByWa(payload) };    │
+ * │      case 'lookupPenyewaById':    return { ok: true, data: lookupPenyewaById(payload) };    │
+ * │      case 'submitBookingRequest': return { ok: true, data: submitBookingRequest(payload) }; │
+ * │ 3) Di Api.gs → const WHITELIST_ACTIONS, tambahkan 3 baris (sama seperti     │
+ * │    'getPublicRooms': true,) supaya bisa tanpa access code:                  │
+ * │      'lookupPenyewaByWa': true,                                             │
+ * │      'lookupPenyewaById': true,                                             │
+ * │      'submitBookingRequest': true,                                          │
+ * │ 4) Jalankan SEKALI tambahKolomTagPerpanjangan() (tambah kolom               │
  * │    'tag_perpanjangan' ke sheet BOOKINGS).                                   │
- * │ 5) Deploy ulang Web App (New deployment / kelola versi).                    │
+ * │ 5) Deploy ulang (Manage deployments → Edit → New version → Deploy).         │
  * └────────────────────────────────────────────────────────────────────────────┘
  *
  * Catatan: pakai SHEETS.BOOKINGS & getSheetObjects_ (sama seperti getReportData).
