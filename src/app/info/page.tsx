@@ -419,8 +419,8 @@ export default function InfoPage() {
               </a>
             ))}
           </nav>
-          <a href={wa(info.waResmi, info.waPesan)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold no-underline" style={{ background: C.gold, color: '#fff' }}>
-            <WAIcon size={16} /> WhatsApp
+          <a href="/info/booking" className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold no-underline" style={{ background: C.gold, color: '#fff' }}>
+            🆕 Booking
           </a>
         </div>
       </header>
@@ -455,9 +455,6 @@ export default function InfoPage() {
             <a href="/info/booking" className="inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
               🆕 Booking Online
             </a>
-            <WAButton href={wa(info.waResmi, info.waPesan)} block={false}>
-              <WAIcon /> Booking / Tanya via WhatsApp
-            </WAButton>
             <a href="#kost" className="inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline" style={{ fontFamily: body, background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}>
               Lihat Kamar
             </a>
@@ -533,9 +530,9 @@ export default function InfoPage() {
               ))}
             </div>
             <div className="mt-5">
-              <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau tanya kost putri (Gedung A/B).')}>
-                <WAIcon /> Tanya Kost via WhatsApp
-              </WAButton>
+              <a href="/info/booking" className="flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline w-full" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
+                🆕 Booking Kost Online
+              </a>
             </div>
           </Card>
         </section>
@@ -592,12 +589,9 @@ export default function InfoPage() {
                     ))}
                   </div>
                   <div className="mt-4">
-                    <WAButton
-                      href={wa(info.waResmi, `Halo Top Hills 🌸, saya mau booking kamar ${p.nama} (penginapan). Mohon info ketersediaannya ya 🙏`)}
-                      variant="green"
-                    >
-                      <WAIcon /> Booking {p.nama} via WhatsApp
-                    </WAButton>
+                    <a href="/info/booking" className="flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[15px] font-semibold no-underline w-full" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
+                      🆕 Booking Online
+                    </a>
                   </div>
                 </div>
               </Card>
@@ -630,9 +624,9 @@ export default function InfoPage() {
           </Card>
 
           <div className="mt-5 max-w-[360px] mx-auto">
-            <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya mau booking/tanya kamar yang masih kosong.')} variant="green">
-              <WAIcon /> Booking / Tanya Kamar
-            </WAButton>
+            <a href="/info/booking" className="flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline w-full" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
+              🆕 Booking Online
+            </a>
           </div>
         </section>
 
@@ -739,9 +733,9 @@ export default function InfoPage() {
               ⚠️ <b>Mohon diperhatikan:</b> bukti pembayaran <b>asli wajib dikirim</b> ke WhatsApp Resmi dan akan <b>dicek ulang</b> oleh admin demi keamanan bersama. Pelunasan dilakukan di awal sebelum menempati, dan DP tidak dapat dikembalikan apabila booking dibatalkan. Terima kasih atas pengertiannya 🙏
             </div>
             <div className="mt-5">
-              <WAButton href={wa(info.waResmi, 'Halo Top Hills 🌸, saya sudah baca cara booking. Saya mau lanjut booking ...')}>
-                <WAIcon /> Booking via WhatsApp Resmi
-              </WAButton>
+              <a href="/info/booking" className="flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline w-full" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
+                🆕 Booking Online Sekarang
+              </a>
             </div>
           </Card>
         </section>
@@ -764,16 +758,13 @@ export default function InfoPage() {
                 </div>
               </div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-3 mt-5">
+            <div className="mt-5">
               <WAButton href={info.maps} variant="ghost">
                 🗺️ Buka di Google Maps
               </WAButton>
-              <WAButton href={wa(info.waMezi, MSG_SURVEY)} variant="green">
-                <WAIcon /> Janji Survey (Bang Mezi)
-              </WAButton>
             </div>
             <p className="text-[13px] mt-3 text-center" style={{ color: C.brownSoft }}>
-              Ingin lihat kamar dulu sebelum booking? Tentu boleh 🌸 Jam survey 08.00–19.00 WIB — sebaiknya janjian dulu dengan penjaga ya.
+              Ingin lihat kamar dulu sebelum booking? Tentu boleh 🌸 Jam survey 08.00–19.00 WIB — janji survey ke <b style={{ color: C.brown }}>Bang Mezi</b> ada di bagian <a href="#kontak" className="font-semibold no-underline" style={{ color: C.gold }}>Kontak</a> di bawah ya.
             </p>
           </Card>
         </section>
@@ -790,7 +781,7 @@ export default function InfoPage() {
       </main>
 
       {/* Footer */}
-      <footer className="py-10 px-4 text-center" style={{ background: C.creamDeep, borderTop: `1px solid ${C.border}` }}>
+      <footer id="kontak" className="py-10 px-4 text-center scroll-mt-20" style={{ background: C.creamDeep, borderTop: `1px solid ${C.border}` }}>
         <div className="mx-auto max-w-[900px]">
           <Brand />
           <div className="mt-6 grid sm:grid-cols-2 gap-3 max-w-[520px] mx-auto text-left">
@@ -800,7 +791,7 @@ export default function InfoPage() {
               </span>
               <span>
                 <span className="block text-[13px]" style={{ color: C.brownSoft }}>
-                  WhatsApp Resmi (booking & bukti bayar)
+                  Helpdesk — tanya / bantuan
                 </span>
                 <span className="block text-[15px] font-semibold" style={{ color: '#1F7A4D' }}>
                   Klik untuk chat →
@@ -830,9 +821,22 @@ export default function InfoPage() {
         </div>
       </footer>
 
-      {/* Floating WhatsApp */}
-      <a href={wa(info.waResmi, info.waPesan)} target="_blank" rel="noopener noreferrer" aria-label="Booking via WhatsApp" className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full grid place-items-center shadow-lg" style={{ background: '#25D366', color: '#fff', boxShadow: '0 8px 24px rgba(37,211,102,0.5)' }}>
-        <WAIcon size={28} />
+      {/* Floating Booking Online — glass, center-bottom, selalu tampil saat scroll */}
+      <a
+        href="/info/booking"
+        aria-label="Booking Online"
+        className="fixed left-1/2 -translate-x-1/2 bottom-5 z-50 inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[15px] font-bold no-underline"
+        style={{
+          fontFamily: body,
+          color: '#fff',
+          background: 'rgba(169,128,47,0.82)',
+          backdropFilter: 'blur(12px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(12px) saturate(140%)',
+          border: '1px solid rgba(255,255,255,0.4)',
+          boxShadow: '0 12px 32px -8px rgba(70,55,32,0.55)',
+        }}
+      >
+        🆕 Booking Online
       </a>
     </div>
   );

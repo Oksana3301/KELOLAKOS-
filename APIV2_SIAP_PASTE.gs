@@ -446,6 +446,11 @@ function dispatchV2_(action, payload) {
     case 'uploadInfoMedia':      return v2_uploadInfoMedia(payload);
     // Kamar Publik (ketersediaan untuk /info)
     case 'getPublicRooms':       return { ok: true, data: v2_getPublicRooms() };
+    // Booking publik dari /info: Perpanjang (lookup) + submit PENDING
+    // (implementasi fungsi ada di BACKEND_PATCH_PERPANJANG.gs)
+    case 'lookupPenyewaByWa':    return { ok: true, data: lookupPenyewaByWa(payload) };
+    case 'lookupPenyewaById':    return { ok: true, data: lookupPenyewaById(payload) };
+    case 'submitBookingRequest': return { ok: true, data: submitBookingRequest(payload) };
     default:                     return null; // Not a V2 action
   }
 }

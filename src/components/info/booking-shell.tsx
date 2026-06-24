@@ -21,7 +21,20 @@ export function BookingShell({ children, back }: { children: React.ReactNode; ba
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-[680px] px-4 py-7 pb-16">{children}</main>
+      <main className="mx-auto max-w-[680px] px-4 py-7 pb-16">
+        {children}
+        <div className="text-center mt-9 pt-5" style={{ borderTop: `1px solid ${TH.border}` }}>
+          <a
+            href={`https://wa.me/628116646615?text=${encodeURIComponent('Halo Top Hills 🌸, saya butuh bantuan soal booking online.')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[13px] font-semibold no-underline"
+            style={{ color: TH.brownSoft }}
+          >
+            Kesulitan mengisi? 💬 Chat Helpdesk Top Hills
+          </a>
+        </div>
+      </main>
     </div>
   );
 }
