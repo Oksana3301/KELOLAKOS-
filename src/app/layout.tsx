@@ -11,6 +11,9 @@ const GOOGLE_SITE_VERIFICATION =
 export const metadata: Metadata = {
   title: 'Top Hills & Co · Property OS',
   description: 'Top Hills & Co — Kos & Penginapan Management System',
+  // Default: dashboard internal TIDAK di-index. Halaman publik /info menimpa ini
+  // dengan robots index:true di src/app/info/layout.tsx.
+  robots: { index: false, follow: false },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
