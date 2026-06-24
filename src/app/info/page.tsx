@@ -452,6 +452,9 @@ export default function InfoPage() {
           </div>
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:justify-center max-w-[420px] sm:max-w-none mx-auto">
+            <a href="/info/booking" className="inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
+              🆕 Booking Online
+            </a>
             <WAButton href={wa(info.waResmi, info.waPesan)} block={false}>
               <WAIcon /> Booking / Tanya via WhatsApp
             </WAButton>

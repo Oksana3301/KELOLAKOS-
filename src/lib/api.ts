@@ -181,6 +181,19 @@ export interface PublicRoom {
   status: 'kosong' | 'terisi' | 'perbaikan';
 }
 
+/** Hasil lookup penyewa lama untuk fitur Perpanjang Kontrak (publik, read-only). */
+export interface PenyewaLookup {
+  bookingId: string;        // ID booking lama (mis. TH-2026-0148)
+  nama: string;
+  whatsapp: string;         // 62xxxx
+  layanan: string;          // 'KOS' | 'PENGINAPAN'
+  kamar: string;            // nama kamar (+ gedung)
+  tipe: string;             // tipe kamar
+  durasiTerakhir: string;   // paket terakhir
+  tglAkhirKontrak: string;  // ISO date akhir kontrak
+  status: string;           // status booking (untuk menyaring Batal/Ditolak di backend)
+}
+
 export interface SubmitBookingPayload {
   roomId: string; customerName: string; whatsapp?: string;
   checkIn: string; checkOut: string; paket: string; jumlahPeriode: number;
@@ -324,6 +337,12 @@ export const api = {
   // Public (no access code) — sanitized room availability for the /info page.
   getPublicRooms: () =>
     callApi<PublicRoom[]>('getPublicRooms', undefined, { skipLicense: true }),
+
+  // Public (no access code) — lookup penyewa lama untuk Perpanjang Kontrak (read-only).
+  lookupPenyewaByWa: (wa: string) =>
+    callApi<PenyewaLookup[]>('lookupPenyewaByWa', { wa }, { skipLicense: true }),
+  lookupPenyewaById: (bookingId: string) =>
+    callApi<PenyewaLookup | null>('lookupPenyewaById', { bookingId, booking_id: bookingId }, { skipLicense: true }),
 
   submitBooking: (data: SubmitBookingPayload) =>
     callApi<{ bookingId: string; message?: string; warning?: string }>('submitBooking', {
