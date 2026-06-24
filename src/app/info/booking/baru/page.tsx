@@ -4,9 +4,13 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type PublicRoom } from '@/lib/api';
+import { halamanInfoApi } from '@/lib/api-v2';
+import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
 import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
+import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
+import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed } from '@/lib/booking-pricing';
 
 export default function BookingBaruPage() {
   const [nama, setNama] = useState('');
@@ -15,14 +19,21 @@ export default function BookingBaruPage() {
   const [layanan, setLayanan] = useState<'KOS' | 'PENGINAPAN'>('KOS');
   const [kamar, setKamar] = useState('');
   const [durasi, setDurasi] = useState('6 Bulan');
+  const [malamQty, setMalamQty] = useState(1);
   const [mulai, setMulai] = useState(new Date().toISOString().slice(0, 10));
   const [bayar, setBayar] = useState<'DP' | 'Full'>('DP');
   const [catatan, setCatatan] = useState('');
+  const [selFac, setSelFac] = useState<string[]>([]);
+  const [extraBedQty, setExtraBedQty] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [demo, setDemo] = useState(false);
 
   const { data: rooms } = useQuery({ queryKey: ['public-rooms'], queryFn: api.getPublicRooms, retry: 0, staleTime: 60_000 });
+  const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
+  const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
+  const info = mergeInfo(infoRaw || DEFAULT_INFO);
+  const fasilitas = fasData?.list || [];
 
   const kamarOptions = useMemo(() => {
     const arr = Array.isArray(rooms) ? rooms : [];
@@ -35,15 +46,55 @@ export default function BookingBaruPage() {
   }, [rooms, layanan]);
 
   const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Bulanan'];
+  const selRoom = kamarOptions.find((r) => `${r.nama} — ${r.gedung}` === kamar);
+
+  // Harga dasar (estimasi) dari data publik.
+  const base = useMemo(() => {
+    if (layanan === 'KOS') {
+      const monthly = selRoom?.harga && selRoom.harga > 0 ? selRoom.harga : parseRupiah(info.kostTeaser);
+      const months = durasi === '1 Tahun' ? 12 : 6;
+      return { price: monthly * months, label: `Kost × ${months} bln` };
+    }
+    const tipe = info.penginapan.find((p) => {
+      const pn = p.nama.toLowerCase();
+      const rt = (selRoom?.tipe || '').toLowerCase();
+      const rn = (selRoom?.nama || '').toLowerCase();
+      return (rt && (rt.includes(pn) || pn.includes(rt))) || rn.includes(pn);
+    });
+    if (durasi === 'Per Malam') {
+      const malam = tipe ? parseRupiah(tipe.malam) : selRoom?.harga || 0;
+      const n = Math.max(1, malamQty);
+      return { price: malam * n, label: `${n} malam` };
+    }
+    const bulan = tipe ? parseRupiah(tipe.bulan) : selRoom?.harga || 0;
+    return { price: bulan, label: 'Per bulan' };
+  }, [layanan, selRoom, durasi, malamQty, info]);
+
+  const addonTotal = useMemo(() => {
+    const eb = fasilitas.find(isExtraBed);
+    return selFac.reduce((s, id) => { const f = fasilitas.find((x) => x.id === id); return s + (f ? Number(f.price_adjust) || 0 : 0); }, 0)
+      + (eb ? extraBedQty * (Number(eb.price_adjust) || 0) : 0);
+  }, [selFac, extraBedQty, fasilitas]);
+
+  function toggleFac(id: string) { setSelFac((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
 
   async function lanjut() {
     setWaErr('');
     if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
     if (!isValidWa(wa)) { setWaErr('Format WA belum benar. Contoh: 6281234567890'); return; }
     if (!kamar) { toast.error('Pilih kamar dulu'); return; }
+    const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
+    const catat = [
+      catatan.trim(),
+      facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
+      extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
+      base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal)}` : '',
+    ].filter(Boolean).join(' — ');
     setSubmitting(true);
     const res = await submitBookingRequest({
-      jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar, durasi, tglMulai: mulai, bayar, catatan: catatan.trim(),
+      jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar,
+      durasi: layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? `${Math.max(1, malamQty)} malam` : durasi,
+      tglMulai: mulai, bayar, catatan: catat,
     });
     setSubmitting(false);
     setDemo(res.demo);
@@ -51,11 +102,7 @@ export default function BookingBaruPage() {
   }
 
   if (done) {
-    return (
-      <BookingShell back={{ href: '/info', label: 'Beranda' }}>
-        <BookingDone nama={nama} demo={demo} />
-      </BookingShell>
-    );
+    return <BookingShell back={{ href: '/info', label: 'Beranda' }}><BookingDone nama={nama} demo={demo} /></BookingShell>;
   }
 
   return (
@@ -97,10 +144,28 @@ export default function BookingBaruPage() {
               {durasiOpts.map((d) => <option key={d} value={d}>{d}</option>)}
             </THSelect>
           </THField>
+          {layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? (
+            <THField label="Jumlah malam">
+              <THInput type="number" min={1} value={malamQty} onChange={(e) => setMalamQty(Math.max(1, Number(e.target.value) || 1))} />
+            </THField>
+          ) : (
+            <THField label="Tanggal mulai">
+              <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
+            </THField>
+          )}
+        </div>
+        {layanan === 'PENGINAPAN' && durasi === 'Per Malam' && (
           <THField label="Tanggal mulai">
             <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
           </THField>
-        </div>
+        )}
+
+        <FasilitasEstimasi
+          fasilitas={fasilitas} demo={fasData?.demo}
+          selectedIds={selFac} onToggle={toggleFac}
+          extraBedQty={extraBedQty} onExtraBed={setExtraBedQty}
+          basePrice={base.price} baseLabel={base.label}
+        />
 
         <THField label="Pembayaran">
           <div className="grid grid-cols-2 gap-2">
@@ -114,7 +179,7 @@ export default function BookingBaruPage() {
         </THField>
 
         <THField label="Catatan (opsional)">
-          <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={2} placeholder="Mis: minta extra bed, lantai bawah, dll."
+          <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={2} placeholder="Mis: lantai bawah, dekat tangga, dll."
             className="w-full rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none resize-y" style={{ background: '#fff', border: `1.5px solid ${TH.border}`, color: TH.brown }} />
         </THField>
       </THCard>

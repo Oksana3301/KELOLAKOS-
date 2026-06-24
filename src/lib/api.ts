@@ -179,6 +179,18 @@ export interface PublicRoom {
   layanan: string;
   lantai: number;
   status: 'kosong' | 'terisi' | 'perbaikan';
+  harga?: number; // base harga kamar (kost) bila tersedia
+}
+
+/** Fasilitas/add-on dari Pengaturan (AC, extra bed, dll). */
+export interface Fasilitas {
+  id: string;
+  kode: string;
+  nama: string;
+  emoji: string;
+  price_adjust: number;
+  satuan?: string; // per_bulan | per_hari | per_tahun
+  is_active?: boolean | string;
 }
 
 /** Payload submit booking dari halaman publik /info (jadi booking PENDING). */
@@ -357,6 +369,11 @@ export const api = {
     callApi<PenyewaLookup[]>('lookupPenyewaByWa', { wa }, { skipLicense: true }),
   lookupPenyewaById: (bookingId: string) =>
     callApi<PenyewaLookup | null>('lookupPenyewaById', { bookingId, booking_id: bookingId }, { skipLicense: true }),
+  lookupPenyewaByRoom: (kamar: string) =>
+    callApi<PenyewaLookup[]>('lookupPenyewaByRoom', { kamar, room: kamar }, { skipLicense: true }),
+  // Public — fasilitas/add-on dari Pengaturan (untuk form booking).
+  getPublicFasilitas: () =>
+    callApi<Fasilitas[]>('getFasilitas', undefined, { skipLicense: true }),
 
   // Public (no access code) — submit booking dari /info → tersimpan sebagai PENDING.
   submitBookingRequest: (data: BookingRequestPayload) =>

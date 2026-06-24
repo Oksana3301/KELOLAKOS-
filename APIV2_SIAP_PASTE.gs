@@ -450,6 +450,7 @@ function dispatchV2_(action, payload) {
     // (implementasi fungsi ada di BACKEND_PATCH_PERPANJANG.gs)
     case 'lookupPenyewaByWa':    return { ok: true, data: lookupPenyewaByWa(payload) };
     case 'lookupPenyewaById':    return { ok: true, data: lookupPenyewaById(payload) };
+    case 'lookupPenyewaByRoom':  return { ok: true, data: lookupPenyewaByRoom(payload) };
     case 'submitBookingRequest': return { ok: true, data: submitBookingRequest(payload) };
     default:                     return null; // Not a V2 action
   }
@@ -567,7 +568,8 @@ function v2_getPublicRooms() {
         tipe: r.Tipe_Kamar || '',
         layanan: r.Layanan_Default || '',
         lantai: lantai,
-        status: status
+        status: status,
+        harga: Number(r.Harga_Kamar || r.Harga || r.Harga_Sewa || r.Harga_Bulanan || 0) || 0
       };
     });
   } catch (e) {
