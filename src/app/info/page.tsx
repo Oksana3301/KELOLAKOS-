@@ -376,8 +376,16 @@ function HeroVideo({ poster }: { poster?: string }) {
           {muted ? '🔇 Ketuk untuk suara' : '🔊 Suara aktif'}
         </button>
       </div>
-      <p className="mt-2 text-center text-[12px]" style={{ fontFamily: body, color: C.brownSoft }}>
-        Selangkah dari kampus · jarak &amp; waktu: Google Maps
+      <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
+        <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12.5px] font-bold" style={{ fontFamily: body, background: C.card, border: `1px solid ${C.border}`, color: C.brown }}>
+          🚶 6 menit jalan kaki
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12.5px] font-bold" style={{ fontFamily: body, background: C.card, border: `1px solid ${C.border}`, color: C.brown }}>
+          🚗 ± 3 menit berkendara
+        </span>
+      </div>
+      <p className="mt-2 text-center text-[11.5px]" style={{ fontFamily: body, color: C.brownSoft }}>
+        Jarak &amp; waktu ke gerbang UNAND · sumber Google Maps
       </p>
     </div>
   );
