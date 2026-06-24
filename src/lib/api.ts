@@ -206,6 +206,15 @@ export interface BookingRequestPayload {
   catatan?: string;
   tagPerpanjangan?: string; // ID booking lama (khusus perpanjang)
   jumlahOrang?: number;
+  bukti?: BuktiFile;        // bukti transfer (opsional)
+}
+
+/** Info pembayaran publik (rekening + QR per layanan) dari Pengaturan Invoice. */
+export interface PaymentRekening { bank: string; nomor: string; atasNama: string; qr: string; }
+export interface PaymentInfo {
+  kost: PaymentRekening;
+  penginapan: PaymentRekening;
+  waResmi: string;
 }
 
 /** Hasil lookup penyewa lama untuk fitur Perpanjang Kontrak (publik, read-only). */
@@ -375,6 +384,9 @@ export const api = {
   // Public — fasilitas/add-on dari Pengaturan (untuk form booking).
   getPublicFasilitas: () =>
     callApi<Fasilitas[]>('getFasilitas', undefined, { skipLicense: true }),
+  // Public — rekening + QR per layanan (dari Pengaturan Invoice).
+  getPaymentInfo: () =>
+    callApi<PaymentInfo>('getPaymentInfo', undefined, { skipLicense: true }),
 
   // Public (no access code) — submit booking dari /info → tersimpan sebagai PENDING.
   submitBookingRequest: (data: BookingRequestPayload) =>

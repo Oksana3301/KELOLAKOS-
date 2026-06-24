@@ -348,6 +348,24 @@ function v2_saveKwitansiSettings(payload) {
   return { ok: true, count: Object.keys(payload).length, rows: rows.length };
 }
 
+// Publik: rekening + QR per layanan (kost/penginapan) dari Pengaturan Invoice.
+function getPaymentInfo() {
+  var s = v2_getKwitansiSettings();
+  function pick(p) {
+    return {
+      bank: String(s[p + '_bank_name'] || s.inv_bank_name || ''),
+      nomor: String(s[p + '_account_no'] || s.inv_account_no || ''),
+      atasNama: String(s[p + '_account_name'] || s.inv_account_name || ''),
+      qr: String(s[p + '_qris_base64'] || s.inv_qris_base64 || '')
+    };
+  }
+  return {
+    kost: pick('inv_kost'),
+    penginapan: pick('inv_png'),
+    waResmi: String(s.inv_wa_resmi || '')
+  };
+}
+
 // ======================================================
 // BOOKING EXTRA REQUEST (extends existing booking)
 // ======================================================
@@ -483,6 +501,7 @@ function dispatchV2_(action, payload) {
     case 'lookupPenyewaById':    return { ok: true, data: lookupPenyewaById(payload) };
     case 'lookupPenyewaByRoom':  return { ok: true, data: lookupPenyewaByRoom(payload) };
     case 'submitBookingRequest': return { ok: true, data: submitBookingRequest(payload) };
+    case 'getPaymentInfo':       return { ok: true, data: getPaymentInfo() };
     default:                     return null; // Not a V2 action
   }
 }

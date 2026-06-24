@@ -117,6 +117,12 @@ function lookupPenyewaByRoom(data) {
  * kolom yang dikenal, sisanya dibiarkan kosong/0 — tidak mengubah struktur sheet.
  * Booking PENDING TIDAK memblokir kamar (harga di-set owner saat menerima).
  */
+function _buktiBookingFolder_() {
+  var name = 'Top Hills Bukti Bayar';
+  var it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+}
+
 function submitBookingRequest(data) {
   data = data || {};
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.BOOKINGS);
@@ -132,6 +138,18 @@ function submitBookingRequest(data) {
   var parts = kamar.split('—');
   if (parts.length >= 2) { namaKamar = parts[0].trim(); gedung = parts.slice(1).join('—').trim(); }
 
+  // Upload bukti bayar (kalau ada) → Drive → URL disimpan di row Booking (tab sama).
+  var buktiUrl = '';
+  if (data.bukti && data.bukti.base64) {
+    try {
+      var f = data.bukti;
+      var blob = Utilities.newBlob(Utilities.base64Decode(f.base64), f.mimeType || 'image/jpeg', id + '-' + (f.name || 'bukti'));
+      var file = _buktiBookingFolder_().createFile(blob);
+      try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+      buktiUrl = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+    } catch (e) {}
+  }
+
   var vals = {
     BookingID: id,
     Nama_Customer: data.nama || '',
@@ -141,9 +159,11 @@ function submitBookingRequest(data) {
     Layanan: String(data.layanan || '').toUpperCase(),
     Paket: data.durasi || '',
     Durasi: data.durasi || '',
+    Jumlah_Orang: Number(data.jumlahOrang) || 1,
     CheckIn: data.tglMulai || '',
     Status_Booking: 'MENUNGGU_KONFIRMASI',
     Status_Bayar: 'Belum Bayar',
+    Bukti_Bayar: buktiUrl,
     Catatan: (data.catatan || '') + (data.jenis === 'perpanjang' ? ' [perpanjang/web]' : ' [baru/web]'),
     tag_perpanjangan: data.tagPerpanjangan || '',
     Timestamp: new Date()
@@ -151,7 +171,7 @@ function submitBookingRequest(data) {
 
   var row = headers.map(function (h) { return Object.prototype.hasOwnProperty.call(vals, h) ? vals[h] : ''; });
   sh.appendRow(row);
-  return { bookingId: id, message: 'Permintaan booking tersimpan (PENDING).' };
+  return { bookingId: id, buktiUrl: buktiUrl, message: 'Permintaan booking tersimpan (PENDING).' };
 }
 
 /**

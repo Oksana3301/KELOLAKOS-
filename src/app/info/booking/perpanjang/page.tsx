@@ -5,13 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { PostFormActions } from '@/components/info/post-form-actions';
+import { PaymentStep } from '@/components/info/payment-step';
 import { TH, TH_SERIF, isValidWa, normWa } from '@/lib/tophills-theme';
 import { lookupPenyewa, DEMO_HINT } from '@/lib/perpanjang-demo';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
 import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
-import { api, type PenyewaLookup } from '@/lib/api';
+import { api, type PenyewaLookup, type BuktiFile } from '@/lib/api';
 
 type Step = 'input' | 'pilih' | 'form';
 
@@ -44,6 +45,7 @@ export default function PerpanjangPage() {
   const [tglMulai, setTglMulai] = useState('');
   const [bayar, setBayar] = useState<'DP' | 'Full'>('Full');
   const [submitting, setSubmitting] = useState(false);
+  const [payStep, setPayStep] = useState(false);
   const [done, setDone] = useState(false);
   const [submitDemo, setSubmitDemo] = useState(false);
   const [selFac, setSelFac] = useState<string[]>([]);
@@ -123,7 +125,12 @@ export default function PerpanjangPage() {
 
   function toggleFac(id: string) { setSelFac((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
 
-  async function kirim() {
+  function kirim() {
+    if (!sel) return;
+    setPayStep(true);
+  }
+
+  async function doSubmit(bukti: BuktiFile | null) {
     if (!sel) return;
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
     const catat = [
@@ -136,7 +143,7 @@ export default function PerpanjangPage() {
     setSubmitting(true);
     const res = await submitBookingRequest({
       jenis: 'perpanjang', nama: sel.nama, whatsapp: normWa(sel.whatsapp), layanan: sel.layanan, kamar: sel.kamar,
-      durasi, tglMulai, bayar, catatan: catat, tagPerpanjangan: sel.bookingId, jumlahOrang: orang,
+      durasi, tglMulai, bayar, catatan: catat, tagPerpanjangan: sel.bookingId, jumlahOrang: orang, bukti: bukti || undefined,
     });
     setSubmitting(false);
     setSubmitDemo(res.demo);
@@ -147,6 +154,23 @@ export default function PerpanjangPage() {
     return (
       <BookingShell back={{ href: '/info', label: 'Beranda' }}>
         <BookingDone nama={sel?.nama} demo={submitDemo} />
+      </BookingShell>
+    );
+  }
+
+  if (payStep && sel) {
+    return (
+      <BookingShell back={{ href: '/info/booking', label: 'Pilihan' }}>
+        <SectionTitle sub="Langkah terakhir — selesaikan pembayaran.">Pembayaran</SectionTitle>
+        <PaymentStep
+          layanan={isKost ? 'KOS' : 'PENGINAPAN'}
+          total={base.price + addonTotal + extraOrang}
+          ringkas={`${sel.kamar} · ${durasi}${orang > 1 ? ' · ' + orang + ' org' : ''}`}
+          bayar={bayar}
+          onSubmit={doSubmit}
+          submitting={submitting}
+          onBack={() => setPayStep(false)}
+        />
       </BookingShell>
     );
   }
