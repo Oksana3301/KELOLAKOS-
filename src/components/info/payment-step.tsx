@@ -12,9 +12,10 @@ import { fileToBukti } from '@/lib/bukti-upload';
 const CARA_BAYAR =
   'Transfer ke rekening atau scan QRIS sesuai nominal, lalu upload bukti transfer di bawah. Booking aktif setelah admin verifikasi (maks 1×24 jam). 🌸';
 
-export function PaymentStep({ layanan, total, ringkas, bayar, onSubmit, submitting, onBack }: {
+export function PaymentStep({ layanan, total, dp = 0, ringkas, bayar, onSubmit, submitting, onBack }: {
   layanan: 'KOS' | 'PENGINAPAN';
   total: number;
+  dp?: number;
   ringkas: string;
   bayar: 'DP' | 'Full';
   onSubmit: (bukti: BuktiFile | null) => void;
@@ -45,11 +46,26 @@ export function PaymentStep({ layanan, total, ringkas, bayar, onSubmit, submitti
 
       {/* Ringkasan */}
       <div className="rounded-[16px] p-4" style={{ background: TH.greenSoft, border: '1px solid #BFE0CD' }}>
-        <div className="flex justify-between items-baseline">
-          <span className="text-[13px] font-semibold" style={{ color: TH.green }}>Total estimasi ({bayar === 'Full' ? 'Lunas' : 'DP'})</span>
-          <span className="text-[22px] font-bold" style={{ fontFamily: TH_SERIF, color: TH.brown }}>{total > 0 ? formatRupiah(total) : '—'}</span>
-        </div>
-        <div className="text-[12.5px] mt-1" style={{ color: TH.brownSoft }}>{ringkas}</div>
+        {bayar === 'DP' && dp > 0 ? (
+          <>
+            <div className="flex justify-between text-[13px]" style={{ color: TH.brownSoft }}>
+              <span>Total estimasi</span><span>{formatRupiah(total)}</span>
+            </div>
+            <div className="flex justify-between items-baseline mt-1.5">
+              <span className="text-[13px] font-semibold" style={{ color: TH.green }}>Bayar DP sekarang</span>
+              <span className="text-[22px] font-bold" style={{ fontFamily: TH_SERIF, color: TH.brown }}>{formatRupiah(dp)}</span>
+            </div>
+            <div className="flex justify-between text-[13px] mt-1 font-semibold" style={{ color: TH.danger }}>
+              <span>Sisa (belum lunas)</span><span>{formatRupiah(Math.max(0, total - dp))}</span>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-between items-baseline">
+            <span className="text-[13px] font-semibold" style={{ color: TH.green }}>Total (Lunas)</span>
+            <span className="text-[22px] font-bold" style={{ fontFamily: TH_SERIF, color: TH.brown }}>{total > 0 ? formatRupiah(total) : '—'}</span>
+          </div>
+        )}
+        <div className="text-[12.5px] mt-1.5" style={{ color: TH.brownSoft }}>{ringkas}</div>
       </div>
 
       {/* Cara bayar + rekening + QR */}

@@ -86,6 +86,23 @@ export function THInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
+// Input rupiah dengan auto-format titik ribuan (mis. 4.000.000).
+export function RupiahInput({ value, onChange, placeholder }: { value: number; onChange: (n: number) => void; placeholder?: string }) {
+  return (
+    <div className="relative">
+      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] font-semibold pointer-events-none" style={{ color: TH.brownSoft }}>Rp</span>
+      <input
+        inputMode="numeric"
+        placeholder={placeholder}
+        value={value ? value.toLocaleString('id-ID') : ''}
+        onChange={(e) => onChange(Number(String(e.target.value).replace(/[^0-9]/g, '')) || 0)}
+        className="w-full min-h-[48px] rounded-[12px] pl-10 pr-3.5 text-[15px] outline-none"
+        style={{ background: '#fff', border: `1.5px solid ${TH.border}`, color: TH.brown }}
+      />
+    </div>
+  );
+}
+
 export function THSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select

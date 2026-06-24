@@ -206,7 +206,8 @@ export interface BookingRequestPayload {
   catatan?: string;
   tagPerpanjangan?: string; // ID booking lama (khusus perpanjang)
   jumlahOrang?: number;
-  bukti?: BuktiFile;        // bukti transfer (opsional)
+  bukti?: BuktiFile;        // bukti transfer
+  dpAmount?: number;        // nominal DP (kalau bayar DP)
 }
 
 /** Info pembayaran publik (rekening + QR per layanan) dari Pengaturan Invoice. */
