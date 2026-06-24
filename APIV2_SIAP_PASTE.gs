@@ -275,10 +275,23 @@ function v2_saveBuildingLayout(payload) {
 function v2_getKwitansiSettings() {
   const sh = v2_getOrCreateSheet_(V2_SHEETS.KWITANSI, V2_SCHEMAS.KwitansiSettings);
   const data = v2_sheetToObjects_(sh);
+  const raw = {};
+  data.forEach(function (row) { if (row.key) raw[row.key] = row.value; });
+
+  // Gabungkan kembali nilai besar yang dipecah jadi key__part0, key__part1, ...
   const result = {};
-  data.forEach(row => {
-    if (row.key) result[row.key] = row.value;
+  const chunks = {};
+  Object.keys(raw).forEach(function (k) {
+    const m = String(k).match(/^(.+)__part(\d+)$/);
+    if (m) {
+      if (!chunks[m[1]]) chunks[m[1]] = [];
+      chunks[m[1]][Number(m[2])] = raw[k];
+    } else {
+      result[k] = raw[k];
+    }
   });
+  Object.keys(chunks).forEach(function (k) { result[k] = chunks[k].join(''); });
+
   // Defaults
   return Object.assign({
     business_name: 'KelolaKos',
@@ -304,17 +317,31 @@ function v2_saveKwitansiSettings(payload) {
   const sh = v2_getOrCreateSheet_(V2_SHEETS.KWITANSI, V2_SCHEMAS.KwitansiSettings);
   if (!payload || typeof payload !== 'object') return { ok: false, error: 'invalid payload' };
 
-  // Clear existing settings
+  const CHUNK = 45000; // batas aman per sel (limit Sheets 50.000 karakter)
+
+  // Bersihkan setting lama
   const lastRow = sh.getLastRow();
   if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, V2_SCHEMAS.KwitansiSettings.length).clearContent();
 
-  // Write all settings (logo_image_base64 might be large; that's OK, Sheets supports up to 50K chars per cell)
-  Object.keys(payload).forEach(key => {
+  // Susun baris; nilai besar (mis. base64 QR/logo) dipecah jadi beberapa baris.
+  const now = v2_now_();
+  const rows = [];
+  Object.keys(payload).forEach(function (key) {
     let value = payload[key];
     if (typeof value === 'boolean') value = String(value);
-    sh.appendRow([key, value, v2_now_()]);
+    value = (value === null || value === undefined) ? '' : String(value);
+    if (value.length <= CHUNK) {
+      rows.push([key, value, now]);
+    } else {
+      const n = Math.ceil(value.length / CHUNK);
+      for (let i = 0; i < n; i++) {
+        rows.push([key + '__part' + i, value.substring(i * CHUNK, (i + 1) * CHUNK), now]);
+      }
+    }
   });
-  return { ok: true, count: Object.keys(payload).length };
+
+  if (rows.length) sh.getRange(2, 1, rows.length, 3).setValues(rows);
+  return { ok: true, count: Object.keys(payload).length, rows: rows.length };
 }
 
 // ======================================================
