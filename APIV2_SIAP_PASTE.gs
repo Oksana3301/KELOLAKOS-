@@ -340,7 +340,11 @@ function v2_saveKwitansiSettings(payload) {
     }
   });
 
-  if (rows.length) sh.getRange(2, 1, rows.length, 3).setValues(rows);
+  if (rows.length) {
+    // Kolom 'value' dipaksa TEKS supaya nomor rekening (0 di depan / 16 digit) utuh.
+    sh.getRange(2, 2, rows.length, 1).setNumberFormat('@');
+    sh.getRange(2, 1, rows.length, 3).setValues(rows);
+  }
   return { ok: true, count: Object.keys(payload).length, rows: rows.length };
 }
 
