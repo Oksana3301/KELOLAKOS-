@@ -326,37 +326,20 @@ function Img({ src, label, ratio = 'aspect-[4/3]' }: { src?: string; label: stri
   );
 }
 
-// Hero video — studi jarak ke kampus (autoplay senyap + ketuk untuk suara piano).
+// Hero — peta jarak ke kampus (foto/peta statis; tanpa angka yang keliru).
 function HeroVideo({ poster }: { poster?: string }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [muted, setMuted] = useState(true);
-  const toggleSound = () => {
-    const v = ref.current;
-    if (!v) return;
-    const next = !muted;
-    setMuted(next);
-    v.muted = next;
-    if (!next) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    }
-  };
+  const src = poster ? driveImageUrl(poster) : '/video/tophills-map.jpg';
   return (
     <div className="mx-auto" style={{ maxWidth: 300 }}>
       <div
         className="relative rounded-[22px] overflow-hidden"
         style={{ border: `1.5px solid ${C.gold}`, boxShadow: '0 18px 44px rgba(70,55,32,0.22)' }}
       >
-        <video
-          ref={ref}
-          className="block w-full aspect-[9/16] object-cover"
-          src="/video/tophills-unand.mp4"
-          poster={poster ? driveImageUrl(poster) : '/video/tophills-unand-poster.jpg'}
-          autoPlay
-          muted={muted}
-          loop
-          playsInline
-          preload="metadata"
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          className="block w-full"
+          src={src}
+          alt="Lokasi Top Hills — 350 m ke gerbang UNAND, Padang"
         />
         {/* caption — info terpenting, hierarki teratas di kartu */}
         <div
@@ -365,16 +348,6 @@ function HeroVideo({ poster }: { poster?: string }) {
         >
           📍 350 m ke UNAND
         </div>
-        {/* kontrol suara */}
-        <button
-          type="button"
-          onClick={toggleSound}
-          aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
-          className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold no-underline"
-          style={{ fontFamily: body, background: muted ? 'rgba(20,14,5,0.62)' : C.gold, color: '#fff', backdropFilter: 'blur(3px)', border: 'none' }}
-        >
-          {muted ? '🔇 Ketuk untuk suara' : '🔊 Suara aktif'}
-        </button>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
         <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12.5px] font-bold" style={{ fontFamily: body, background: C.card, border: `1px solid ${C.border}`, color: C.brown }}>
