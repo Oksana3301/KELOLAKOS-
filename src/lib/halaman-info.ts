@@ -9,6 +9,7 @@ export interface PenginapanTipe {
   bulan: string;
   tahun: string;
   foto: string[]; // maks 10 per tipe kamar
+  extraPerOrang?: number; // +Rp per orang per malam di atas base
 }
 
 export interface HalamanInfo {
@@ -32,6 +33,23 @@ export interface HalamanInfo {
   fotoKost: string[]; // maks 10
   fotoArea: string[]; // maks 10 (galeri umum: gedung, rooftop, dll)
   videos: string[]; // maks 6 (URL YouTube/Drive/mp4)
+  // Kapasitas & biaya orang tambahan
+  kostMaxOrang: number;        // kost 6bln/1thn (mis. 2)
+  kostExtraPerOrang: number;   // +Rp per orang di atas 1 (kost 6bln/1thn)
+  penginapanBaseOrang: number; // jumlah orang yang sudah termasuk harga base
+  penginapanMaxOrang: number;  // mis. 3
+  // Pembayaran
+  caraBayar: string;
+  rekeningKost: BankInfo;
+  rekeningPenginapan: BankInfo;
+  qrKost: string;        // URL gambar QR
+  qrPenginapan: string;  // URL gambar QR
+}
+
+export interface BankInfo {
+  bank: string;
+  nomor: string;
+  atasNama: string;
 }
 
 export const MAX_FOTO = 10;
@@ -50,14 +68,24 @@ export const DEFAULT_INFO: HalamanInfo = {
   kostTeaser: '1,3 jutaan',
   kostTeaserUnit: 'per bulan*',
   penginapan: [
-    { nama: 'Executive', sub: 'Ukuran paling luas · kasur queen size', malam: 'Rp 350.000', bulan: 'Rp 4.000.000', tahun: 'Rp 40.000.000', foto: [] },
-    { nama: 'Superior', sub: 'Ukuran menengah · 1 kasur + kasur sorong di bawah', malam: 'Rp 250.000', bulan: 'Rp 3.000.000', tahun: 'Rp 30.000.000', foto: [] },
-    { nama: 'Deluxe', sub: 'Ukuran cozy · 1 kasur + kasur sorong di bawah', malam: 'Rp 200.000', bulan: 'Rp 2.500.000', tahun: 'Rp 25.000.000', foto: [] },
+    { nama: 'Executive', sub: 'Ukuran paling luas · kasur queen size', malam: 'Rp 350.000', bulan: 'Rp 4.000.000', tahun: 'Rp 40.000.000', foto: [], extraPerOrang: 50000 },
+    { nama: 'Superior', sub: 'Ukuran menengah · 1 kasur + kasur sorong di bawah', malam: 'Rp 250.000', bulan: 'Rp 3.000.000', tahun: 'Rp 30.000.000', foto: [], extraPerOrang: 60000 },
+    { nama: 'Deluxe', sub: 'Ukuran cozy · 1 kasur + kasur sorong di bawah', malam: 'Rp 200.000', bulan: 'Rp 2.500.000', tahun: 'Rp 25.000.000', foto: [], extraPerOrang: 75000 },
   ],
   fotoHero: '',
   fotoKost: [],
   fotoArea: [],
   videos: [],
+  kostMaxOrang: 2,
+  kostExtraPerOrang: 2000000,
+  penginapanBaseOrang: 1,
+  penginapanMaxOrang: 3,
+  caraBayar:
+    'Transfer ke rekening atau scan QRIS di atas sesuai nominal. Setelah bayar, upload bukti di bawah. Booking aktif setelah admin verifikasi (maks 1×24 jam). 🌸',
+  rekeningKost: { bank: 'BCA', nomor: '-', atasNama: 'Top Hills' },
+  rekeningPenginapan: { bank: 'BCA', nomor: '-', atasNama: 'Top Hills' },
+  qrKost: '',
+  qrPenginapan: '',
 };
 
 const arr = (v: unknown, max: number): string[] =>
