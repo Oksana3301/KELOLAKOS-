@@ -10,7 +10,7 @@ import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, S
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
-import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed } from '@/lib/booking-pricing';
+import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
 
 export default function BookingBaruPage() {
   const [nama, setNama] = useState('');
@@ -55,11 +55,7 @@ export default function BookingBaruPage() {
 
   // Harga dasar (estimasi) dari data publik.
   const base = useMemo(() => {
-    if (layanan === 'KOS') {
-      const monthly = selRoom?.harga && selRoom.harga > 0 ? selRoom.harga : parseRupiah(info.kostTeaser);
-      const months = durasi === '1 Tahun' ? 12 : 6;
-      return { price: monthly * months, label: `Kost × ${months} bln` };
-    }
+    if (layanan === 'KOS') return kostBasePrice(info, durasi, selRoom);
     const tipe = info.penginapan.find((p) => {
       const pn = p.nama.toLowerCase();
       const rt = (selRoom?.tipe || '').toLowerCase();

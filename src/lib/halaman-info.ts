@@ -38,6 +38,11 @@ export interface HalamanInfo {
   kostExtraPerOrang: number;   // +Rp per orang di atas 1 (kost 6bln/1thn)
   penginapanBaseOrang: number; // jumlah orang yang sudah termasuk harga base
   penginapanMaxOrang: number;  // mis. 3
+  // Harga paket kost (flat, bukan per bulan)
+  kostHarga6Bulan: number;
+  kostHargaSetahun: number;
+  kostHarga6BulanLt4: number;   // lantai 4 (Gedung A 61A–80A)
+  kostHargaSetahunLt4: number;
   // Pembayaran
   caraBayar: string;
   rekeningKost: BankInfo;
@@ -80,6 +85,10 @@ export const DEFAULT_INFO: HalamanInfo = {
   kostExtraPerOrang: 2000000,
   penginapanBaseOrang: 1,
   penginapanMaxOrang: 3,
+  kostHarga6Bulan: 8000000,
+  kostHargaSetahun: 15000000,
+  kostHarga6BulanLt4: 8000000,
+  kostHargaSetahunLt4: 14000000,
   caraBayar:
     'Transfer ke rekening atau scan QRIS di atas sesuai nominal. Setelah bayar, upload bukti di bawah. Booking aktif setelah admin verifikasi (maks 1×24 jam). 🌸',
   rekeningKost: { bank: 'BCA', nomor: '-', atasNama: 'Top Hills' },

@@ -9,7 +9,7 @@ import { lookupPenyewa, DEMO_HINT } from '@/lib/perpanjang-demo';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
-import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed } from '@/lib/booking-pricing';
+import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
 import { api, type PenyewaLookup } from '@/lib/api';
 
 type Step = 'input' | 'pilih' | 'form';
@@ -97,11 +97,9 @@ export default function PerpanjangPage() {
   const base = useMemo(() => {
     if (!sel) return { price: 0, label: 'Perpanjangan' };
     const room = (Array.isArray(rooms) ? rooms : []).find((r) => sel.kamar.toLowerCase().startsWith(r.nama.toLowerCase()));
-    if (isKost) {
-      const monthly = room?.harga && room.harga > 0 ? room.harga : parseRupiah(info.kostTeaser);
-      const months = durasi === '1 Tahun' ? 12 : 6;
-      return { price: monthly * months, label: `Kost × ${months} bln` };
-    }
+    const parts = sel.kamar.split('—');
+    const roomLike = room || { nama: parts[0]?.trim(), gedung: parts[1]?.trim() };
+    if (isKost) return kostBasePrice(info, durasi, roomLike);
     const tipe = info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); const rt = (sel.tipe || '').toLowerCase(); return rt && (rt.includes(pn) || pn.includes(rt)); });
     return { price: tipe ? parseRupiah(tipe.malam) : room?.harga || 0, label: 'Per malam' };
   }, [sel, rooms, isKost, durasi, info]);
