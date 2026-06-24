@@ -43,6 +43,9 @@ export interface HalamanInfo {
   kostHargaSetahun: number;
   kostHarga6BulanLt4: number;   // lantai 4 (Gedung A 61A–80A)
   kostHargaSetahunLt4: number;
+  // Minimum DP (editable)
+  kostDpMin: number;
+  penginapanDpMin: number;
   // Pembayaran
   caraBayar: string;
   rekeningKost: BankInfo;
@@ -89,6 +92,8 @@ export const DEFAULT_INFO: HalamanInfo = {
   kostHargaSetahun: 15000000,
   kostHarga6BulanLt4: 8000000,
   kostHargaSetahunLt4: 14000000,
+  kostDpMin: 4000000,
+  penginapanDpMin: 100000,
   caraBayar:
     'Transfer ke rekening atau scan QRIS di atas sesuai nominal. Setelah bayar, upload bukti di bawah. Booking aktif setelah admin verifikasi (maks 1×24 jam). 🌸',
   rekeningKost: { bank: 'BCA', nomor: '-', atasNama: 'Top Hills' },

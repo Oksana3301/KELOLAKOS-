@@ -1378,12 +1378,14 @@ export function HalamanInfoPanel() {
           <FormField label="1 tahun — Lantai 4 (Rp)"><input type="number" className="input" value={form.kostHargaSetahunLt4} onChange={(e) => setNum('kostHargaSetahunLt4', e.target.value)} /></FormField>
           <FormField label="Maks orang"><input type="number" className="input" value={form.kostMaxOrang} onChange={(e) => setNum('kostMaxOrang', e.target.value, 1)} /></FormField>
           <FormField label="Biaya / orang ke-2+ (Rp)"><input type="number" className="input" value={form.kostExtraPerOrang} onChange={(e) => setNum('kostExtraPerOrang', e.target.value)} /></FormField>
+          <FormField label="DP minimum (Rp)"><input type="number" className="input" value={form.kostDpMin} onChange={(e) => setNum('kostDpMin', e.target.value)} /></FormField>
         </div>
 
         <div className="text-xs font-semibold text-tx2 mt-2">🛏️ Penginapan — kapasitas & biaya orang</div>
         <div className="grid grid-cols-2 gap-2">
           <FormField label="Termasuk berapa orang" hint="Harga base sudah termasuk segini; di atasnya kena tambahan."><input type="number" className="input" value={form.penginapanBaseOrang} onChange={(e) => setNum('penginapanBaseOrang', e.target.value, 1)} /></FormField>
           <FormField label="Maks orang"><input type="number" className="input" value={form.penginapanMaxOrang} onChange={(e) => setNum('penginapanMaxOrang', e.target.value, 1)} /></FormField>
+          <FormField label="DP minimum (Rp)"><input type="number" className="input" value={form.penginapanDpMin} onChange={(e) => setNum('penginapanDpMin', e.target.value)} /></FormField>
         </div>
         <div className="text-[10px] text-tx3">Biaya tambahan per orang per malam (berlaku untuk orang di atas &ldquo;Termasuk berapa orang&rdquo;):</div>
         <div className="grid grid-cols-3 gap-2">

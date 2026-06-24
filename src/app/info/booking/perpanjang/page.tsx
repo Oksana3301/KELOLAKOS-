@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
+import { toast } from 'sonner';
+import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, RupiahInput, SectionTitle } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { PostFormActions } from '@/components/info/post-form-actions';
 import { PaymentStep } from '@/components/info/payment-step';
@@ -44,6 +45,7 @@ export default function PerpanjangPage() {
   const [durasi, setDurasi] = useState('');
   const [tglMulai, setTglMulai] = useState('');
   const [bayar, setBayar] = useState<'DP' | 'Full'>('Full');
+  const [dpAmount, setDpAmount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [payStep, setPayStep] = useState(false);
   const [done, setDone] = useState(false);
@@ -114,6 +116,7 @@ export default function PerpanjangPage() {
   }, [selFac, extraBedQty, fasilitas]);
 
   const maxOrang = isKost ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
+  const dpMin = isKost ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
   const extraOrang = useMemo(() => {
     if (!sel) return 0;
     if (isKost) return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
@@ -127,6 +130,10 @@ export default function PerpanjangPage() {
 
   function kirim() {
     if (!sel) return;
+    if (bayar === 'DP') {
+      if (dpAmount < dpMin) { toast.error(`DP minimal ${formatRupiah(dpMin)}`); return; }
+      if (base.price > 0 && dpAmount > base.price + addonTotal + extraOrang) { toast.error('DP tidak boleh melebihi total'); return; }
+    }
     setPayStep(true);
   }
 
@@ -139,11 +146,13 @@ export default function PerpanjangPage() {
       facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
       extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
       base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal + extraOrang)}` : '',
+      bayar === 'DP' && dpAmount > 0 ? `DP: ${formatRupiah(dpAmount)}` : '',
     ].filter(Boolean).join(' — ');
     setSubmitting(true);
     const res = await submitBookingRequest({
       jenis: 'perpanjang', nama: sel.nama, whatsapp: normWa(sel.whatsapp), layanan: sel.layanan, kamar: sel.kamar,
       durasi, tglMulai, bayar, catatan: catat, tagPerpanjangan: sel.bookingId, jumlahOrang: orang, bukti: bukti || undefined,
+      dpAmount: bayar === 'DP' ? dpAmount : undefined,
     });
     setSubmitting(false);
     setSubmitDemo(res.demo);
@@ -165,6 +174,7 @@ export default function PerpanjangPage() {
         <PaymentStep
           layanan={isKost ? 'KOS' : 'PENGINAPAN'}
           total={base.price + addonTotal + extraOrang}
+          dp={dpAmount}
           ringkas={`${sel.kamar} · ${durasi}${orang > 1 ? ' · ' + orang + ' org' : ''}`}
           bayar={bayar}
           onSubmit={doSubmit}
@@ -289,13 +299,18 @@ export default function PerpanjangPage() {
             <THField label="Pembayaran">
               <div className="grid grid-cols-2 gap-2">
                 {(['DP', 'Full'] as const).map((b) => (
-                  <button key={b} onClick={() => setBayar(b)} className="min-h-[48px] rounded-[12px] font-bold text-[14px]"
+                  <button key={b} onClick={() => { setBayar(b); if (b === 'DP' && dpAmount < dpMin) setDpAmount(dpMin); }} className="min-h-[48px] rounded-[12px] font-bold text-[14px]"
                     style={bayar === b ? { background: TH.gold, color: '#FBF7EC', border: `1px solid ${TH.gold}` } : { background: '#fff', color: TH.brown, border: `1.5px solid ${TH.border}` }}>
                     {b === 'DP' ? 'Bayar DP dulu' : 'Bayar Lunas'}
                   </button>
                 ))}
               </div>
             </THField>
+            {bayar === 'DP' && (
+              <THField label="Nominal DP" hint={`Minimal ${formatRupiah(dpMin)} · sisa ditagih saat pelunasan`}>
+                <RupiahInput value={dpAmount} onChange={setDpAmount} placeholder={dpMin.toLocaleString('id-ID')} />
+              </THField>
+            )}
           </THCard>
 
           <PostFormActions

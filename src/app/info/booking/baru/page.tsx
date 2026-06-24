@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type PublicRoom, type BuktiFile } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
-import { BookingShell, BookingDone, THCard, THField, THInput, THSelect, SectionTitle } from '@/components/info/booking-shell';
+import { BookingShell, BookingDone, THCard, THField, THInput, THSelect, RupiahInput, SectionTitle } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { PostFormActions } from '@/components/info/post-form-actions';
 import { PaymentStep } from '@/components/info/payment-step';
@@ -24,6 +24,7 @@ export default function BookingBaruPage() {
   const [malamQty, setMalamQty] = useState(1);
   const [mulai, setMulai] = useState(new Date().toISOString().slice(0, 10));
   const [bayar, setBayar] = useState<'DP' | 'Full'>('DP');
+  const [dpAmount, setDpAmount] = useState(0);
   const [catatan, setCatatan] = useState('');
   const [selFac, setSelFac] = useState<string[]>([]);
   const [extraBedQty, setExtraBedQty] = useState(0);
@@ -81,6 +82,8 @@ export default function BookingBaruPage() {
   }, [selFac, extraBedQty, fasilitas]);
 
   const maxOrang = layanan === 'KOS' ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
+  const dpMin = layanan === 'KOS' ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
+  useEffect(() => { if (bayar === 'DP' && dpAmount === 0 && dpMin > 0) setDpAmount(dpMin); }, [dpMin, bayar]); // eslint-disable-line react-hooks/exhaustive-deps
   const extraOrang = useMemo(() => {
     if (layanan === 'KOS') return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
     const baseOrang = info.penginapanBaseOrang || 1;
@@ -98,6 +101,10 @@ export default function BookingBaruPage() {
     if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
     if (!isValidWa(wa)) { setWaErr('Format WA belum benar. Contoh: 6281234567890'); return; }
     if (!kamar) { toast.error('Pilih kamar dulu'); return; }
+    if (bayar === 'DP') {
+      if (dpAmount < dpMin) { toast.error(`DP minimal ${formatRupiah(dpMin)}`); return; }
+      if (base.price > 0 && dpAmount > base.price + addonTotal + extraOrang) { toast.error('DP tidak boleh melebihi total'); return; }
+    }
     setPayStep(true);
   }
 
@@ -109,12 +116,14 @@ export default function BookingBaruPage() {
       facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
       extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
       base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal + extraOrang)}` : '',
+      bayar === 'DP' && dpAmount > 0 ? `DP: ${formatRupiah(dpAmount)}` : '',
     ].filter(Boolean).join(' — ');
     setSubmitting(true);
     const res = await submitBookingRequest({
       jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar,
       durasi: layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? `${Math.max(1, malamQty)} malam` : durasi,
       tglMulai: mulai, bayar, catatan: catat, jumlahOrang: orang, bukti: bukti || undefined,
+      dpAmount: bayar === 'DP' ? dpAmount : undefined,
     });
     setSubmitting(false);
     setDemo(res.demo);
@@ -132,6 +141,7 @@ export default function BookingBaruPage() {
         <PaymentStep
           layanan={layanan}
           total={base.price + addonTotal + extraOrang}
+          dp={dpAmount}
           ringkas={`${kamar} · ${durasi}${orang > 1 ? ' · ' + orang + ' org' : ''}`}
           bayar={bayar}
           onSubmit={doSubmit}
@@ -215,13 +225,18 @@ export default function BookingBaruPage() {
         <THField label="Pembayaran">
           <div className="grid grid-cols-2 gap-2">
             {(['DP', 'Full'] as const).map((b) => (
-              <button key={b} onClick={() => setBayar(b)} className="min-h-[48px] rounded-[12px] font-bold text-[14px]"
+              <button key={b} onClick={() => { setBayar(b); if (b === 'DP' && dpAmount < dpMin) setDpAmount(dpMin); }} className="min-h-[48px] rounded-[12px] font-bold text-[14px]"
                 style={bayar === b ? { background: TH.gold, color: '#FBF7EC', border: `1px solid ${TH.gold}` } : { background: '#fff', color: TH.brown, border: `1.5px solid ${TH.border}` }}>
                 {b === 'DP' ? 'Bayar DP dulu' : 'Bayar Lunas'}
               </button>
             ))}
           </div>
         </THField>
+        {bayar === 'DP' && (
+          <THField label="Nominal DP" hint={`Minimal ${formatRupiah(dpMin)} · sisa ditagih saat pelunasan`}>
+            <RupiahInput value={dpAmount} onChange={setDpAmount} placeholder={dpMin.toLocaleString('id-ID')} />
+          </THField>
+        )}
 
         <THField label="Catatan (opsional)">
           <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={2} placeholder="Mis: lantai bawah, dekat tangga, dll."
