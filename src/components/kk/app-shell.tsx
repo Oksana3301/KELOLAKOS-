@@ -22,7 +22,7 @@ interface NavEntry {
 }
 
 const PRIMARY: NavEntry[] = [
-  { href: '/', label: 'Beranda', icon: 'beranda' },
+  { href: '/beranda', label: 'Beranda', icon: 'beranda' },
   { href: '/booking', label: 'Booking', icon: 'booking' },
   { href: '/kamar', label: 'Kamar', icon: 'kamar' },
   { href: '/keuangan', label: 'Uang', icon: 'uang' },
