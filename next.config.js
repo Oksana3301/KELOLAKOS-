@@ -6,6 +6,12 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Root domain → halaman publik /info (di edge, sebelum render/cache).
+  async redirects() {
+    return [
+      { source: '/', destination: '/info', permanent: false },
+    ];
+  },
 };
 
 module.exports = nextConfig;
