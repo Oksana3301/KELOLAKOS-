@@ -646,6 +646,7 @@ export function BookingFlow({
   const extraOrang = isEdit ? 0 : extraOrangCharge(chosen?.room, paketKind, jumlahOrang, lamaEff, info);
   const isKostRoom = String(chosen?.room.Layanan_Default || '').toUpperCase().includes('KOS');
   const maxOrang = isKostRoom ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
+  const dpMin = isKostRoom ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
   const total = hargaKamarEff * lamaEff + fasTotal + extraOrang;
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
@@ -1349,7 +1350,7 @@ export function BookingFlow({
                 return (
                   <button
                     key={o.s}
-                    onClick={() => setBayar(o.s)}
+                    onClick={() => { setBayar(o.s); if (o.s === 'DP' && !dp && dpMin > 0 && !isEdit) setDp(String(dpMin)); }}
                     className={`text-left p-4 rounded-kk-card border-2 flex justify-between items-center gap-3 ${
                       sel ? 'border-kk-navy bg-kk-mint-soft' : 'border-kk-mauve bg-white'
                     }`}
@@ -1372,9 +1373,9 @@ export function BookingFlow({
 
             {bayar === 'DP' && (
               <BookingField
-                label="Jumlah dibayar sekarang (DP)"
-                contoh={'Maksimal ' + rupiah(total)}
-                hint="Sisanya akan ditagih kemudian."
+                label="Nominal DP (dibayar sekarang)"
+                contoh={(dpMin > 0 ? 'Min ' + rupiah(dpMin) + ' · ' : '') + 'maks ' + rupiah(total)}
+                hint={'Sisa ' + rupiah(Math.max(0, total - Number(dp || 0))) + ' ditagih saat pelunasan.'}
               >
                 <MoneyInput
                   value={dp}
