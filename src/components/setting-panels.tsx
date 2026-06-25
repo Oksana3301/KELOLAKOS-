@@ -1405,6 +1405,9 @@ export function HalamanInfoPanel() {
         <div className="bg-sf2 border border-bd rounded-md p-2.5 text-[10px] text-tx3 leading-relaxed">
           💡 Video besar sebaiknya pakai <strong>link YouTube/Google Drive</strong> (tempel di kolom link) — lebih ringan & tidak makan kuota.
         </div>
+        <FormField label="Video Peringatan Penipuan (URL)" hint="YouTube/Drive/mp4 — tampil di section Waspada Penipuan /info. Kosongkan = tanpa video.">
+          <input className="input" value={form.videoPenipuan} onChange={(e) => set('videoPenipuan', e.target.value)} placeholder="https://youtu.be/... atau link Drive" />
+        </FormField>
       </div>
 
       <button onClick={handleSave} disabled={saving} className="btn btn-pri btn-lg w-full">

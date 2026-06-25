@@ -33,6 +33,7 @@ export interface HalamanInfo {
   fotoKost: string[]; // maks 10
   fotoArea: string[]; // maks 10 (galeri umum: gedung, rooftop, dll)
   videos: string[]; // maks 6 (URL YouTube/Drive/mp4)
+  videoPenipuan: string; // URL video peringatan penipuan (opsional)
   // Kapasitas & biaya orang tambahan
   kostMaxOrang: number;        // kost 6bln/1thn (mis. 2)
   kostExtraPerOrang: number;   // +Rp per orang di atas 1 (kost 6bln/1thn)
@@ -84,6 +85,7 @@ export const DEFAULT_INFO: HalamanInfo = {
   fotoKost: [],
   fotoArea: [],
   videos: [],
+  videoPenipuan: '',
   kostMaxOrang: 2,
   kostExtraPerOrang: 2000000,
   penginapanBaseOrang: 1,

@@ -398,9 +398,10 @@ export default function InfoPage() {
   const totalKosong = (Array.isArray(rooms) ? rooms : []).filter((r) => r.status === 'kosong').length;
 
   const NAV = [
-    { id: 'tersedia', label: 'Ketersediaan' },
     { id: 'kost', label: 'Kost' },
     { id: 'penginapan', label: 'Penginapan' },
+    { id: 'tersedia', label: 'Ketersediaan' },
+    { id: 'aman', label: 'Keamanan' },
     { id: 'lokasi', label: 'Lokasi' },
   ];
 
@@ -472,6 +473,11 @@ export default function InfoPage() {
                 {t}
               </div>
             ))}
+          </div>
+
+          {/* Catatan resmi / anti-penipuan */}
+          <div className="mt-6 rounded-[14px] px-4 py-3 text-[13px] leading-relaxed text-left max-w-[560px] mx-auto" style={{ background: '#FBEDE6', border: '1px solid #E6BBA4', color: C.brown }}>
+            🔒 <b>Resmi &amp; aman:</b> Top Hills <b>tidak punya marketing/agen</b>. Nomor &amp; akun resmi <b>hanya</b> yang tertera di website ini &amp; Google Business Profile. Waspada penipuan — <a href="#aman" className="font-semibold underline" style={{ color: '#9A3B16' }}>baca di sini</a>.
           </div>
 
         </section>
@@ -632,7 +638,7 @@ export default function InfoPage() {
 
         {/* Galeri + video */}
         <section className="py-8">
-          <SectionHead n="4" title="Galeri" sub="Intip suasana & sudut-sudut nyaman di Top Hills. Laundry, minimarket & cuci motor juga tersedia di lokasi (biaya terpisah)." />
+          <SectionHead n="4" title="Galeri" sub="Intip suasana & sudut-sudut nyaman di Top Hills — semua dirawat untuk kenyamanan penghuni." />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(info.fotoArea.length > 0
               ? info.fotoArea
@@ -738,6 +744,28 @@ export default function InfoPage() {
               </a>
             </div>
           </Card>
+        </section>
+
+        {/* Waspada Penipuan — penting, di-emphasize */}
+        <section id="aman" className="py-8 scroll-mt-20">
+          <div className="rounded-[20px] p-5 sm:p-7" style={{ background: '#FBEDE6', border: '2px solid #D98C6A' }}>
+            <div className="flex items-center gap-2.5 mb-1">
+              <span className="text-[28px]">⚠️</span>
+              <h2 style={{ fontFamily: serif, color: '#9A3B16' }} className="text-[24px] sm:text-[30px] font-bold m-0">Waspada Penipuan</h2>
+            </div>
+            <p className="text-[14px] mb-4" style={{ color: C.brownSoft }}>Demi keamanan calon penghuni, mohon dibaca ya 🙏</p>
+            <ul className="space-y-3 text-[14.5px] leading-relaxed list-none p-0 m-0" style={{ color: C.brown }}>
+              <li className="flex gap-2.5"><span>🚫</span><span>Top Hills <b>TIDAK punya marketing/agen</b>. Nomor &amp; akun resmi <b>HANYA</b> yang tertera di website ini dan <b>Google Business Profile</b> Top Hills.</span></li>
+              <li className="flex gap-2.5"><span>🏦</span><span>Pembayaran <b>hanya</b> ke rekening resmi yang tertera di halaman booking / invoice. <b>Jangan transfer</b> ke rekening pribadi atas nama lain.</span></li>
+              <li className="flex gap-2.5"><span>⏳</span><span>Waspada oknum yang memaksa transfer cepat, "promo/DP kilat", atau mengatasnamakan Top Hills. <b>Konfirmasi dulu</b> ke WhatsApp resmi (lihat Kontak di bawah).</span></li>
+              <li className="flex gap-2.5"><span>❗</span><span>Segala kerugian akibat transaksi <b>di luar kanal resmi</b> Top Hills <b>menjadi tanggung jawab pribadi</b> dan <b>di luar tanggung jawab</b> pihak Top Hills.</span></li>
+            </ul>
+            {info.videoPenipuan && (
+              <div className="mt-5">
+                <VideoEmbed url={info.videoPenipuan} />
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Lokasi & Survey */}
