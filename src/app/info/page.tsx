@@ -194,6 +194,19 @@ function SectionHead({ n, title, sub, badge }: { n?: string; title: string; sub?
   );
 }
 
+// Fact chips — info kunci sekilas (jumlah kamar, paket, dll) di bawah judul section.
+function FactChips({ items }: { items: string[] }) {
+  return (
+    <div className="flex flex-wrap justify-center gap-2 -mt-3 mb-7">
+      {items.map((c) => (
+        <span key={c} className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold" style={{ background: '#FBF3E0', color: C.brown, border: `1px solid ${C.gold}` }}>
+          {c}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={'rounded-[20px] p-5 ' + className} style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 6px 22px rgba(112,86,32,0.06)' }}>
@@ -489,7 +502,7 @@ export default function InfoPage() {
             <p className="text-[15px] leading-relaxed" style={{ color: C.brownSoft }}>
               Area terdiri dari beberapa gedung: <b style={{ color: C.brown }}>Gedung A & B</b> untuk{' '}
               <b style={{ color: C.brown }}>kost — khusus putri</b> (jangka panjang), dan <b style={{ color: C.brown }}>Gedung C</b> untuk{' '}
-              <b style={{ color: C.brown }}>penginapan — terbuka untuk umum</b> (putra & putri, harian/mingguan/bulanan/tahunan). Semua dalam satu lokasi yang asri & dekat kampus.
+              <b style={{ color: C.brown }}>penginapan — terbuka untuk umum</b> (putra & putri, harian/bulanan/tahunan). Semua dalam satu lokasi yang asri & dekat kampus.
             </p>
           </Card>
         </section>
@@ -497,6 +510,7 @@ export default function InfoPage() {
         {/* Kost */}
         <section id="kost" className="py-8 scroll-mt-20">
           <SectionHead n="2" title="Kost Putri — Gedung A & B" sub="Hunian nyaman khusus putri untuk sewa jangka panjang — biar betah seperti di rumah sendiri." />
+          <FactChips items={['🚪 110 kamar', '📅 Paket 6 bulan & 1 tahun', '🌸 Khusus putri']} />
           <Card>
             <div className="text-center pb-5 mb-5" style={{ borderBottom: `1px solid ${C.border}` }}>
               <div className="text-[14px]" style={{ color: C.brownSoft }}>
@@ -545,7 +559,8 @@ export default function InfoPage() {
 
         {/* Penginapan */}
         <section id="penginapan" className="py-8 scroll-mt-20">
-          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & free air mineral di kamar. 💧" />
+          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & free air mineral di kamar. 💧" />
+          <FactChips items={['🚪 5 kamar', '🛏️ 3 tipe: Executive · Superior · Deluxe', '📅 Harian – Tahunan']} />
           <div className="space-y-4">
             {info.penginapan.map((p) => (
               <Card key={p.nama} className="!p-0 overflow-hidden">
