@@ -725,15 +725,15 @@ export default function InfoPage() {
 
         {/* Cara Booking */}
         <section id="booking" className="py-8 scroll-mt-20">
-          <SectionHead n="6" title="Cara Booking" />
+          <SectionHead n="6" title="Cara Booking" sub="Semua serba online — cepat, jelas & aman. Cukup 5 langkah." />
           <Card>
             <ol className="space-y-4">
               {[
-                ['Pilih kamar / tipe', 'Tentukan dulu kost (Gedung A/B) atau penginapan (Gedung C) yang kamu inginkan.'],
-                ['Bayar DP untuk booking kamar', 'Kost (6 bulan & setahun): DP minimal Rp 4 juta · Penginapan harian: DP minimal Rp 100rb. Bisa transfer atau tunai langsung di lokasi.'],
-                ['Minta nomor rekening via WhatsApp Resmi', 'Demi keamanan, nomor rekening kami berikan saat konfirmasi (rekening kost & penginapan berbeda ya).'],
-                ['Kirim bukti pembayaran asli', 'Mohon kirim bukti transfer atau tunai yang asli ke WhatsApp Resmi — akan kami verifikasi kembali oleh admin.'],
-                ['Booking selesai ✅', 'Begitu bukti diterima & dicek, booking kamarmu langsung kami proses. Selamat, sampai jumpa di Top Hills! 🌸'],
+                ['Klik "Booking Online"', 'Pilih Booking Baru (penyewa baru) atau Perpanjang Kontrak (penyewa lama — cukup masukkan nomor WA, data lama kami tarik otomatis).'],
+                ['Lengkapi data & cek estimasi', 'Pilih kamar/tipe, durasi (kost: 6 bulan / 1 tahun · penginapan: harian–tahunan), jumlah orang & fasilitas tambahan. Total estimasi muncul otomatis.'],
+                ['Survey / tanya dulu? (opsional)', 'Belum yakin? Bisa janji survey atau tanya Bang Mezi via WhatsApp langsung dari form — tanpa harus bayar dulu.'],
+                ['Bayar & upload bukti', 'Transfer / scan QRIS resmi yang tampil (rekening kost & penginapan beda). DP minimal — kost Rp 4 juta, penginapan Rp 100rb — atau bayar lunas. Lalu upload bukti transfer (wajib).'],
+                ['Konfirmasi admin → booking aktif ✅', 'Admin cek pembayaran & data. Setelah disetujui, booking aktif dan invoice dikirim ke WhatsApp-mu. Sampai jumpa di Top Hills! 🌸'],
               ].map(([t, d], i) => (
                 <li key={t} className="flex gap-3">
                   <span className="flex-shrink-0 w-7 h-7 rounded-full grid place-items-center text-[14px] font-bold" style={{ background: C.gold, color: '#fff', fontFamily: serif }}>
@@ -751,7 +751,7 @@ export default function InfoPage() {
               ))}
             </ol>
             <div className="mt-5 rounded-[14px] p-4 text-[14px] leading-snug" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
-              ⚠️ <b>Mohon diperhatikan:</b> bukti pembayaran <b>asli wajib dikirim</b> ke WhatsApp Resmi dan akan <b>dicek ulang</b> oleh admin demi keamanan bersama. Pelunasan dilakukan di awal sebelum menempati, dan DP tidak dapat dikembalikan apabila booking dibatalkan. Terima kasih atas pengertiannya 🙏
+              ⚠️ <b>Penting:</b> pembayaran <b>hanya</b> ke rekening/QRIS resmi yang tampil di halaman booking (lihat <a href="#aman" className="font-semibold underline" style={{ color: '#9A3B16' }}>Waspada Penipuan</a>). Bukti transfer <b>wajib di-upload</b> & dicek admin. Pelunasan dilakukan sebelum menempati, dan DP tidak dapat dikembalikan apabila booking dibatalkan. Terima kasih atas pengertiannya 🙏
             </div>
             <div className="mt-5">
               <a href="/info/booking" className="flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[16px] font-semibold no-underline w-full" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
