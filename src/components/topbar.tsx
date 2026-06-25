@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Beranda', match: (p: string) => p === '/' },
+  { href: '/beranda', label: 'Beranda', match: (p: string) => p.startsWith('/beranda') },
   { href: '/kamar', label: 'Kamar', match: (p: string) => p.startsWith('/kamar') },
   { href: '/booking', label: 'Booking', match: (p: string) => p.startsWith('/booking') },
   { href: '/keuangan', label: 'Keuangan', match: (p: string) => p.startsWith('/keuangan') },
