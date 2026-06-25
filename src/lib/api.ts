@@ -150,7 +150,7 @@ export interface BookingItem {
 export interface BookingFullData extends BookingItem {
   Timestamp?: string; Durasi?: string; Jumlah_Orang?: number;
   Extra_Bed_Qty?: number; Extra_Person_Qty?: number; Extra_Request?: string;
-  Is_Ekstra?: 'YA' | 'TIDAK'; Updated_At?: string; Bukti_Bayar?: string;
+  Is_Ekstra?: 'YA' | 'TIDAK'; Updated_At?: string; Bukti_Bayar?: string; tag_perpanjangan?: string;
 }
 
 export interface DashboardStats {
