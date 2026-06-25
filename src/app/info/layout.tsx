@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
+import { FAQ } from '@/lib/faq';
 
 const TITLE = 'Kost Putri & Penginapan Top Hills — Dekat UNAND Padang';
 // Meta description — tanpa "&" (opengraph/Google menghitung &amp; sebagai 5 char). ~140.
@@ -76,10 +77,22 @@ export const metadata: Metadata = {
   },
 };
 
+// FAQPage structured data — bisa muncul sebagai rich snippet (accordion Q&A) di Google.
+const FAQ_JSON = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQ.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
+
 export default function InfoLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(LD_JSON) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON) }} />
       {children}
     </>
   );
