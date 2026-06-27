@@ -12,7 +12,7 @@ import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/halaman-info';
 import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
-import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
+import { roomKey, statusOnDate, type RoomStatus3 } from '@/lib/building-layout';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
 
 type Interval = { start: string; end: string };
@@ -511,19 +511,27 @@ export default function InfoPage() {
     return 'dp';                                                   // hanya DP → tetap DP
   }
 
+  // Status default (tanpa pilih rentang) = REAL-TIME hari ini, dihitung dari
+  // rentang booking + tanggal hari ini (bukan sekadar "pernah ada booking").
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const statusToday = (r: PublicRoom): RoomStatus3 =>
+    r.status === 'perbaikan' ? 'perbaikan' : hasRangeData ? statusOnDate(r.bookedRanges, todayISO, r.status) : (r.status as RoomStatus3);
+
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
     if (rangeActive && hasRangeData) {
       roomList.forEach((r) => m.set(roomKey(r.nama), rangeStatusOf(r, rangeStart, rangeEnd)));
     } else {
-      roomList.forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
+      roomList.forEach((r) => m.set(roomKey(r.nama), statusToday(r)));
     }
     return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, rangeStart, rangeEnd, rangeActive, hasRangeData]);
 
   const totalKosong = useMemo(() => {
     if (rangeActive && hasRangeData) return roomList.filter((r) => rangeStatusOf(r, rangeStart, rangeEnd) === 'kosong').length;
-    return roomList.filter((r) => r.status === 'kosong').length;
+    return roomList.filter((r) => statusToday(r) === 'kosong').length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
   // Jenis layanan kamar (kost = Gedung A/B, penginapan = Gedung C).
@@ -909,13 +917,16 @@ export default function InfoPage() {
           </Card>
 
           {rooms && rooms.length > 0 ? (
-            <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
-              <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b>{' '}
-              {rangeActive && hasRangeData ? (
-                <>bebas penuh sepanjang <b style={{ color: C.brown }}>{rangeLabel}</b>.</>
-              ) : (
-                'siap dihuni saat ini.'
-              )}
+            <div className="mb-5 rounded-[16px] px-4 py-4 text-center" style={{ background: '#EAF5EE', border: '1.5px solid #9ED9B4' }}>
+              <div style={{ fontFamily: serif, color: '#15724A' }} className="text-[40px] font-bold leading-none">
+                {totalKosong}
+              </div>
+              <div className="text-[15px] font-semibold mt-1" style={{ color: '#15724A' }}>
+                kamar {rangeActive && hasRangeData ? 'bebas penuh' : 'siap dihuni'}
+              </div>
+              <div className="text-[13px] mt-0.5" style={{ color: C.brownSoft }}>
+                {rangeActive && hasRangeData ? <>sepanjang {rangeLabel}</> : <>real-time hari ini · {updatedWIB || 'memuat…'}</>}
+              </div>
             </div>
           ) : (
             <div className="text-center mb-5 text-[14px]" style={{ color: C.brownSoft }}>

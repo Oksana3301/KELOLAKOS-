@@ -63,6 +63,26 @@ export const GEDUNG_LABEL: Record<GedungKey, string> = {
   C: 'Gedung C (Penginapan)',
 };
 
+// Status kamar pada SATU tanggal (real-time) dari rentang booking-nya.
+// terisi = ada booking LUNAS yg menutupi tanggal · dp = hanya DP · else kosong.
+// Hari check-out dihitung BEBAS. Bila status booking tak ada, pakai snapshotFallback.
+export function statusOnDate(
+  bookedRanges: { start: string; end: string; status?: 'lunas' | 'dp' }[] | undefined,
+  dateISO: string,
+  snapshotFallback?: 'kosong' | 'dp' | 'terisi' | 'perbaikan',
+): 'kosong' | 'dp' | 'terisi' {
+  let dp = false;
+  for (const b of bookedRanges || []) {
+    if (!b.start) continue;
+    const covers = b.end ? dateISO >= b.start && dateISO < b.end : dateISO >= b.start;
+    if (!covers) continue;
+    const st = b.status === 'lunas' ? 'lunas' : b.status === 'dp' ? 'dp' : snapshotFallback === 'terisi' ? 'lunas' : 'dp';
+    if (st === 'lunas') return 'terisi';
+    dp = true;
+  }
+  return dp ? 'dp' : 'kosong';
+}
+
 export type LayananKey = 'kost' | 'penginapan';
 /** Gedung A & B = kost, Gedung C = penginapan. */
 export function gedungLayanan(g: GedungKey): LayananKey {
