@@ -429,6 +429,7 @@ function BookingPageInner() {
         editBooking={editBooking}
         facilities={facilities || []}
         editFacilityIds={editFacilityIds}
+        bookings={allBookings}
       />
 
       {detail && (
