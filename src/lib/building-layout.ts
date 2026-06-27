@@ -63,6 +63,25 @@ export const GEDUNG_LABEL: Record<GedungKey, string> = {
   C: 'Gedung C (Penginapan)',
 };
 
+export type LayananKey = 'kost' | 'penginapan';
+/** Gedung A & B = kost, Gedung C = penginapan. */
+export function gedungLayanan(g: GedungKey): LayananKey {
+  return g === 'C' ? 'penginapan' : 'kost';
+}
+
+// ── Palet status kamar (SATU sumber untuk denah 2D & 3D). Warna dibuat sangat
+// kontras & beda hue: hijau=Kosong, kuning=DP, abu gelap=Terisi, merah=Perbaikan.
+export const STATUS_STYLE: Record<
+  RoomStatus3,
+  { bg: string; border: string; text: string; hex: string; dot: string; label: string }
+> = {
+  kosong:    { bg: '#DCFCE7', border: '#16A34A', text: '#15803D', hex: '#22C55E', dot: '#16A34A', label: 'Kosong' },
+  dp:        { bg: '#FEF3C7', border: '#D97706', text: '#B45309', hex: '#F59E0B', dot: '#D97706', label: 'DP (dipesan)' },
+  terisi:    { bg: '#E2E8F0', border: '#475569', text: '#334155', hex: '#64748B', dot: '#475569', label: 'Terisi' },
+  perbaikan: { bg: '#FEE2E2', border: '#DC2626', text: '#B91C1C', hex: '#EF4444', dot: '#DC2626', label: 'Perbaikan' },
+  unknown:   { bg: '#F1F5F9', border: '#CBD5E1', text: '#64748B', hex: '#CBD5E1', dot: '#94A3B8', label: 'Belum ada data' },
+};
+
 /** Flat list of every room (for 3D & lookups). */
 export interface LayoutRoom {
   nama: string;
