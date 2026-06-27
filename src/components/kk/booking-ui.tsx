@@ -15,6 +15,7 @@ import {
   type PriceItem,
   type RoomPriceRule,
   type BookingFullData,
+  type BookingItem,
   type BuktiFile,
   type PaymentRecord,
 } from '@/lib/api';
@@ -193,12 +194,19 @@ export interface RoomOption {
 
 // Small status pill for a room (Terisi / Kosong / Perlu Perhatian) — mirrors
 // the colour coding on the Layout Properti page.
-function RoomStatusBadge({ room, className = '' }: { room: RoomStatus; className?: string }) {
-  const s = mapRoomStatus(room);
-  const map: Record<RoomDisplayStatus, { bg: string; label: string }> = {
-    Terisi: { bg: 'bg-kk-green text-white', label: 'Terisi' },
-    Tersedia: { bg: 'bg-kk-mauve text-kk-navy', label: 'Kosong' },
-    'Perlu Perhatian': { bg: 'bg-kk-orange text-white', label: 'Perlu Perhatian' },
+type RoomStat4 = 'kosong' | 'dp' | 'terisi' | 'perbaikan';
+function RoomStatusBadge({ room, status3, className = '' }: { room?: RoomStatus; status3?: RoomStat4; className?: string }) {
+  // Pakai status DP/Lunas-aware bila tersedia (selaras /info); else fallback ke Status_Code.
+  const s: RoomStat4 = status3
+    ? status3
+    : room
+      ? (() => { const d = mapRoomStatus(room); return d === 'Terisi' ? 'terisi' : d === 'Tersedia' ? 'kosong' : 'perbaikan'; })()
+      : 'kosong';
+  const map: Record<RoomStat4, { bg: string; label: string }> = {
+    terisi: { bg: 'bg-kk-green text-white', label: 'Terisi' },
+    dp: { bg: 'bg-kk-yellow text-kk-navy', label: 'DP' },
+    kosong: { bg: 'bg-kk-mauve text-kk-navy', label: 'Kosong' },
+    perbaikan: { bg: 'bg-kk-orange text-white', label: 'Perbaikan' },
   };
   const m = map[s];
   return (
@@ -401,6 +409,7 @@ export function BookingFlow({
   editBooking,
   facilities = [],
   editFacilityIds,
+  bookings = [],
 }: {
   open: boolean;
   onClose: () => void;
@@ -413,6 +422,8 @@ export function BookingFlow({
   facilities?: Fasilitas[];
   /** Facility ids already attached to the booking being edited. */
   editFacilityIds?: string[];
+  /** Semua booking — untuk cek bentrok tanggal & status (DP/Lunas) per kamar. */
+  bookings?: BookingItem[];
 }) {
   const qc = useQueryClient();
   const router = useRouter();
@@ -681,8 +692,66 @@ export function BookingFlow({
     (customDate ? customHari >= 1 : lama >= 1) &&
     (bayar !== 'DP' || Number(dp) > 0);
 
+  // Bentrok tanggal: cek booking lain di kamar yang sama yang menutupi rentang
+  // [masuk, keluar). Status mengikuti pembayaran (sama dengan /info & denah):
+  // Lunas → 'terisi', DP → 'dp', Belum Bayar → tidak memblok. Hari check-out bebas.
+  const dateConflict = useMemo<{ level: 'terisi' | 'dp'; bookings: BookingItem[] } | null>(() => {
+    if (!chosen || !masuk || !keluar) return null;
+    const sameRoom = (b: BookingItem) =>
+      (b.RoomID && chosen.room.RoomID && b.RoomID === chosen.room.RoomID) ||
+      (b.Nama_Kamar || '').trim().toLowerCase() === (chosen.room.Nama_Kamar || '').trim().toLowerCase();
+    const overlaps = (b: BookingItem) => {
+      const bIn = b.CheckIn ? new Date(b.CheckIn).toISOString().split('T')[0] : '';
+      const bOut = b.CheckOut ? new Date(b.CheckOut).toISOString().split('T')[0] : '';
+      if (!bIn) return false;
+      // overlap [masuk,keluar) vs [bIn, bOut) — hari check-out bebas
+      return masuk < (bOut || '9999-12-31') && bIn < keluar;
+    };
+    const hits = bookings.filter(
+      (b) => b.BookingID !== editBooking?.BookingID && sameRoom(b) && overlaps(b),
+    );
+    let hasDp = false;
+    const relevant: BookingItem[] = [];
+    for (const b of hits) {
+      const pay = mapPayStatus(b);
+      if (pay === 'Lunas') { relevant.push(b); }
+      else if (pay === 'DP') { hasDp = true; relevant.push(b); }
+      // 'Belum Bayar' / 'Batal' → tidak memblok kamar
+    }
+    const lunas = relevant.some((b) => mapPayStatus(b) === 'Lunas');
+    if (lunas) return { level: 'terisi', bookings: relevant.filter((b) => mapPayStatus(b) === 'Lunas') };
+    if (hasDp) return { level: 'dp', bookings: relevant.filter((b) => mapPayStatus(b) === 'DP') };
+    return null;
+  }, [chosen, masuk, keluar, bookings, editBooking]);
+
+  // Status SAAT INI per kamar (untuk badge di daftar kamar), selaras /info:
+  // Lunas → terisi, DP → dp, Belum Bayar/tanpa → kosong, maintenance → perbaikan.
+  const roomStatusNow = useMemo(() => {
+    const todayISO = new Date().toISOString().split('T')[0];
+    const activeNow = (b: BookingItem) => {
+      const bIn = b.CheckIn ? new Date(b.CheckIn).toISOString().split('T')[0] : '';
+      const bOut = b.CheckOut ? new Date(b.CheckOut).toISOString().split('T')[0] : '';
+      return !!bIn && bIn <= todayISO && todayISO < (bOut || '9999-12-31');
+    };
+    const m = new Map<string, RoomStat4>();
+    rooms.forEach((r) => {
+      const code = String(r.Status_Code || '').toUpperCase();
+      if (code === 'NONAKTIF' || code.includes('MAINT') || code.includes('PERBAIKAN')) { m.set(r.RoomID, 'perbaikan'); return; }
+      let dp = false, lunas = false;
+      for (const b of bookings) {
+        const same = (b.RoomID && b.RoomID === r.RoomID) ||
+          (b.Nama_Kamar || '').trim().toLowerCase() === (r.Nama_Kamar || '').trim().toLowerCase();
+        if (!same || !activeNow(b)) continue;
+        const p = mapPayStatus(b);
+        if (p === 'Lunas') lunas = true; else if (p === 'DP') dp = true;
+      }
+      m.set(r.RoomID, lunas ? 'terisi' : dp ? 'dp' : 'kosong');
+    });
+    return m;
+  }, [rooms, bookings]);
+
   // Booking an occupied / attention room is allowed, but warn first.
-  const roomOccupied = !!chosen && chosen.room.Status_Code !== 'READY';
+  const roomOccupied = !!dateConflict || (!!chosen && chosen.room.Status_Code !== 'READY');
 
   function handleSave() {
     if (!bisaLanjut || saveMutation.isPending) return;
@@ -1059,7 +1128,7 @@ export function BookingFlow({
                         <span className="font-heading font-bold text-[20px] text-kk-navy">
                           {o.room.Nama_Kamar}
                         </span>
-                        <RoomStatusBadge room={o.room} />
+                        <RoomStatusBadge room={o.room} status3={roomStatusNow.get(o.room.RoomID)} />
                       </div>
                       <div className="text-caption text-kk-ink">
                         {o.room.Gedung} ·{' '}
@@ -1101,7 +1170,11 @@ export function BookingFlow({
                     {chosen.room.Nama_Kamar} · {chosen.room.Gedung}
                   </div>
                 </div>
-                <RoomStatusBadge room={chosen.room} className="ml-auto flex-shrink-0" />
+                <RoomStatusBadge
+                  room={chosen.room}
+                  status3={dateConflict ? dateConflict.level : roomStatusNow.get(chosen.room.RoomID)}
+                  className="ml-auto flex-shrink-0"
+                />
               </div>
             )}
 
@@ -1229,6 +1302,37 @@ export function BookingFlow({
                   </div>
                 )}
               </>
+            )}
+
+            {/* Peringatan bentrok tanggal — status ikut pembayaran (DP / Terisi/Lunas) */}
+            {chosen && !isEdit && dateConflict && (
+              <div
+                className="mb-6 rounded-kk-card border-2 p-4"
+                style={
+                  dateConflict.level === 'terisi'
+                    ? { borderColor: '#475569', background: '#E2E8F0' }
+                    : { borderColor: '#D97706', background: '#FEF3C7' }
+                }
+              >
+                <div className="font-heading font-bold text-[16px]" style={{ color: dateConflict.level === 'terisi' ? '#334155' : '#B45309' }}>
+                  {dateConflict.level === 'terisi'
+                    ? '⛔ Kamar sudah TERISI (lunas) di tanggal ini'
+                    : '🟡 Kamar sudah DP (dipesan) di tanggal ini'}
+                </div>
+                <p className="text-[13px] text-kk-ink mt-1 mb-2 leading-snug">
+                  {dateConflict.level === 'terisi'
+                    ? 'Tanggal yang kamu pilih bertabrakan dengan booking lunas. Sebaiknya pilih kamar/tanggal lain.'
+                    : 'Tanggal yang kamu pilih bertabrakan dengan booking yang baru DP (belum lunas). Pastikan dulu sebelum lanjut.'}
+                </p>
+                <div className="space-y-1">
+                  {dateConflict.bookings.slice(0, 4).map((b) => (
+                    <div key={b.BookingID} className="text-[12.5px] text-kk-navy font-semibold">
+                      • {b.Nama_Customer || '(tanpa nama)'} · {tglPendek(b.CheckIn)} → {tglPendek(b.CheckOut)}
+                      <span className="ml-1 font-normal text-kk-ink">({mapPayStatus(b)})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Jumlah orang (rate extra dari Pengaturan — sama dgn /info) */}
@@ -1477,20 +1581,36 @@ export function BookingFlow({
       </div>
       </Sheet>
 
-      {/* Konfirmasi kalau kamar yang dipilih sudah terisi */}
+      {/* Konfirmasi kalau kamar/tanggal yang dipilih sudah DP atau Terisi */}
       <Dialog open={warnOccupied}>
         <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
           <KkIcon name="info" size={30} />
         </div>
         <h3 className="font-heading font-bold text-subhead text-center m-0 mb-2">
-          Kamar ini sudah terisi
+          {dateConflict
+            ? dateConflict.level === 'terisi'
+              ? 'Kamar sudah TERISI (lunas)'
+              : 'Kamar sudah DP (dipesan)'
+            : 'Kamar ini sudah terisi'}
         </h3>
         <p className="text-body text-kk-ink text-center mt-0 mb-6 leading-snug">
-          Kamar <b className="text-kk-navy">{chosen?.room.Nama_Kamar}</b> statusnya{' '}
-          <b className="text-kk-navy">
-            {chosen ? (mapRoomStatus(chosen.room) === 'Terisi' ? 'Terisi' : 'Perlu Perhatian') : ''}
-          </b>
-          . Yakin tetap mau membuat booking di kamar ini?
+          Kamar <b className="text-kk-navy">{chosen?.room.Nama_Kamar}</b>{' '}
+          {dateConflict ? (
+            <>
+              sudah{' '}
+              <b className="text-kk-navy">{dateConflict.level === 'terisi' ? 'TERISI (lunas)' : 'DP (dipesan)'}</b>{' '}
+              pada tanggal <b className="text-kk-navy">{tglPendek(masuk)} → {tglPendek(keluar)}</b>.
+            </>
+          ) : (
+            <>
+              statusnya{' '}
+              <b className="text-kk-navy">
+                {chosen ? (mapRoomStatus(chosen.room) === 'Terisi' ? 'Terisi' : 'Perlu Perhatian') : ''}
+              </b>
+              .
+            </>
+          )}{' '}
+          Yakin tetap mau membuat booking di kamar ini?
         </p>
         <div className="grid grid-cols-2 gap-3">
           <KkButton variant="secondary" onClick={() => setWarnOccupied(false)} disabled={saveMutation.isPending}>
