@@ -231,8 +231,20 @@ function confirmBooking(data) {
   var status = (data.status === 'Lunas') ? 'Lunas' : 'DP';
   var updates = { Status_Booking: 'AKTIF', Status_Bayar: status };
 
-  // KOST + kunci tanggal (default ON) + LUNAS → set CheckIn = tanggal pelunasan
-  // (atau hari ini), CheckOut = +periode. DP → tanggal dibiarkan kosong.
+  // ── Isi kolom UANG dari estimasi/DP yang dikirim frontend (booking /info tadinya
+  //    cuma punya teks di Catatan). Supaya total, dibayar, & SISA benar di invoice.
+  var total = Number(data.total) || 0;
+  var dibayar = (data.dibayar === undefined || data.dibayar === null) ? 0 : Number(data.dibayar) || 0;
+  if (status === 'Lunas' && total > 0 && dibayar <= 0) dibayar = total;   // lunas → bayar penuh
+  if (total > 0) {
+    updates.Harga_Total_Net = total;
+    updates.Net_Diterima = dibayar;
+    updates.Total_Bayar = dibayar;
+    updates.Sisa_Bayar = Math.max(0, total - dibayar);
+  }
+
+  // ── KOST + kunci tanggal (default ON) + LUNAS → CheckIn = tanggal pelunasan
+  //    (atau hari ini), CheckOut = +periode. DP → tanggal dibiarkan kosong.
   try {
     var hi = (typeof v2_getHalamanInfo === 'function') ? v2_getHalamanInfo() : null;
     var lock = !hi || hi.kostKunciTanggal !== false; // default true

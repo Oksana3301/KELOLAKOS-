@@ -45,9 +45,10 @@ export function PendingConfirmations() {
   const [edit, setEdit] = useState<BookingFullData | null>(null);
 
   const confirm = useMutation({
-    mutationFn: (v: { id: string; status: 'DP' | 'Lunas' }) => api.confirmBooking(v.id, v.status),
+    mutationFn: (v: { id: string; status: 'DP' | 'Lunas'; total: number; dibayar: number }) =>
+      api.confirmBooking(v.id, v.status, { total: v.total, dibayar: v.dibayar }),
     onSuccess: () => {
-      toast.success('✓ Booking diterima — catat pembayarannya ya');
+      toast.success('✓ Booking diterima — total & sisa tercatat otomatis');
       setSel(null);
       qc.invalidateQueries({ queryKey: ['pending-bookings'] });
       qc.invalidateQueries({ queryKey: ['initial-data'] });
@@ -124,7 +125,12 @@ export function PendingConfirmations() {
           busy={busy}
           onClose={() => setSel(null)}
           onEdit={() => { setEdit(sel); setSel(null); }}
-          onConfirm={(s) => confirm.mutate({ id: sel.BookingID, status: s })}
+          onConfirm={(s) => {
+            const p = parseCatatan(sel.Catatan);
+            const total = toNum(p.estimasi);
+            const dibayar = s === 'Lunas' ? total : toNum(p.dp);
+            confirm.mutate({ id: sel.BookingID, status: s, total, dibayar });
+          }}
           onReject={() => { if (window.confirm(`Tolak booking ${sel.Nama_Customer}?`)) reject.mutate(sel.BookingID); }}
         />
       )}

@@ -461,8 +461,21 @@ export const api = {
   // Booking online (PENDING dari /info) — daftar + terima/tolak.
   getPendingBookings: () =>
     callApi<BookingFullData[]>('getPendingBookings'),
-  confirmBooking: (bookingId: string, status: 'DP' | 'Lunas') =>
-    callApi<{ ok: boolean; bookingId: string }>('confirmBooking', { bookingId, status }),
+  // Terima booking /info. Sertakan total & nominal dibayar (dari estimasi/DP yang
+  // diisi penyewa) supaya kolom uang (total, dibayar, sisa) terisi benar →
+  // invoice & laporan akurat. tglPelunasan untuk kost (jadi check-in saat Lunas).
+  confirmBooking: (
+    bookingId: string,
+    status: 'DP' | 'Lunas',
+    opts?: { total?: number; dibayar?: number; tglPelunasan?: string },
+  ) =>
+    callApi<{ ok: boolean; bookingId: string }>('confirmBooking', {
+      bookingId,
+      status,
+      total: opts?.total,
+      dibayar: opts?.dibayar,
+      tglPelunasan: opts?.tglPelunasan,
+    }),
   rejectBooking: (bookingId: string) =>
     callApi<{ ok: boolean; bookingId: string }>('rejectBooking', { bookingId }),
   // Ubah data booking PENDING (tanpa mengubah status bayar). Lihat
