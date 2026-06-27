@@ -28,6 +28,7 @@ function editPendingBooking(data) {
   if (data.nama !== undefined)        updates.Nama_Customer = data.nama;
   if (data.whatsapp !== undefined)    updates.WhatsApp = (typeof _perpanjangNormWa_ === 'function')
                                         ? _perpanjangNormWa_(data.whatsapp) : String(data.whatsapp);
+  if (data.roomId !== undefined && String(data.roomId) !== '') updates.RoomID = data.roomId;
   if (data.kamar !== undefined && String(data.kamar) !== '') {
     // "Nama — Gedung" → pisah jadi Nama_Kamar & Gedung.
     var kamar = String(data.kamar);
