@@ -16,7 +16,10 @@ import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
 
 type Interval = { start: string; end: string };
-type RangeRow = { nama: string; tipe: string; status: RoomStatus3; free: Interval[]; booked: Interval[] };
+type RangeRow = {
+  nama: string; tipe: string; gedung: string; lantai: number; layanan: 'kost' | 'penginapan';
+  num: number; status: RoomStatus3; free: Interval[]; booked: Interval[];
+};
 
 // JSON-LD (LodgingBusiness) — bantu Google menampilkan rich result untuk /info.
 const JSON_LD = {
@@ -519,20 +522,51 @@ export default function InfoPage() {
     return roomList.filter((r) => r.status === 'kosong').length;
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
+  // Jenis layanan kamar (kost = Gedung A/B, penginapan = Gedung C).
+  const roomLayanan = (r: PublicRoom): 'kost' | 'penginapan' => {
+    const l = String(r.layanan || '').toUpperCase();
+    if (l.includes('INAP') || l.includes('PENGINAP')) return 'penginapan';
+    if (l.includes('KOS')) return 'kost';
+    return String(r.gedung || '').toUpperCase().includes('C') ? 'penginapan' : 'kost';
+  };
+  const roomNum = (nama: string) => parseInt(String(nama).replace(/[^0-9]/g, ''), 10) || 0;
+
   // Rincian per kamar untuk mode rentang: hanya kamar yang sebagian/penuh terisi
-  // (yang punya kendala tanggal) — kamar bebas penuh cukup dihitung jumlahnya.
+  // (kamar bebas penuh cukup dihitung). Diurutkan: KOST dulu lalu PENGINAPAN,
+  // masing-masing dari nomor kecil→besar, lengkap dgn gedung & lantai.
   const rangeDetail = useMemo(() => {
     if (!rangeActive || !hasRangeData) return [] as RangeRow[];
     return roomList
-      .map((r) => ({
+      .map((r): RangeRow => ({
         nama: r.nama,
         tipe: r.tipe || '',
+        gedung: r.gedung || '',
+        lantai: r.lantai || 0,
+        layanan: roomLayanan(r),
+        num: roomNum(r.nama),
         status: rangeStatusOf(r, rangeStart, rangeEnd),
         free: freeIntervals(r.bookedRanges || [], rangeStart, rangeEnd),
         booked: bookedWithin(r.bookedRanges || [], rangeStart, rangeEnd),
       }))
       .filter((x) => x.status === 'dp' || x.status === 'terisi')
-      .sort((a, b) => (a.status === b.status ? a.nama.localeCompare(b.nama, 'id', { numeric: true }) : a.status === 'dp' ? -1 : 1));
+      .sort((a, b) => {
+        if (a.layanan !== b.layanan) return a.layanan === 'kost' ? -1 : 1; // kost dulu
+        if (a.num !== b.num) return a.num - b.num;                          // nomor kecil→besar
+        return a.nama.localeCompare(b.nama, 'id', { numeric: true });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
+
+  // Jumlah kamar bebas-penuh per layanan (untuk ringkasan).
+  const availFull = useMemo(() => {
+    if (!rangeActive || !hasRangeData) return { kost: 0, penginapan: 0 };
+    let kost = 0, penginapan = 0;
+    roomList.forEach((r) => {
+      if (rangeStatusOf(r, rangeStart, rangeEnd) === 'kosong') {
+        if (roomLayanan(r) === 'kost') kost++; else penginapan++;
+      }
+    });
+    return { kost, penginapan };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
@@ -763,9 +797,24 @@ export default function InfoPage() {
           />
           {/* Cek ketersediaan berdasarkan rentang tanggal menginap */}
           <Card className="mb-5">
-            <div className="text-[14px] font-semibold mb-3" style={{ color: C.brown }}>
-              📅 Cek ketersediaan kamar
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="text-[14px] font-semibold" style={{ color: C.brown }}>
+                📅 Cek ketersediaan kamar
+              </div>
+              <button
+                onClick={() => refetchRooms()}
+                disabled={roomsFetching}
+                className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
+                style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}
+              >
+                {roomsFetching ? 'Memuat…' : '🔄 Perbarui'}
+              </button>
             </div>
+            {updatedWIB && (
+              <div className="text-[11.5px] mb-3" style={{ color: C.brownSoft }}>
+                🕒 Data per <b style={{ color: C.brown }}>{updatedWIB}</b>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-end gap-2.5">
               <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
@@ -797,42 +846,55 @@ export default function InfoPage() {
               </p>
             )}
 
-            {/* Rincian rentang per kamar */}
+            {/* Rincian rentang per kamar — dikelompokkan Kost / Penginapan, urut nomor */}
             {rangeActive && hasRangeData && (
               <div className="mt-4">
                 <div className="text-[13px] font-semibold mb-2" style={{ color: C.brown }}>
-                  Ketersediaan <b>{rangeLabel}</b> — {totalKosong} kamar bebas penuh
-                  {rangeDetail.length > 0 ? `, ${rangeDetail.length} kamar ada tanggal terisi:` : '. 🎉'}
+                  Ketersediaan <b>{rangeLabel}</b> — <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar bebas penuh</b>
+                  <span style={{ color: C.brownSoft }}> (🏠 {availFull.kost} kost · 🏨 {availFull.penginapan} penginapan)</span>
+                  {rangeDetail.length === 0 ? ' 🎉' : ''}
                 </div>
-                {rangeDetail.length > 0 && (
-                  <div className="space-y-2">
-                    {rangeDetail.slice(0, 12).map((row) => (
-                      <div key={row.nama} className="rounded-[12px] px-3 py-2.5" style={{ background: C.card, border: `1px solid ${C.border}` }}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[13.5px] font-bold" style={{ color: C.brown }}>
-                            {row.nama}{row.tipe ? ` · ${row.tipe}` : ''}
-                          </span>
-                          <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={row.status === 'dp' ? { background: '#FEF3C7', color: '#B45309' } : { background: '#E2E8F0', color: '#334155' }}>
-                            {row.status === 'dp' ? 'sebagian terisi' : 'penuh terisi'}
-                          </span>
+
+                {([
+                  { key: 'kost', label: '🏠 Kost', rows: rangeDetail.filter((r) => r.layanan === 'kost') },
+                  { key: 'penginapan', label: '🏨 Penginapan', rows: rangeDetail.filter((r) => r.layanan === 'penginapan') },
+                ] as { key: string; label: string; rows: RangeRow[] }[]).filter((g) => g.rows.length > 0).map((g) => (
+                  <div key={g.key} className="mb-3">
+                    <div className="text-[12px] font-bold uppercase tracking-wide mb-1.5" style={{ color: C.gold }}>
+                      {g.label} — ada tanggal terisi
+                    </div>
+                    <div className="space-y-2">
+                      {g.rows.slice(0, 10).map((row) => (
+                        <div key={row.nama} className="rounded-[12px] px-3 py-2.5" style={{ background: C.card, border: `1px solid ${C.border}` }}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[13.5px] font-bold" style={{ color: C.brown }}>
+                              {row.nama}{row.tipe ? ` · ${row.tipe}` : ''}
+                            </span>
+                            <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={row.status === 'dp' ? { background: '#FEF3C7', color: '#B45309' } : { background: '#E2E8F0', color: '#334155' }}>
+                              {row.status === 'dp' ? 'sebagian terisi' : 'penuh terisi'}
+                            </span>
+                          </div>
+                          <div className="text-[11.5px] mt-0.5" style={{ color: C.brownSoft }}>
+                            📍 {row.gedung || '—'}{row.lantai ? ` · Lantai ${row.lantai}` : ''}
+                          </div>
+                          {row.free.length > 0 && (
+                            <div className="text-[12px] mt-1" style={{ color: '#15803D' }}>
+                              ✅ Tersedia: {row.free.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
+                            </div>
+                          )}
+                          {row.booked.length > 0 && (
+                            <div className="text-[12px] mt-0.5" style={{ color: '#B45309' }}>
+                              ⛔ Terisi: {row.booked.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
+                            </div>
+                          )}
                         </div>
-                        {row.free.length > 0 && (
-                          <div className="text-[12px] mt-1" style={{ color: '#15803D' }}>
-                            ✅ Tersedia: {row.free.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
-                          </div>
-                        )}
-                        {row.booked.length > 0 && (
-                          <div className="text-[12px] mt-0.5" style={{ color: '#B45309' }}>
-                            ⛔ Terisi: {row.booked.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {rangeDetail.length > 12 && (
-                      <p className="text-[12px]" style={{ color: C.brownSoft }}>…dan {rangeDetail.length - 12} kamar lain. Persempit dengan filter di denah, atau tanya admin via WhatsApp.</p>
-                    )}
+                      ))}
+                      {g.rows.length > 10 && (
+                        <p className="text-[12px]" style={{ color: C.brownSoft }}>…dan {g.rows.length - 10} kamar {g.key} lain. Tanya admin via WhatsApp untuk detailnya ya.</p>
+                      )}
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
             )}
           </Card>
