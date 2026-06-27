@@ -16,9 +16,18 @@ function parseCatatan(catatan?: string) {
     dp: grab(/DP:\s*Rp\s*([\d.,]+)/i),
     fasilitas: grab(/Fasilitas:\s*([^—]+?)(?:\s*—|$)/i),
     extraBed: grab(/Extra bed x\s*(\d+)/i),
+    orang: grab(/(\d+)\s*orang/i),
   };
 }
 const toNum = (s: string) => Number(String(s).replace(/[^0-9]/g, '')) || 0;
+// Jumlah orang yang aman ditampilkan (kolom kadang keisi nilai aneh) → angka 1–30 saja.
+function safeOrang(b: BookingFullData, p: { orang: string }): number {
+  const fromCol = Number(b.Jumlah_Orang);
+  if (Number.isFinite(fromCol) && fromCol >= 1 && fromCol <= 30) return fromCol;
+  const fromNote = Number(p.orang);
+  if (Number.isFinite(fromNote) && fromNote >= 1 && fromNote <= 30) return fromNote;
+  return 0;
+}
 function tglID(iso?: string) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -62,6 +71,7 @@ export function PendingConfirmations() {
         <div className="flex flex-col gap-3">
           {list.map((b) => {
             const p = parseCatatan(b.Catatan);
+            const orang = safeOrang(b, p);
             const layanan = String(b.Layanan).toUpperCase() === 'KOS' ? 'Kost' : 'Penginapan';
             return (
               <div key={b.BookingID} className="rounded-kk-card border border-kk-mauve p-3.5">
@@ -70,7 +80,7 @@ export function PendingConfirmations() {
                     <div className="font-bold text-kk-navy text-[16px]">{b.Nama_Customer || '(tanpa nama)'}</div>
                     <div className="text-[13px] text-kk-ink">{b.Nama_Kamar}{b.Gedung ? ' · ' + b.Gedung : ''} · {layanan}</div>
                     <div className="text-[12.5px] text-kk-ink mt-0.5">
-                      {b.Paket || b.Durasi || '-'}{b.Jumlah_Orang ? ' · ' + b.Jumlah_Orang + ' org' : ''}
+                      {b.Paket || b.Durasi || '-'}{orang ? ' · ' + orang + ' org' : ''}
                     </div>
                     {(p.estimasi || p.dp) && (
                       <div className="text-[12.5px] mt-1 font-semibold text-kk-navy">
@@ -121,6 +131,7 @@ function PendingDetailSheet({ b, busy, onClose, onConfirm, onReject }: {
   b: BookingFullData; busy: boolean; onClose: () => void; onConfirm: (s: 'DP' | 'Lunas') => void; onReject: () => void;
 }) {
   const p = parseCatatan(b.Catatan);
+  const orang = safeOrang(b, p);
   const layanan = String(b.Layanan).toUpperCase() === 'KOS' ? 'Kost' : 'Penginapan';
   const sisa = p.estimasi && p.dp ? Math.max(0, toNum(p.estimasi) - toNum(p.dp)) : 0;
 
@@ -151,7 +162,7 @@ function PendingDetailSheet({ b, busy, onClose, onConfirm, onReject }: {
           <Row label="Layanan" value={layanan} />
           <Row label="Tipe" value={b.Tipe_Kamar} />
           <Row label="Durasi / paket" value={b.Paket || b.Durasi} />
-          <Row label="Jumlah orang" value={b.Jumlah_Orang ? `${b.Jumlah_Orang} orang` : ''} />
+          <Row label="Jumlah orang" value={orang ? `${orang} orang` : ''} />
           <Row label="Fasilitas" value={p.fasilitas} />
           <Row label="Extra bed" value={p.extraBed ? `${p.extraBed} buah` : ''} />
           <Row label="Tanggal masuk" value={tglID(b.CheckIn)} />

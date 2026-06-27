@@ -363,6 +363,7 @@ function configHargaSatuan(room: RoomStatus | undefined, paketKind: PaketKind, i
     const tipe = matchTipe(room, info);
     if (!tipe) return 0;
     if (paketKind === 'harian') return parseRupiah(tipe.malam);
+    if (paketKind === 'mingguan') return parseRupiah(tipe.mingguan);
     if (paketKind === 'bulanan') return parseRupiah(tipe.bulan);
     if (paketKind === 'setahun') return parseRupiah(tipe.tahun);
     return 0;
@@ -545,7 +546,12 @@ export function BookingFlow({
   useEffect(() => {
     if (!chosen) return;
     if (!availablePakets.includes(paketKind)) {
-      setPaketKind(chosen.primaryKind || availablePakets[0] || 'bulanan');
+      // Penginapan → default "Per Hari" (tarif harian) bila tersedia, supaya
+      // estimasi tampil sebagai harga per malam, bukan per bulan.
+      const isInap = String(chosen.room.Layanan_Default || '').toUpperCase().includes('INAP') ||
+        String(chosen.room.Layanan_Default || '').toUpperCase().includes('PENGINAP');
+      const preferred = isInap && availablePakets.includes('harian') ? 'harian' : undefined;
+      setPaketKind(preferred || chosen.primaryKind || availablePakets[0] || 'bulanan');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, availablePakets.join(',')]);
@@ -1280,6 +1286,13 @@ export function BookingFlow({
                 <div className="text-caption text-kk-ink font-semibold mb-1.5">
                   Perhitungan otomatis
                 </div>
+                <p className="text-[12px] text-kk-ink/80 leading-snug mb-2.5 mt-0">
+                  Ini <b>estimasi total seluruh masa sewa</b> = harga paket{' '}
+                  <b>{PAKET_META[paketKind].label.toLowerCase()}</b> × {lamaEff} {unit}
+                  {extraOrang > 0 || fasTotal > 0 ? ' + tambahan' : ''}. Angkanya lebih besar dari harga
+                  satuan karena sudah dikali jumlah {unit}
+                  {paketKind !== 'harian' ? ` (bukan harga per malam — ganti paket ke "Per Hari" untuk tarif harian)` : ''}.
+                </p>
                 <div className="flex justify-between items-baseline text-body mb-1.5">
                   <span className="text-kk-navy">
                     Kamar {rupiah(hargaKamarEff)} × {lamaEff} {unit}

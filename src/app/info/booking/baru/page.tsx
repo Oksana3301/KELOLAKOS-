@@ -54,7 +54,7 @@ export default function BookingBaruPage() {
     return kosong.length ? kosong : matched.length ? matched : arr;
   }, [rooms, layanan]);
 
-  const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Bulanan'];
+  const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Mingguan', 'Bulanan'];
   const selRoom = kamarOptions.find((r) => `${r.nama} — ${r.gedung}` === kamar);
 
   // Harga dasar (estimasi) dari data publik.
@@ -70,6 +70,10 @@ export default function BookingBaruPage() {
       const malam = tipe ? parseRupiah(tipe.malam) : selRoom?.harga || 0;
       const n = Math.max(1, malamQty);
       return { price: malam * n, label: `${n} malam` };
+    }
+    if (durasi === 'Mingguan') {
+      const minggu = tipe ? parseRupiah(tipe.mingguan) : 0;
+      return { price: minggu, label: 'Per minggu' };
     }
     const bulan = tipe ? parseRupiah(tipe.bulan) : selRoom?.harga || 0;
     return { price: bulan, label: 'Per bulan' };
@@ -90,7 +94,7 @@ export default function BookingBaruPage() {
     const extra = Math.max(0, orang - baseOrang);
     if (!extra) return 0;
     const tipe = info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); const rt = (selRoom?.tipe || '').toLowerCase(); const rn = (selRoom?.nama || '').toLowerCase(); return (rt && (rt.includes(pn) || pn.includes(rt))) || rn.includes(pn); });
-    const nights = durasi === 'Per Malam' ? Math.max(1, malamQty) : 30;
+    const nights = durasi === 'Per Malam' ? Math.max(1, malamQty) : durasi === 'Mingguan' ? 7 : 30;
     return extra * (tipe?.extraPerOrang || 0) * nights;
   }, [layanan, orang, info, selRoom, durasi, malamQty]);
 
@@ -207,6 +211,11 @@ export default function BookingBaruPage() {
           <THField label="Tanggal mulai">
             <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
           </THField>
+        )}
+        {layanan === 'PENGINAPAN' && durasi !== 'Per Malam' && (
+          <p className="text-[12px] leading-snug -mt-1" style={{ color: TH.brownSoft }}>
+            ⚡ Untuk sewa lebih dari 1 hari, token listrik ditanggung tamu.
+          </p>
         )}
 
         <THField label="Jumlah orang" hint={layanan === 'KOS' ? `Maks ${maxOrang} orang (6bln/1thn). Orang ke-2 +${formatRupiah(info.kostExtraPerOrang || 0)}` : `Maks ${maxOrang} per kamar. Lebih dari ${info.penginapanBaseOrang || 1} kena +rate/orang/malam`}>

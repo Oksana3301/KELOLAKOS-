@@ -6,6 +6,7 @@ export interface PenginapanTipe {
   nama: string;
   sub: string;
   malam: string;
+  mingguan: string; // harga per minggu (7 malam)
   bulan: string;
   tahun: string;
   foto: string[]; // maks 10 per tipe kamar
@@ -18,7 +19,8 @@ export interface HalamanInfo {
   tagline: string;
   deskripsi: string;
   alamat: string;
-  maps: string;
+  maps: string;       // link "Buka di Google Maps" (maps.app.goo.gl / share)
+  mapsEmbed: string;  // URL "Embed a map" (Google Maps → Share → Embed) untuk iframe di hero
   // WhatsApp
   waResmi: string;
   waMezi: string;
@@ -71,15 +73,16 @@ export const DEFAULT_INFO: HalamanInfo = {
     'Limau Manis, Pauh — Padang. Harian, mingguan, bulanan & tahunan. Lengkap dengan AC, kamar mandi dalam, WiFi unlimited, security & CCTV. 🌸',
   alamat: 'Limau Manis, Pauh, Kota Padang, Sumatera Barat 25176',
   maps: 'https://maps.app.goo.gl/6sJz6tiH9Px1b1AGA',
+  mapsEmbed: '',
   waResmi: '08116646615',
   waMezi: '083841614871',
   waPesan: 'Halo Top Hills 🌸, saya lihat dari halaman info. Saya mau tanya / booking kamar ...',
   kostTeaser: '1,3 jutaan',
   kostTeaserUnit: 'per bulan*',
   penginapan: [
-    { nama: 'Executive', sub: 'Ukuran paling luas · kasur queen size', malam: 'Rp 350.000', bulan: 'Rp 4.000.000', tahun: 'Rp 40.000.000', foto: [], extraPerOrang: 50000 },
-    { nama: 'Superior', sub: 'Ukuran menengah · 1 kasur + kasur sorong di bawah', malam: 'Rp 250.000', bulan: 'Rp 3.000.000', tahun: 'Rp 30.000.000', foto: [], extraPerOrang: 60000 },
-    { nama: 'Deluxe', sub: 'Ukuran cozy · 1 kasur + kasur sorong di bawah', malam: 'Rp 200.000', bulan: 'Rp 2.500.000', tahun: 'Rp 25.000.000', foto: [], extraPerOrang: 75000 },
+    { nama: 'Executive', sub: 'Ukuran paling luas · kasur queen size', malam: 'Rp 350.000', mingguan: 'Rp 2.250.000', bulan: 'Rp 4.000.000', tahun: 'Rp 40.000.000', foto: [], extraPerOrang: 50000 },
+    { nama: 'Superior', sub: 'Ukuran menengah · 1 kasur + kasur sorong di bawah', malam: 'Rp 250.000', mingguan: 'Rp 1.650.000', bulan: 'Rp 3.000.000', tahun: 'Rp 30.000.000', foto: [], extraPerOrang: 60000 },
+    { nama: 'Deluxe', sub: 'Ukuran cozy · 1 kasur + kasur sorong di bawah', malam: 'Rp 200.000', mingguan: 'Rp 1.300.000', bulan: 'Rp 2.500.000', tahun: 'Rp 25.000.000', foto: [], extraPerOrang: 75000 },
   ],
   fotoHero: '',
   fotoKost: [],

@@ -1275,7 +1275,7 @@ export function HalamanInfoPanel() {
   function set<K extends keyof HalamanInfo>(key: K, value: HalamanInfo[K]) {
     setForm((p) => ({ ...p, [key]: value }));
   }
-  function setPeng(i: number, key: 'nama' | 'sub' | 'malam' | 'bulan' | 'tahun', value: string) {
+  function setPeng(i: number, key: 'nama' | 'sub' | 'malam' | 'mingguan' | 'bulan' | 'tahun', value: string) {
     setForm((p) => {
       const peng = p.penginapan.map((x, idx) => (idx === i ? { ...x, [key]: value } : x));
       return { ...p, penginapan: peng };
@@ -1326,7 +1326,13 @@ export function HalamanInfoPanel() {
         </FormField>
         <FormField label="Deskripsi singkat"><textarea className="input resize-y" rows={2} value={form.deskripsi} onChange={(e) => set('deskripsi', e.target.value)} /></FormField>
         <FormField label="Alamat"><input className="input" value={form.alamat} onChange={(e) => set('alamat', e.target.value)} /></FormField>
-        <FormField label="Link Google Maps"><input className="input" value={form.maps} onChange={(e) => set('maps', e.target.value)} /></FormField>
+        <FormField label="Link Google Maps" hint="Untuk tombol 'Buka di Google Maps' (maps.app.goo.gl / link share)."><input className="input" value={form.maps} onChange={(e) => set('maps', e.target.value)} /></FormField>
+        <FormField
+          label="Peta hero (Embed a map)"
+          hint="Google Maps → Share → Embed a map → COPY HTML. Tempel di sini (boleh kode <iframe…> utuh atau URL .../maps/embed?…). Tampil sebagai peta interaktif di hero /info."
+        >
+          <textarea className="input resize-y text-xs" rows={3} value={form.mapsEmbed} onChange={(e) => set('mapsEmbed', e.target.value)} placeholder='<iframe src="https://www.google.com/maps/embed?..."></iframe>' />
+        </FormField>
       </div>
 
       {/* WhatsApp */}
@@ -1353,10 +1359,11 @@ export function HalamanInfoPanel() {
           <div key={i} className="border border-bd rounded-md p-3 space-y-2">
             <input className="input font-semibold" value={p.nama} onChange={(e) => setPeng(i, 'nama', e.target.value)} />
             <input className="input text-xs" value={p.sub} onChange={(e) => setPeng(i, 'sub', e.target.value)} />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <input className="input text-xs" placeholder="/malam" value={p.malam} onChange={(e) => setPeng(i, 'malam', e.target.value)} />
+              <input className="input text-xs" placeholder="/minggu" value={p.mingguan} onChange={(e) => setPeng(i, 'mingguan', e.target.value)} />
               <input className="input text-xs" placeholder="/bulan" value={p.bulan} onChange={(e) => setPeng(i, 'bulan', e.target.value)} />
-              <input className="input text-xs" placeholder="/tahun" value={p.tahun} onChange={(e) => setPeng(i, 'tahun', e.target.value)} />
+              <input className="input text-xs" placeholder="/tahun (tdk tampil di web)" value={p.tahun} onChange={(e) => setPeng(i, 'tahun', e.target.value)} />
             </div>
             <MediaListField label={`Foto ${p.nama} (maks 10)`} value={p.foto} onChange={(l) => setPengFoto(i, l)} max={10} />
           </div>

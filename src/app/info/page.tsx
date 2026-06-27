@@ -330,29 +330,48 @@ function Img({ src, label, ratio = 'aspect-[4/3]' }: { src?: string; label: stri
   );
 }
 
-// Hero — peta jarak ke kampus (foto/peta statis; tanpa angka yang keliru).
-function HeroVideo({ poster }: { poster?: string }) {
-  const src = poster ? driveImageUrl(poster) : '/video/tophills-map.jpg';
+// Ambil src iframe dari kode/URL "Embed a map" Google Maps (terima <iframe …> utuh atau URL .../embed?…).
+function mapsEmbedSrc(raw: string): string | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const m = s.match(/src=["']([^"']+)["']/i);
+  const url = m ? m[1] : s;
+  return /https?:\/\/(www\.)?google\.[^/]+\/maps\/embed/i.test(url) ? url : null;
+}
+
+// Hero — peta lokasi (Google Maps embed bila diatur) + tombol buka maps, lalu foto bangunan di bawahnya.
+function HeroMap({ mapsEmbed, mapsLink, poster }: { mapsEmbed?: string; mapsLink?: string; poster?: string }) {
+  const embed = mapsEmbedSrc(mapsEmbed || '');
   return (
-    <div className="mx-auto" style={{ maxWidth: 300 }}>
+    <div className="mx-auto" style={{ maxWidth: 360 }}>
+      {/* Peta interaktif di paling atas */}
       <div
         className="relative rounded-[22px] overflow-hidden"
         style={{ border: `1.5px solid ${C.gold}`, boxShadow: '0 18px 44px rgba(70,55,32,0.22)' }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          className="block w-full"
-          src={src}
-          alt="Lokasi Top Hills — 350 m ke gerbang UNAND, Padang"
-        />
-        {/* caption — info terpenting, hierarki teratas di kartu */}
+        {embed ? (
+          <iframe
+            src={embed}
+            title="Lokasi Top Hills di Google Maps"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="block w-full"
+            style={{ border: 0, height: 220 }}
+            allowFullScreen
+          />
+        ) : (
+          // Fallback: peta statis (atur "Embed a map" di Pengaturan → Halaman Info untuk peta interaktif).
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="block w-full" src="/video/tophills-map.jpg" alt="Lokasi Top Hills — 350 m ke gerbang UNAND, Padang" />
+        )}
         <div
-          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold"
+          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold pointer-events-none"
           style={{ fontFamily: body, background: 'rgba(20,14,5,0.62)', color: '#fff', backdropFilter: 'blur(3px)' }}
         >
-          📍 350 m ke UNAND
+          📍 ± 350 m dari UNAND
         </div>
       </div>
+
       <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
         <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12.5px] font-bold" style={{ fontFamily: body, background: C.card, border: `1px solid ${C.border}`, color: C.brown }}>
           🚶 6 menit jalan kaki
@@ -361,6 +380,31 @@ function HeroVideo({ poster }: { poster?: string }) {
           🚗 ± 3 menit berkendara
         </span>
       </div>
+
+      {/* Tombol buka Google Maps — dipindah dari section Lokasi ke hero */}
+      {mapsLink && (
+        <a
+          href={mapsLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-semibold no-underline"
+          style={{ fontFamily: body, background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}
+        >
+          🗺️ Buka di Google Maps
+        </a>
+      )}
+
+      {/* Foto bangunan — di BAWAH peta */}
+      {poster && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={driveImageUrl(poster)}
+          alt="Bangunan Top Hills, Limau Manis Padang"
+          className="block w-full mt-3 rounded-[18px] object-cover"
+          style={{ border: `1px solid ${C.border}`, maxHeight: 240 }}
+        />
+      )}
+
       <p className="mt-2 text-center text-[11.5px]" style={{ fontFamily: body, color: C.brownSoft }}>
         Jarak &amp; waktu ke gerbang UNAND · sumber Google Maps
       </p>
@@ -451,9 +495,9 @@ export default function InfoPage() {
             </span>
           </div>
 
-          {/* Hero video — hook utama: sedekat apa ke kampus */}
+          {/* Hero — peta lokasi (hook utama: sedekat apa ke kampus), foto bangunan di bawahnya */}
           <div className="mt-7">
-            <HeroVideo poster={info.fotoHero} />
+            <HeroMap mapsEmbed={info.mapsEmbed} mapsLink={info.maps} poster={info.fotoHero} />
           </div>
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:justify-center max-w-[420px] sm:max-w-none mx-auto">
@@ -550,8 +594,8 @@ export default function InfoPage() {
 
         {/* Penginapan */}
         <section id="penginapan" className="py-8 scroll-mt-20">
-          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & free air mineral di kamar. 💧" />
-          <FactChips items={['🚪 5 kamar', '🛏️ 3 tipe: Executive · Superior · Deluxe', '📅 Harian – Tahunan']} />
+          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan & bulanan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & free air mineral di kamar. 💧" />
+          <FactChips items={['🚪 5 kamar', '🛏️ 3 tipe: Executive · Superior · Deluxe', '📅 Harian · Mingguan · Bulanan']} />
           <div className="space-y-4">
             {info.penginapan.map((p) => (
               <Card key={p.nama} className="!p-0 overflow-hidden">
@@ -587,8 +631,8 @@ export default function InfoPage() {
                   <div className="grid grid-cols-3 gap-2 mt-4 text-center">
                     {[
                       ['Per malam', p.malam],
+                      ['Per minggu', p.mingguan],
                       ['Per bulan', p.bulan],
-                      ['Per tahun', p.tahun],
                     ].map(([l, v]) => (
                       <div key={l} className="rounded-[12px] py-2.5" style={{ background: C.cream, border: `1px solid ${C.border}` }}>
                         <div className="text-[11px]" style={{ color: C.brownSoft }}>
@@ -600,6 +644,9 @@ export default function InfoPage() {
                       </div>
                     ))}
                   </div>
+                  <p className="text-[12px] mt-2.5 leading-snug" style={{ color: C.brownSoft }}>
+                    ⚡ Untuk sewa lebih dari 1 hari, token listrik ditanggung tamu.
+                  </p>
                   <div className="mt-4">
                     <a href="/info/booking" className="flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[15px] font-semibold no-underline w-full" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
                       🆕 Booking Online
@@ -721,7 +768,7 @@ export default function InfoPage() {
             <ol className="space-y-4">
               {[
                 ['Klik "Booking Online"', 'Pilih Booking Baru (penyewa baru) atau Perpanjang Kontrak (penyewa lama — cukup masukkan nomor WA, data lama kami tarik otomatis).'],
-                ['Lengkapi data & cek estimasi', 'Pilih kamar/tipe, durasi (kost: 6 bulan / 1 tahun · penginapan: harian–tahunan), jumlah orang & fasilitas tambahan. Total estimasi muncul otomatis.'],
+                ['Lengkapi data & cek estimasi', 'Pilih kamar/tipe, durasi (kost: 6 bulan / 1 tahun · penginapan: harian / mingguan / bulanan), jumlah orang & fasilitas tambahan. Total estimasi muncul otomatis.'],
                 ['Survey / tanya dulu? (opsional)', 'Belum yakin? Bisa janji survey atau tanya Bang Mezi via WhatsApp langsung dari form — tanpa harus bayar dulu.'],
                 ['Bayar & upload bukti', 'Transfer / scan QRIS resmi yang tampil (rekening kost & penginapan beda). DP minimal — kost Rp 4 juta, penginapan Rp 100rb — atau bayar lunas. Lalu upload bukti transfer (wajib).'],
                 ['Konfirmasi admin → booking aktif ✅', 'Admin cek pembayaran & data. Setelah disetujui, booking aktif dan invoice dikirim ke WhatsApp-mu. Sampai jumpa di Top Hills! 🌸'],
@@ -788,16 +835,11 @@ export default function InfoPage() {
                   {info.alamat}
                 </div>
                 <div className="text-[14px] mt-1" style={{ color: C.brownSoft }}>
-                  Dekat UNAND, ada akses langsung ke gerbang kampus 🎓
+                  Dekat UNAND, ada akses langsung ke gerbang kampus 🎓 (peta ada di bagian atas halaman)
                 </div>
               </div>
             </div>
-            <div className="mt-5">
-              <WAButton href={info.maps} variant="ghost">
-                🗺️ Buka di Google Maps
-              </WAButton>
-            </div>
-            <p className="text-[13px] mt-3 text-center" style={{ color: C.brownSoft }}>
+            <p className="text-[13px] mt-4 text-center" style={{ color: C.brownSoft }}>
               Ingin lihat kamar dulu sebelum booking? Tentu boleh 🌸 Jam survey 08.00–19.00 WIB — janji survey ke <b style={{ color: C.brown }}>Bang Mezi</b> ada di bagian <a href="#kontak" className="font-semibold no-underline" style={{ color: C.gold }}>Kontak</a> di bawah ya.
             </p>
           </Card>
