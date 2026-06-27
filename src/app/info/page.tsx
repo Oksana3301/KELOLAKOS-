@@ -12,7 +12,13 @@ import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/halaman-info';
 import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
-import { roomKey, statusOnDate, type RoomStatus3 } from '@/lib/building-layout';
+import { roomKey, statusOnDate, ALL_ROOMS, type RoomStatus3 } from '@/lib/building-layout';
+import {
+  buildAvailabilityImage,
+  shareAvailabilityImage,
+  copyAvailabilityImage,
+  type AvailGroup,
+} from '@/lib/availability-image';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
 
 type Interval = { start: string; end: string };
@@ -468,6 +474,10 @@ export default function InfoPage() {
     const d = new Date(iso + 'T00:00:00');
     return isNaN(d.getTime()) ? iso : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
   };
+  const fmtLong = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
 
   // Potongan waktu BEBAS dalam [qs, qe) setelah dikurangi semua booking.
   function freeIntervals(booked: { start: string; end: string }[], qs: string, qe: string): Interval[] {
@@ -583,6 +593,90 @@ export default function InfoPage() {
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
   const rangeLabel = rangeActive ? `${fmtShort(rangeStart)} – ${fmtShort(rangeEnd)}` : '';
+
+  // ── Salin/Bagikan ketersediaan sebagai GAMBAR (PNG) ──────────────────────
+  // Gedung & lantai diambil dari denah resmi (building-layout) yang paling
+  // akurat — bukan dari tebakan field lantai backend.
+  const layoutByKey = useMemo(() => {
+    const m = new Map<string, { gedung: string; lantai: number }>();
+    ALL_ROOMS.forEach((r) => m.set(roomKey(r.nama), { gedung: r.gedung, lantai: r.lantai }));
+    return m;
+  }, []);
+  // Daftar kamar yang TERSEDIA (kosong) pada rentang aktif (atau hari ini),
+  // urut kost dulu lalu penginapan, nomor kecil→besar.
+  const availList = useMemo(() => {
+    return roomList
+      .filter((r) => (statusMap.get(roomKey(r.nama)) || 'kosong') === 'kosong')
+      .map((r) => {
+        const lo = layoutByKey.get(roomKey(r.nama));
+        return {
+          nama: r.nama,
+          layanan: roomLayanan(r),
+          gedung: lo?.gedung || r.gedung || '',
+          lantai: lo?.lantai || r.lantai || 0,
+          tipe: r.tipe || '',
+          num: roomNum(r.nama),
+        };
+      })
+      .sort((a, b) => {
+        if (a.layanan !== b.layanan) return a.layanan === 'kost' ? -1 : 1;
+        if (a.num !== b.num) return a.num - b.num;
+        return a.nama.localeCompare(b.nama, 'id', { numeric: true });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomList, statusMap, layoutByKey]);
+
+  const [copyScope, setCopyScope] = useState<'semua' | 'kost' | 'penginapan'>('semua');
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgMsg, setImgMsg] = useState('');
+
+  const availKost = useMemo(() => availList.filter((r) => r.layanan === 'kost'), [availList]);
+  const availPng = useMemo(() => availList.filter((r) => r.layanan === 'penginapan'), [availList]);
+  const scopedCount =
+    copyScope === 'kost' ? availKost.length : copyScope === 'penginapan' ? availPng.length : availList.length;
+
+  function buildImageOpts() {
+    const groups: AvailGroup[] = [];
+    if (copyScope !== 'penginapan' && availKost.length)
+      groups.push({ key: 'kost', label: '🏠 KOST PUTRI', rooms: availKost });
+    if (copyScope !== 'kost' && availPng.length)
+      groups.push({ key: 'penginapan', label: '🏨 PENGINAPAN', rooms: availPng });
+    const subtitle = rangeActive
+      ? `Tersedia ${fmtLong(rangeStart)} – ${fmtLong(rangeEnd)}`
+      : `Tersedia hari ini · ${updatedWIB || ''}`.trim();
+    return {
+      title: 'Kamar Tersedia',
+      subtitle,
+      groups,
+      footer: 'Hubungi kami untuk booking 🌸 · tophillspadang.com',
+    };
+  }
+
+  async function handleCopyImage(mode: 'share' | 'copy') {
+    if (imgBusy) return;
+    const opts = buildImageOpts();
+    if (opts.groups.length === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
+    setImgBusy(true);
+    setImgMsg('Menyiapkan gambar…');
+    try {
+      const blob = await buildAvailabilityImage(opts);
+      const fname = `ketersediaan-top-hills-${rangeActive ? `${rangeStart}_${rangeEnd}` : todayISO}.png`;
+      const res = mode === 'share'
+        ? await shareAvailabilityImage(blob, fname)
+        : await copyAvailabilityImage(blob, fname);
+      setImgMsg(
+        res === 'copied' ? '✅ Gambar tersalin — tinggal paste ke chat WhatsApp.'
+        : res === 'shared' ? '✅ Gambar siap dibagikan.'
+        : res === 'downloaded' ? '✅ Gambar terunduh — lampirkan ke chat.'
+        : '',
+      );
+    } catch (e) {
+      setImgMsg('⚠️ Gagal membuat gambar. Coba lagi ya.');
+    } finally {
+      setImgBusy(false);
+      setTimeout(() => setImgMsg(''), 6000);
+    }
+  }
 
   const NAV = [
     { id: 'kost', label: 'Kost' },
@@ -829,15 +923,15 @@ export default function InfoPage() {
             )}
 
             <div className="flex flex-wrap items-end gap-2.5">
-              <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
+              <label className="flex-1 min-w-[140px] text-[12px] font-semibold" style={{ color: C.brownSoft }}>
                 Check-in
                 <input type="date" value={rangeStart} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeStart(e.target.value)}
-                  className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
+                  className="block w-full mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
               </label>
-              <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
+              <label className="flex-1 min-w-[140px] text-[12px] font-semibold" style={{ color: C.brownSoft }}>
                 Check-out
                 <input type="date" value={rangeEnd} min={rangeStart || new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeEnd(e.target.value)}
-                  className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
+                  className="block w-full mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
               </label>
               {(rangeStart || rangeEnd) && (
                 <button onClick={() => { setRangeStart(''); setRangeEnd(''); }} className="rounded-full px-4 py-2.5 text-[13px] font-semibold" style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}>
@@ -936,6 +1030,72 @@ export default function InfoPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* SALIN/BAGIKAN ketersediaan sebagai gambar — untuk dikirim ke calon penyewa */}
+            {rooms && rooms.length > 0 && (
+              <div className="mt-5 rounded-[16px] p-4" style={{ background: '#FBF7EC', border: `1.5px dashed ${C.goldSoft}` }}>
+                <div className="text-[14px] font-bold mb-1" style={{ color: C.brown }}>
+                  📤 Bagikan kamar yang tersedia
+                </div>
+                <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.brownSoft }}>
+                  Pilih layanan, lalu <b>Salin</b> atau <b>Bagikan</b> sebagai gambar (PNG) yang rapi — lengkap nomor kamar,
+                  Gedung &amp; Lantai{rangeActive ? <> untuk tanggal <b>{rangeLabel}</b></> : <> (real-time hari ini)</>}.
+                  Cocok dikirim ke calon penyewa yang nanya kamar kosong. 🌸
+                </p>
+
+                {/* Pilih layanan */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {([
+                    ['semua', `Semua (${availList.length})`],
+                    ['kost', `🏠 Kost (${availKost.length})`],
+                    ['penginapan', `🏨 Penginapan (${availPng.length})`],
+                  ] as [typeof copyScope, string][]).map(([v, l]) => (
+                    <button
+                      key={v}
+                      onClick={() => setCopyScope(v)}
+                      className="min-h-[40px] px-3.5 rounded-full text-[13px] font-semibold border-2 transition-colors"
+                      style={copyScope === v
+                        ? { background: C.gold, color: '#fff', borderColor: C.gold }
+                        : { background: '#fff', color: C.brown, borderColor: C.border }}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tombol aksi — full-width di mobile */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleCopyImage('share')}
+                    disabled={imgBusy || scopedCount === 0}
+                    className="min-h-[48px] rounded-[14px] font-bold text-[14px] disabled:opacity-50"
+                    style={{ background: C.gold, color: '#fff' }}
+                  >
+                    {imgBusy ? 'Menyiapkan…' : '📤 Bagikan Gambar'}
+                  </button>
+                  <button
+                    onClick={() => handleCopyImage('copy')}
+                    disabled={imgBusy || scopedCount === 0}
+                    className="min-h-[48px] rounded-[14px] font-bold text-[14px] disabled:opacity-50"
+                    style={{ background: '#fff', color: C.brown, border: `2px solid ${C.gold}` }}
+                  >
+                    📋 Salin Gambar
+                  </button>
+                </div>
+
+                {scopedCount === 0 && (
+                  <p className="text-[12px] mt-2.5" style={{ color: C.brownSoft }}>
+                    Tidak ada kamar {copyScope === 'semua' ? '' : copyScope + ' '}yang tersedia {rangeActive ? `untuk ${rangeLabel}` : 'saat ini'}.
+                  </p>
+                )}
+                {imgMsg && (
+                  <p className="text-[12.5px] mt-2.5 font-semibold" style={{ color: C.brown }}>{imgMsg}</p>
+                )}
+                <p className="text-[11px] mt-2.5 leading-snug" style={{ color: C.brownSoft }}>
+                  💡 Di HP: tombol <b>Bagikan</b> langsung buka pilihan WhatsApp. Di komputer: <b>Salin</b> lalu tempel (paste) ke chat.
+                </p>
               </div>
             )}
           </Card>
