@@ -435,12 +435,20 @@ export default function InfoPage() {
   const info = mergeInfo(data || DEFAULT_INFO);
 
   // Live room availability (public, sanitized). On error → empty → fallback card.
-  const { data: rooms } = useQuery({
+  const { data: rooms, dataUpdatedAt, isFetching: roomsFetching, refetch: refetchRooms } = useQuery({
     queryKey: ['public-rooms'],
     queryFn: api.getPublicRooms,
     retry: 0,
     staleTime: 60 * 1000,
   });
+  // Waktu data terakhir dimuat, format WIB (GMT+7) — jelas juga untuk tamu LN.
+  const updatedWIB = useMemo(() => {
+    if (!dataUpdatedAt) return '';
+    const d = new Date(dataUpdatedAt);
+    const tgl = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
+    const jam = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+    return `${tgl}, ${jam} WIB (GMT+7)`;
+  }, [dataUpdatedAt]);
   // ── Cek ketersediaan berdasarkan RENTANG tanggal (check-in → check-out) ────
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
@@ -841,6 +849,21 @@ export default function InfoPage() {
           ) : (
             <div className="text-center mb-5 text-[14px]" style={{ color: C.brownSoft }}>
               Denah properti — untuk status & ketersediaan terkini, konfirmasi via WhatsApp ya. 🌸
+            </div>
+          )}
+
+          {/* Waktu data terakhir dimuat — jelas untuk semua zona waktu */}
+          {updatedWIB && (
+            <div className="flex items-center justify-center gap-2 mb-3 text-[12px]" style={{ color: C.brownSoft }}>
+              <span>🕒 Data ketersediaan per <b style={{ color: C.brown }}>{updatedWIB}</b></span>
+              <button
+                onClick={() => refetchRooms()}
+                disabled={roomsFetching}
+                className="rounded-full px-3 py-1 text-[12px] font-semibold"
+                style={{ background: 'transparent', color: C.brown, border: `1px solid ${C.gold}` }}
+              >
+                {roomsFetching ? 'Memuat…' : '🔄 Perbarui'}
+              </button>
             </div>
           )}
 
