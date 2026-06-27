@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type RoomStatus } from '@/lib/api';
 import { toast } from 'sonner';
-import { ScreenHead, KkButton, KkCard, Sheet, SheetHead, InfoRow, RoomBadge } from '@/components/kk/ui';
+import { ScreenHead, KkButton, KkCard, Sheet, SheetHead, InfoRow } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
-import { mapRoomStatus, denahRoomStatus, type RoomDisplayStatus } from '@/components/kk/status';
+import { denahRoomStatus } from '@/components/kk/status';
 import type { BookingItem } from '@/lib/api';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { ScrollFab } from '@/components/kk/scroll-fab';
@@ -15,39 +15,34 @@ import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
 
 const SEMUA = 'Semua';
 
-// Plain status filter values (the page maps Tersedia→Kosong, Perlu Perhatian→Perhatian).
-type StatusFilter = 'Semua' | 'Terisi' | 'Kosong' | 'Perhatian';
-const STATUS_FILTERS: StatusFilter[] = ['Semua', 'Terisi', 'Kosong', 'Perhatian'];
+// Status denah (4) — sama dengan peta 2D/3D: Lunas→terisi, DP→dp, Belum
+// Bayar/tanpa booking→kosong, maintenance→perbaikan.
+type DenahStat = 'terisi' | 'dp' | 'kosong' | 'perbaikan';
 
-// Map a room to its plain filter bucket using the existing status mapping.
-function statusBucket(room: RoomStatus): Exclude<StatusFilter, 'Semua'> {
-  const s = mapRoomStatus(room);
-  if (s === 'Terisi') return 'Terisi';
-  if (s === 'Tersedia') return 'Kosong';
-  return 'Perhatian';
-}
+type StatusFilter = 'Semua' | 'Terisi' | 'DP' | 'Kosong' | 'Perbaikan';
+const STATUS_FILTERS: StatusFilter[] = ['Semua', 'Terisi', 'DP', 'Kosong', 'Perbaikan'];
 
 const HELP = {
   title: 'Layout Properti',
   tips: [
     'Ini peta semua kamar properti Anda beserta kondisinya saat ini.',
-    'Warna kamar menunjukkan statusnya: hijau = Terisi, putih = Kosong, oranye = Perlu Perhatian.',
-    'Tekan satu kamar untuk melihat detail penyewa dan statusnya.',
+    'Warna kamar: hijau = Terisi (lunas), kuning = DP (dipesan, belum lunas), putih = Kosong (masih tersedia), oranye = Perbaikan.',
+    'Kamar yang baru bayar DP belum dihitung terisi — masih "DP" sampai pelunasan.',
+    'Tekan satu kamar untuk melihat detail penyewa dan status pembayarannya.',
   ],
 };
 
-// Status tint for the room tiles + summary cards — three clearly distinct
-// colors so the owner can scan at a glance: green = Terisi, white = Kosong,
-// orange = Perlu Perhatian.
-const TILE_TINT: Record<RoomDisplayStatus, { bg: string; dot: string; text: string }> = {
-  Terisi: { bg: 'bg-kk-mint-soft border-kk-green', dot: 'bg-kk-green', text: 'text-kk-green' },
-  Tersedia: { bg: 'bg-white border-kk-mauve', dot: 'bg-kk-ink', text: 'text-kk-ink' },
-  'Perlu Perhatian': { bg: 'bg-kk-orange-soft border-kk-orange', dot: 'bg-kk-orange', text: 'text-kk-orange' },
+// Tint per status denah (tiles + ringkasan). 4 warna jelas untuk scan sekilas.
+const TILE_TINT: Record<DenahStat, { bg: string; dot: string; text: string; label: string }> = {
+  terisi: { bg: 'bg-kk-mint-soft border-kk-green', dot: 'bg-kk-green', text: 'text-kk-green', label: 'Terisi' },
+  dp: { bg: 'bg-kk-yellow-soft border-kk-yellow', dot: 'bg-kk-yellow', text: 'text-kk-navy', label: 'DP' },
+  kosong: { bg: 'bg-white border-kk-mauve', dot: 'bg-kk-ink', text: 'text-kk-ink', label: 'Kosong' },
+  perbaikan: { bg: 'bg-kk-orange-soft border-kk-orange', dot: 'bg-kk-orange', text: 'text-kk-orange', label: 'Perbaikan' },
 };
 
-// Plain-language label shown on tiles/summary ("Kosong" instead of "Tersedia").
-function plainLabel(s: RoomDisplayStatus): string {
-  return s === 'Tersedia' ? 'Kosong' : s;
+// Status denah → label filter.
+function statBucket(s: DenahStat): Exclude<StatusFilter, 'Semua'> {
+  return s === 'terisi' ? 'Terisi' : s === 'dp' ? 'DP' : s === 'kosong' ? 'Kosong' : 'Perbaikan';
 }
 
 // Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
@@ -107,31 +102,32 @@ export default function LayoutPropertiPage() {
     return m;
   }, [data]);
 
-  // Status per kamar untuk Denah (cocokkan via nama kamar). Lunas → terisi,
-  // DP → dp, Belum Bayar / tanpa booking → kosong, perbaikan → perbaikan.
+  // Status denah satu kamar (Lunas→terisi, DP→dp, Belum Bayar/tanpa→kosong,
+  // maintenance→perbaikan) — dipakai denah, tiles, ringkasan, & filter.
+  const denahOf = useMemo(
+    () => (r: RoomStatus): DenahStat =>
+      denahRoomStatus(r, bookingsByRoom.get(r.RoomID) || bookingsByRoom.get(r.Nama_Kamar) || []) as DenahStat,
+    [bookingsByRoom],
+  );
+
+  // Status per kamar untuk Denah (cocokkan via nama kamar).
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
-    rooms.forEach((r) => {
-      const bks = bookingsByRoom.get(r.RoomID) || bookingsByRoom.get(r.Nama_Kamar) || [];
-      m.set(roomKey(r.Nama_Kamar), denahRoomStatus(r, bks));
-    });
+    rooms.forEach((r) => m.set(roomKey(r.Nama_Kamar), denahOf(r)));
     return m;
-  }, [rooms, bookingsByRoom]);
+  }, [rooms, denahOf]);
 
-  // Occupancy summary counts (3 plain statuses).
+  // Ringkasan hunian (4 status denah).
   const stats = useMemo(
     () =>
       rooms.reduce(
         (acc, r) => {
-          const s = mapRoomStatus(r);
-          if (s === 'Terisi') acc.terisi++;
-          else if (s === 'Tersedia') acc.kosong++;
-          else acc.perhatian++;
+          acc[denahOf(r)]++;
           return acc;
         },
-        { terisi: 0, kosong: 0, perhatian: 0 },
+        { terisi: 0, dp: 0, kosong: 0, perbaikan: 0 } as Record<DenahStat, number>,
       ),
-    [rooms],
+    [rooms, denahOf],
   );
 
   // ── Filter options (distinct values + "Semua") ──
@@ -159,10 +155,10 @@ export default function LayoutPropertiPage() {
       }
       if (fGedung !== SEMUA && r.Gedung !== fGedung) return false;
       if (fLantai !== SEMUA && String(floorForRoom(r)) !== fLantai) return false;
-      if (fStatus !== 'Semua' && statusBucket(r) !== fStatus) return false;
+      if (fStatus !== 'Semua' && statBucket(denahOf(r)) !== fStatus) return false;
       return true;
     });
-  }, [rooms, cari, fGedung, fLantai, fStatus]);
+  }, [rooms, cari, fGedung, fLantai, fStatus, denahOf]);
 
   // Group filtered rooms per building, then per floor (ordered).
   const buildings = useMemo(() => {
@@ -215,10 +211,11 @@ export default function LayoutPropertiPage() {
     );
   }
 
-  const summary: Array<{ key: string; n: number; label: string; status: RoomDisplayStatus }> = [
-    { key: 'terisi', n: stats.terisi, label: 'Terisi', status: 'Terisi' },
-    { key: 'kosong', n: stats.kosong, label: 'Kosong', status: 'Tersedia' },
-    { key: 'perhatian', n: stats.perhatian, label: 'Perhatian', status: 'Perlu Perhatian' },
+  const summary: Array<{ key: string; n: number; status: DenahStat }> = [
+    { key: 'terisi', n: stats.terisi, status: 'terisi' },
+    { key: 'dp', n: stats.dp, status: 'dp' },
+    { key: 'kosong', n: stats.kosong, status: 'kosong' },
+    { key: 'perbaikan', n: stats.perbaikan, status: 'perbaikan' },
   ];
 
   return (
@@ -235,8 +232,8 @@ export default function LayoutPropertiPage() {
         <BuildingViewer statusByRoom={statusMap} accent="#0C2C47" />
       </KkCard>
 
-      {/* Ringkasan hunian */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      {/* Ringkasan hunian (4 status) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {summary.map((r) => {
           const t = TILE_TINT[r.status];
           return (
@@ -250,7 +247,7 @@ export default function LayoutPropertiPage() {
                   {r.n}
                 </span>
               </div>
-              <div className="text-body font-semibold text-kk-navy mt-2">{r.label}</div>
+              <div className="text-body font-semibold text-kk-navy mt-2">{t.label}</div>
             </div>
           );
         })}
@@ -258,9 +255,10 @@ export default function LayoutPropertiPage() {
 
       {/* Legenda warna — biar gampang dibaca sekilas */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3">
-        <LegendItem dot="bg-kk-green" label="Terisi" />
+        <LegendItem dot="bg-kk-green" label="Terisi (lunas)" />
+        <LegendItem dot="bg-kk-yellow" label="DP (dipesan)" />
         <LegendItem dot="bg-kk-ink" label="Kosong" ring />
-        <LegendItem dot="bg-kk-orange" label="Perlu Perhatian" />
+        <LegendItem dot="bg-kk-orange" label="Perbaikan" />
       </div>
 
       <p className="text-body text-kk-ink mt-0 mb-6">
@@ -326,7 +324,7 @@ export default function LayoutPropertiPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {f.rooms.map((room) => (
-                      <RoomTile key={room.RoomID} room={room} onClick={() => setSelected(room)} />
+                      <RoomTile key={room.RoomID} room={room} status={denahOf(room)} onClick={() => setSelected(room)} />
                     ))}
                   </div>
                 </div>
@@ -338,7 +336,7 @@ export default function LayoutPropertiPage() {
         </>
       )}
 
-      <RoomDetailSheet room={selected} onClose={() => setSelected(null)} />
+      <RoomDetailSheet room={selected} status={selected ? denahOf(selected) : null} onClose={() => setSelected(null)} />
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
 
       <ScrollFab />
@@ -393,8 +391,7 @@ function LegendItem({ dot, label, ring }: { dot: string; label: string; ring?: b
   );
 }
 
-function RoomTile({ room, onClick }: { room: RoomStatus; onClick: () => void }) {
-  const status = mapRoomStatus(room);
+function RoomTile({ room, status, onClick }: { room: RoomStatus; status: DenahStat; onClick: () => void }) {
   const t = TILE_TINT[status];
   const nama = firstName(room.Penghuni_Text);
 
@@ -412,27 +409,34 @@ function RoomTile({ room, onClick }: { room: RoomStatus; onClick: () => void }) 
       </div>
       <div className={`inline-flex items-center gap-1.5 font-heading font-bold text-body ${t.text}`}>
         <span className={`w-2.5 h-2.5 rounded-full ${t.dot}`} />
-        {plainLabel(status)}
+        {t.label}
       </div>
-      <div className="text-body text-kk-ink truncate">{nama || 'Siap disewa'}</div>
+      <div className="text-body text-kk-ink truncate">
+        {status === 'dp' ? (nama ? `${nama} · DP` : 'Dipesan (DP)') : nama || 'Siap disewa'}
+      </div>
     </button>
   );
 }
 
-function RoomDetailSheet({ room, onClose }: { room: RoomStatus | null; onClose: () => void }) {
-  const status = room ? mapRoomStatus(room) : null;
+function RoomDetailSheet({ room, status, onClose }: { room: RoomStatus | null; status: DenahStat | null; onClose: () => void }) {
   return (
     <Sheet open={!!room} onClose={onClose}>
       {room && status && (
         <>
           <SheetHead title={room.Nama_Kamar} onClose={onClose}>
             <div className="mt-2">
-              <RoomBadge status={status} />
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold border-2 ${TILE_TINT[status].bg} ${TILE_TINT[status].text}`}>
+                <span className={`w-2.5 h-2.5 rounded-full ${TILE_TINT[status].dot}`} />
+                {TILE_TINT[status].label}
+              </span>
             </div>
           </SheetHead>
           <div className="px-6 pb-7">
             <InfoRow label="Gedung" value={room.Gedung || '—'} />
-            <InfoRow label="Status" value={plainLabel(status)} />
+            <InfoRow label="Status" value={TILE_TINT[status].label} />
+            {status === 'dp' && (
+              <InfoRow label="Catatan" value="Sudah DP, menunggu pelunasan — kamar belum dihitung terisi." />
+            )}
             <InfoRow label="Penghuni" value={room.Penghuni_Text || 'Siap disewa'} />
           </div>
         </>
