@@ -24,6 +24,8 @@ export function PaymentStep({ layanan, total, dp = 0, ringkas, bayar, onSubmit, 
 }) {
   const { data: pay, isLoading } = useQuery({ queryKey: ['payment-info'], queryFn: api.getPaymentInfo, retry: 0, staleTime: 60_000 });
   const rek = layanan === 'KOS' ? pay?.kost : pay?.penginapan;
+  // QRIS hanya untuk PENGINAPAN. Kost transfer manual (tanpa QR).
+  const showQr = layanan !== 'KOS' && !!rek?.qr;
   const [bukti, setBukti] = useState<BuktiFile | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -71,11 +73,15 @@ export function PaymentStep({ layanan, total, dp = 0, ringkas, bayar, onSubmit, 
       {/* Cara bayar + rekening + QR */}
       <THCard className="space-y-3">
         <div className="text-[15px] font-bold" style={{ color: TH.brown }}>Cara Pembayaran</div>
-        <p className="text-[13px] leading-relaxed m-0" style={{ color: TH.brownSoft }}>{CARA_BAYAR}</p>
+        <p className="text-[13px] leading-relaxed m-0" style={{ color: TH.brownSoft }}>
+          {showQr
+            ? CARA_BAYAR
+            : 'Transfer ke rekening di bawah sesuai nominal, lalu upload bukti transfer. Booking aktif setelah admin verifikasi (maks 1×24 jam). 🌸'}
+        </p>
 
         {isLoading ? (
           <p className="text-[13px]" style={{ color: TH.brownSoft }}>Memuat info pembayaran…</p>
-        ) : rek && (rek.nomor || rek.qr) ? (
+        ) : rek && (rek.nomor || showQr) ? (
           <div className="rounded-[12px] p-3.5" style={{ background: TH.cream, border: `1px solid ${TH.border}` }}>
             <div className="text-[12px] font-semibold mb-2" style={{ color: TH.gold }}>
               {layanan === 'KOS' ? '🏠 Rekening Kost' : '🛏️ Rekening Penginapan'}
@@ -89,7 +95,7 @@ export function PaymentStep({ layanan, total, dp = 0, ringkas, bayar, onSubmit, 
                 <button onClick={() => copy(rek.nomor)} className="text-[12px] font-bold px-3 py-1.5 rounded-full" style={{ background: '#fff', border: `1.5px solid ${TH.border}`, color: TH.brown }}>Salin</button>
               </div>
             )}
-            {rek.qr && (
+            {showQr && (
               <div className="mt-3 text-center">
                 <div className="text-[12px] mb-1.5" style={{ color: TH.brownSoft }}>atau scan QRIS:</div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -23,7 +23,8 @@ function resolveIdentity(s: KwitansiSettings | undefined, layanan: Layanan): Inv
   const bank = isKost ? s?.inv_kost_bank_name : s?.inv_png_bank_name;
   const acc = isKost ? s?.inv_kost_account_no : s?.inv_png_account_no;
   const accName = isKost ? s?.inv_kost_account_name : s?.inv_png_account_name;
-  const qr = isKost ? s?.inv_kost_qris_base64 : s?.inv_png_qris_base64;
+  // QRIS hanya untuk PENGINAPAN. Kost = tanpa QR (transfer manual).
+  const qr = isKost ? '' : (s?.inv_png_qris_base64 || s?.inv_qris_base64);
   return {
     bankName: t(bank) || t(s?.inv_bank_name) || DEFAULT_IDENTITY.bankName,
     accountNo: t(acc) || t(s?.inv_account_no) || DEFAULT_IDENTITY.accountNo,
@@ -31,7 +32,7 @@ function resolveIdentity(s: KwitansiSettings | undefined, layanan: Layanan): Inv
     waResmi: t(s?.inv_wa_resmi) || DEFAULT_IDENTITY.waResmi,
     ownerName: t(s?.inv_owner_name) || t(s?.sig_name) || DEFAULT_IDENTITY.ownerName,
     ownerTitle: t(s?.inv_owner_title) || t(s?.sig_title) || DEFAULT_IDENTITY.ownerTitle,
-    qrisBase64: String(qr || s?.inv_qris_base64 || ''),
+    qrisBase64: isKost ? '' : String(qr || ''),
   };
 }
 

@@ -29,7 +29,37 @@ function dayAfter(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Perpanjang sementara DITUTUP (data penghuni lama sedang disinkronkan).
+// Selaras dengan kartu di /info/booking. Set true bila sudah siap dibuka.
+const PERPANJANG_OPEN = false;
+
 export default function PerpanjangPage() {
+  if (!PERPANJANG_OPEN) return <PerpanjangClosed />;
+  return <PerpanjangForm />;
+}
+
+function PerpanjangClosed() {
+  return (
+    <BookingShell back={{ href: '/info/booking', label: 'Pilihan' }}>
+      <div className="rounded-[20px] p-6 text-center mt-2" style={{ background: TH.card, border: `1.5px solid ${TH.border}` }}>
+        <div className="text-[44px]">🔧</div>
+        <h1 style={{ fontFamily: TH_SERIF, color: TH.brown }} className="text-[22px] font-bold mt-2 mb-2">Perpanjang Sementara Ditutup</h1>
+        <p className="text-[14px] leading-relaxed m-0" style={{ color: TH.brownSoft }}>
+          Mohon maaf, fitur Perpanjang Kontrak sedang kami siapkan (data penghuni lama sedang disinkronkan).
+        </p>
+        <div className="rounded-[12px] p-3.5 mt-4 text-[13.5px] leading-relaxed text-left" style={{ background: TH.cream, border: `1px solid ${TH.border}`, color: TH.brown }}>
+          💡 Penghuni lama yang ingin perpanjang silakan pakai <b>Booking Kamar Baru</b> — pilih kamar yang sedang kamu tempati.
+          Datamu tetap <b>tercatat ke admin sebagai bukti perpanjangan</b>. 🌸
+        </div>
+        <div className="mt-5">
+          <THBtn variant="gold" block href="/info/booking/baru">Ke Booking Baru ›</THBtn>
+        </div>
+      </div>
+    </BookingShell>
+  );
+}
+
+function PerpanjangForm() {
   const [step, setStep] = useState<Step>('input');
   const [wa, setWa] = useState('');
   const [bookingId, setBookingId] = useState('');
