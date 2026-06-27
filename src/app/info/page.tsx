@@ -17,7 +17,10 @@ import {
   buildAvailabilityImage,
   shareAvailabilityImage,
   copyAvailabilityImage,
+  loadImage,
+  proxiedImageUrl,
   type AvailGroup,
+  type AvailPhoto,
 } from '@/lib/availability-image';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
 
@@ -635,12 +638,37 @@ export default function InfoPage() {
   const scopedCount =
     copyScope === 'kost' ? availKost.length : copyScope === 'penginapan' ? availPng.length : availList.length;
 
-  function buildImageOpts() {
+  // Muat hingga 2 foto per kategori yang TERSEDIA, dari Pengaturan → Halaman Info.
+  // Kost → info.fotoKost · Penginapan → foto per tipe yang ada kamarnya.
+  async function loadKostPhotos(): Promise<AvailPhoto[]> {
+    const urls = (info.fotoKost || []).slice(0, 2);
+    const imgs = await Promise.all(urls.map((u) => loadImage(proxiedImageUrl(driveImageUrl(u)))));
+    return imgs.filter(Boolean).map((img) => ({ img: img as HTMLImageElement, caption: 'Kost Putri' }));
+  }
+  async function loadPenginapanPhotos(): Promise<AvailPhoto[]> {
+    // Hanya tipe yang ADA kamar tersedianya, urut sesuai daftar tipe.
+    const out: AvailPhoto[] = [];
+    for (const p of info.penginapan) {
+      const present = availPng.some((r) => {
+        const t = (r.tipe || '').toLowerCase();
+        const n = r.nama.toLowerCase();
+        const pn = p.nama.toLowerCase();
+        return (t && (t.includes(pn) || pn.includes(t))) || n.includes(pn);
+      });
+      if (!present) continue;
+      const urls = (p.foto || []).slice(0, 2);
+      const imgs = await Promise.all(urls.map((u) => loadImage(proxiedImageUrl(driveImageUrl(u)))));
+      imgs.filter(Boolean).forEach((img) => out.push({ img: img as HTMLImageElement, caption: p.nama }));
+    }
+    return out;
+  }
+
+  async function assembleImageOpts() {
     const groups: AvailGroup[] = [];
     if (copyScope !== 'penginapan' && availKost.length)
-      groups.push({ key: 'kost', label: '🏠 KOST PUTRI', rooms: availKost });
+      groups.push({ key: 'kost', label: '🏠 KOST PUTRI', rooms: availKost, photos: await loadKostPhotos() });
     if (copyScope !== 'kost' && availPng.length)
-      groups.push({ key: 'penginapan', label: '🏨 PENGINAPAN', rooms: availPng });
+      groups.push({ key: 'penginapan', label: '🏨 PENGINAPAN', rooms: availPng, photos: await loadPenginapanPhotos() });
     const subtitle = rangeActive
       ? `Tersedia ${fmtLong(rangeStart)} – ${fmtLong(rangeEnd)}`
       : `Tersedia hari ini · ${updatedWIB || ''}`.trim();
@@ -654,11 +682,12 @@ export default function InfoPage() {
 
   async function handleCopyImage(mode: 'share' | 'copy') {
     if (imgBusy) return;
-    const opts = buildImageOpts();
-    if (opts.groups.length === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
+    if (scopedCount === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
     setImgBusy(true);
-    setImgMsg('Menyiapkan gambar…');
+    setImgMsg('Menyiapkan gambar & foto…');
     try {
+      const opts = await assembleImageOpts();
+      if (opts.groups.length === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
       const blob = await buildAvailabilityImage(opts);
       const fname = `ketersediaan-top-hills-${rangeActive ? `${rangeStart}_${rangeEnd}` : todayISO}.png`;
       const res = mode === 'share'
@@ -1041,7 +1070,7 @@ export default function InfoPage() {
                 </div>
                 <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.brownSoft }}>
                   Pilih layanan, lalu <b>Salin</b> atau <b>Bagikan</b> sebagai gambar (PNG) yang rapi — lengkap nomor kamar,
-                  Gedung &amp; Lantai{rangeActive ? <> untuk tanggal <b>{rangeLabel}</b></> : <> (real-time hari ini)</>}.
+                  Gedung &amp; Lantai, plus <b>foto kamar</b>{rangeActive ? <> untuk tanggal <b>{rangeLabel}</b></> : <> (real-time hari ini)</>}.
                   Cocok dikirim ke calon penyewa yang nanya kamar kosong. 🌸
                 </p>
 
@@ -1095,6 +1124,7 @@ export default function InfoPage() {
                 )}
                 <p className="text-[11px] mt-2.5 leading-snug" style={{ color: C.brownSoft }}>
                   💡 Di HP: tombol <b>Bagikan</b> langsung buka pilihan WhatsApp. Di komputer: <b>Salin</b> lalu tempel (paste) ke chat.
+                  <br />🖼️ Atur foto di <b>Pengaturan → Halaman Info</b>: “Foto Kost” &amp; “Foto Executive/Superior/Deluxe” (2 foto pertama yang dipakai).
                 </p>
               </div>
             )}
