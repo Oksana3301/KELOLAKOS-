@@ -441,17 +441,14 @@ export default function InfoPage() {
     retry: 0,
     staleTime: 60 * 1000,
   });
-  // ── Cek ketersediaan: SATU tanggal atau RENTANG tanggal ───────────────────
-  const [checkMode, setCheckMode] = useState<'single' | 'range'>('single');
-  const [checkDate, setCheckDate] = useState('');
+  // ── Cek ketersediaan berdasarkan RENTANG tanggal (check-in → check-out) ────
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
   const roomList = useMemo<PublicRoom[]>(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
   // Apakah backend sudah mengirim rentang booking (untuk cek ketersediaan)?
   const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
 
-  const singleActive = checkMode === 'single' && !!checkDate;
-  const rangeActive = checkMode === 'range' && !!rangeStart && !!rangeEnd && rangeStart < rangeEnd;
+  const rangeActive = !!rangeStart && !!rangeEnd && rangeStart < rangeEnd;
 
   const daysBetween = (a: string, b: string) =>
     Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / 86400000);
@@ -459,15 +456,7 @@ export default function InfoPage() {
     const d = new Date(iso + 'T00:00:00');
     return isNaN(d.getTime()) ? iso : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
   };
-  const fmtLong = (iso: string) => {
-    const d = new Date(iso + 'T00:00:00');
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-  };
 
-  // Terisi pada satu tanggal (start ≤ tgl < end; hari check-out → bebas).
-  function bookedOn(r: PublicRoom, d: string): boolean {
-    return (r.bookedRanges || []).some((rg) => rg.start && (rg.end ? d >= rg.start && d < rg.end : d >= rg.start));
-  }
   // Potongan waktu BEBAS dalam [qs, qe) setelah dikurangi semua booking.
   function freeIntervals(booked: { start: string; end: string }[], qs: string, qe: string): Interval[] {
     let free: Interval[] = [{ start: qs, end: qe }];
@@ -509,21 +498,18 @@ export default function InfoPage() {
 
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
-    if (singleActive && hasRangeData) {
-      roomList.forEach((r) => m.set(roomKey(r.nama), r.status === 'perbaikan' ? 'perbaikan' : bookedOn(r, checkDate) ? 'terisi' : 'kosong'));
-    } else if (rangeActive && hasRangeData) {
+    if (rangeActive && hasRangeData) {
       roomList.forEach((r) => m.set(roomKey(r.nama), rangeStatusOf(r, rangeStart, rangeEnd)));
     } else {
       roomList.forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
     }
     return m;
-  }, [roomList, checkMode, checkDate, rangeStart, rangeEnd, singleActive, rangeActive, hasRangeData]);
+  }, [roomList, rangeStart, rangeEnd, rangeActive, hasRangeData]);
 
   const totalKosong = useMemo(() => {
-    if (singleActive && hasRangeData) return roomList.filter((r) => r.status !== 'perbaikan' && !bookedOn(r, checkDate)).length;
     if (rangeActive && hasRangeData) return roomList.filter((r) => rangeStatusOf(r, rangeStart, rangeEnd) === 'kosong').length;
     return roomList.filter((r) => r.status === 'kosong').length;
-  }, [roomList, singleActive, rangeActive, checkDate, rangeStart, rangeEnd, hasRangeData]);
+  }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
   // Rincian per kamar untuk mode rentang: hanya kamar yang sebagian/penuh terisi
   // (yang punya kendala tanggal) — kamar bebas penuh cukup dihitung jumlahnya.
@@ -542,7 +528,6 @@ export default function InfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
-  const checkDateLabel = useMemo(() => (checkDate ? fmtLong(checkDate) : ''), [checkDate]);
   const rangeLabel = rangeActive ? `${fmtShort(rangeStart)} – ${fmtShort(rangeEnd)}` : '';
 
   const NAV = [
@@ -768,77 +753,37 @@ export default function InfoPage() {
             title="Ketersediaan Kamar"
             sub="Status kamar diperbarui langsung dari sistem kami. Untuk memastikan ketersediaan & booking, silakan konfirmasi via WhatsApp ya. 🌸"
           />
-          {/* Cek ketersediaan — satu tanggal atau rentang */}
+          {/* Cek ketersediaan berdasarkan rentang tanggal menginap */}
           <Card className="mb-5">
             <div className="text-[14px] font-semibold mb-3" style={{ color: C.brown }}>
               📅 Cek ketersediaan kamar
             </div>
 
-            {/* Toggle mode */}
-            <div className="flex gap-2 mb-3">
-              {([
-                ['single', 'Satu tanggal'],
-                ['range', 'Rentang tanggal'],
-              ] as ['single' | 'range', string][]).map(([m, l]) => (
-                <button
-                  key={m}
-                  onClick={() => setCheckMode(m)}
-                  className="rounded-full px-4 py-2 text-[13px] font-semibold"
-                  style={
-                    checkMode === m
-                      ? { background: C.gold, color: '#fff', border: `1.5px solid ${C.gold}` }
-                      : { background: '#fff', color: C.brown, border: `1.5px solid ${C.border}` }
-                  }
-                >
-                  {l}
+            <div className="flex flex-wrap items-end gap-2.5">
+              <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
+                Check-in
+                <input type="date" value={rangeStart} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeStart(e.target.value)}
+                  className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
+              </label>
+              <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
+                Check-out
+                <input type="date" value={rangeEnd} min={rangeStart || new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeEnd(e.target.value)}
+                  className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
+              </label>
+              {(rangeStart || rangeEnd) && (
+                <button onClick={() => { setRangeStart(''); setRangeEnd(''); }} className="rounded-full px-4 py-2.5 text-[13px] font-semibold" style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}>
+                  Reset
                 </button>
-              ))}
+              )}
             </div>
 
-            {checkMode === 'single' ? (
-              <div className="flex flex-wrap items-center gap-2.5">
-                <input
-                  type="date"
-                  value={checkDate}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setCheckDate(e.target.value)}
-                  className="rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none"
-                  style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }}
-                />
-                {checkDate && (
-                  <button onClick={() => setCheckDate('')} className="rounded-full px-4 py-2.5 text-[13px] font-semibold" style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}>
-                    Reset
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-end gap-2.5">
-                <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
-                  Check-in
-                  <input type="date" value={rangeStart} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeStart(e.target.value)}
-                    className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
-                </label>
-                <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
-                  Check-out
-                  <input type="date" value={rangeEnd} min={rangeStart || new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeEnd(e.target.value)}
-                    className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
-                </label>
-                {(rangeStart || rangeEnd) && (
-                  <button onClick={() => { setRangeStart(''); setRangeEnd(''); }} className="rounded-full px-4 py-2.5 text-[13px] font-semibold" style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}>
-                    Reset
-                  </button>
-                )}
-              </div>
-            )}
-
             <p className="text-[12px] mt-3 leading-relaxed" style={{ color: C.brownSoft }}>
-              {checkMode === 'single'
-                ? 'Pilih satu tanggal untuk melihat kamar yang ready di tanggal itu.'
-                : 'Isi tanggal check-in & check-out untuk cek kamar yang bebas sepanjang masa menginapmu — lengkap dengan tanggal yang sudah terisi per kamar.'}
+              Isi tanggal <b>check-in</b> &amp; <b>check-out</b> untuk cek kamar yang bebas sepanjang masa
+              menginapmu — lengkap dengan tanggal yang sudah terisi per kamar. 🌸
             </p>
 
             {/* Peringatan bila backend belum kirim data rentang */}
-            {((singleActive || rangeActive) && !hasRangeData) && (
+            {(rangeActive && !hasRangeData) && (
               <p className="text-[12px] mt-2 rounded-[10px] px-3 py-2" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
                 ⚠️ Ketersediaan per tanggal belum bisa ditampilkan otomatis. Mohon konfirmasi langsung via WhatsApp ya.
               </p>
@@ -887,9 +832,7 @@ export default function InfoPage() {
           {rooms && rooms.length > 0 ? (
             <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
               <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b>{' '}
-              {singleActive && hasRangeData ? (
-                <>ready pada <b style={{ color: C.brown }}>{checkDateLabel}</b>.</>
-              ) : rangeActive && hasRangeData ? (
+              {rangeActive && hasRangeData ? (
                 <>bebas penuh sepanjang <b style={{ color: C.brown }}>{rangeLabel}</b>.</>
               ) : (
                 'siap dihuni saat ini.'
