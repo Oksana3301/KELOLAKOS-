@@ -1062,11 +1062,10 @@ export default function InfoPage() {
               </div>
             )}
 
-            {/* SALIN/BAGIKAN ketersediaan sebagai gambar — untuk dikirim ke calon penyewa */}
-            {rooms && rooms.length > 0 && (
-              <div className="mt-5 rounded-[16px] p-4" style={{ background: '#FBF7EC', border: `1.5px dashed ${C.goldSoft}` }}>
-                <div className="text-[14px] font-bold mb-1" style={{ color: C.brown }}>
-                  📤 Bagikan kamar yang tersedia
+            {/* SALIN/BAGIKAN ketersediaan sebagai gambar — selalu tampil supaya mudah ditemukan */}
+            <div className="mt-5 rounded-[16px] p-4" style={{ background: '#FBF7EC', border: `2px solid ${C.gold}` }}>
+                <div className="text-[15px] font-extrabold mb-1" style={{ color: C.brown }}>
+                  📤 Salin / Bagikan kamar yang tersedia (PNG)
                 </div>
                 <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.brownSoft }}>
                   Pilih layanan, lalu <b>Salin</b> atau <b>Bagikan</b> sebagai gambar (PNG) yang rapi — lengkap nomor kamar,
@@ -1114,11 +1113,13 @@ export default function InfoPage() {
                   </button>
                 </div>
 
-                {scopedCount === 0 && (
+                {!rooms ? (
+                  <p className="text-[12px] mt-2.5" style={{ color: C.brownSoft }}>Memuat data kamar…</p>
+                ) : scopedCount === 0 ? (
                   <p className="text-[12px] mt-2.5" style={{ color: C.brownSoft }}>
                     Tidak ada kamar {copyScope === 'semua' ? '' : copyScope + ' '}yang tersedia {rangeActive ? `untuk ${rangeLabel}` : 'saat ini'}.
                   </p>
-                )}
+                ) : null}
                 {imgMsg && (
                   <p className="text-[12.5px] mt-2.5 font-semibold" style={{ color: C.brown }}>{imgMsg}</p>
                 )}
@@ -1126,8 +1127,7 @@ export default function InfoPage() {
                   💡 Di HP: tombol <b>Bagikan</b> langsung buka pilihan WhatsApp. Di komputer: <b>Salin</b> lalu tempel (paste) ke chat.
                   <br />🖼️ Atur foto di <b>Pengaturan → Halaman Info</b>: “Foto Kost” &amp; “Foto Executive/Superior/Deluxe” (2 foto pertama yang dipakai).
                 </p>
-              </div>
-            )}
+            </div>
           </Card>
 
           {rooms && rooms.length > 0 ? (
