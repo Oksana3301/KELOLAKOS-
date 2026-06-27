@@ -201,10 +201,55 @@ function _setBookingStatus_(bookingId, updates) {
   return { ok: false, error: 'Booking tidak ditemukan: ' + bookingId };
 }
 
+// Tambah bulan ke tanggal ISO (jaga akhir bulan). '' bila tak valid.
+function _bookingAddBulan_(iso, months) {
+  var d = new Date(String(iso) + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  var day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  if (d.getDate() < day) d.setDate(0);
+  return Utilities.formatDate(d, Session.getScriptTimeZone() || 'GMT+7', 'yyyy-MM-dd');
+}
+// Jumlah bulan dari label paket ("6 Bulan"→6, "1 Tahun"/"Setahun"→12).
+function _bookingPeriodeBulan_(paket) {
+  var s = String(paket || '').toUpperCase();
+  if (/TAHUN|SETAHUN/.test(s)) return 12;
+  if (/6\s*BULAN|ENAM\s*BULAN/.test(s)) return 6;
+  var m = s.match(/(\d+)\s*BULAN/);
+  return m ? Number(m[1]) : 0;
+}
+function _bookingFindById_(id) {
+  var rows = getSheetObjects_(SHEETS.BOOKINGS) || [];
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i].BookingID || '').trim() === String(id).trim()) return rows[i];
+  }
+  return null;
+}
+
 function confirmBooking(data) {
   data = data || {};
   var status = (data.status === 'Lunas') ? 'Lunas' : 'DP';
-  return _setBookingStatus_(data.bookingId, { Status_Booking: 'AKTIF', Status_Bayar: status });
+  var updates = { Status_Booking: 'AKTIF', Status_Bayar: status };
+
+  // KOST + kunci tanggal (default ON) + LUNAS → set CheckIn = tanggal pelunasan
+  // (atau hari ini), CheckOut = +periode. DP → tanggal dibiarkan kosong.
+  try {
+    var hi = (typeof v2_getHalamanInfo === 'function') ? v2_getHalamanInfo() : null;
+    var lock = !hi || hi.kostKunciTanggal !== false; // default true
+    if (lock && status === 'Lunas') {
+      var b = _bookingFindById_(data.bookingId);
+      if (b && String(b.Layanan || '').toUpperCase().indexOf('KOS') >= 0) {
+        var tz = Session.getScriptTimeZone() || 'GMT+7';
+        var ci = data.tglPelunasan || Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+        var bln = _bookingPeriodeBulan_(b.Paket || b.Durasi);
+        updates.CheckIn = ci;
+        var co = bln > 0 ? _bookingAddBulan_(ci, bln) : '';
+        if (co) updates.CheckOut = co;
+      }
+    }
+  } catch (e) {}
+
+  return _setBookingStatus_(data.bookingId, updates);
 }
 
 function rejectBooking(data) {

@@ -40,6 +40,9 @@ export default function BookingBaruPage() {
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
   // Kost paket 6 bulan = SELALU non-AC → sembunyikan fasilitas AC (sama dgn /booking).
   const acDisabled = layanan === 'KOS' && durasi === '6 Bulan';
+  // Kost + kunci tanggal (default) → tamu tidak pilih tanggal; check-in/out di-set
+  // admin otomatis (= tanggal pelunasan + periode) saat konfirmasi pembayaran.
+  const kostLockTanggal = layanan === 'KOS' && info.kostKunciTanggal !== false;
   const allFasilitas = fasData?.list || [];
   const fasilitas = acDisabled ? allFasilitas.filter((f) => !isAcFacility(f)) : allFasilitas;
   // Pastikan AC tak ikut terpilih/terhitung saat dinonaktifkan.
@@ -142,7 +145,8 @@ export default function BookingBaruPage() {
     const res = await submitBookingRequest({
       jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar,
       durasi: layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? `${Math.max(1, malamQty)} malam` : durasi,
-      tglMulai: mulai, bayar, catatan: catat, jumlahOrang: orang, bukti: bukti || undefined,
+      // Kost dgn kunci tanggal → jangan kirim tanggal; di-set admin saat konfirmasi (lunas).
+      tglMulai: kostLockTanggal ? '' : mulai, bayar, catatan: catat, jumlahOrang: orang, bukti: bukti || undefined,
       dpAmount: bayar === 'DP' ? dpAmount : undefined,
     });
     setSubmitting(false);
@@ -217,12 +221,23 @@ export default function BookingBaruPage() {
             <THField label="Jumlah malam">
               <THInput type="number" min={1} value={malamQty} onChange={(e) => setMalamQty(Math.max(1, Number(e.target.value) || 1))} />
             </THField>
+          ) : kostLockTanggal ? (
+            <THField label="Tanggal mulai">
+              <div className="rounded-[12px] px-3.5 py-2.5 text-[13px]" style={{ background: TH.cream, border: `1.5px solid ${TH.border}`, color: TH.brownSoft }}>
+                Otomatis (saat lunas)
+              </div>
+            </THField>
           ) : (
             <THField label="Tanggal mulai">
               <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
             </THField>
           )}
         </div>
+        {kostLockTanggal && (
+          <p className="text-[12px] leading-snug -mt-1 rounded-[12px] px-3 py-2.5" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
+            📅 Untuk <b>kost</b>, tanggal check-in &amp; check-out ditetapkan <b>otomatis</b> = tanggal pelunasan + periode ({durasi}), saat admin mengonfirmasi pembayaranmu. Jadi kamu tidak perlu pilih tanggal di sini ya. 🌸
+          </p>
+        )}
         {layanan === 'PENGINAPAN' && durasi === 'Per Malam' && (
           <THField label="Tanggal mulai">
             <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
