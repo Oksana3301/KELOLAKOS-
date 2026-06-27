@@ -35,6 +35,15 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'Batal', label: 'Batal' },
 ];
 
+type LayananId = 'semua' | 'kost' | 'penginapan';
+// Tentukan jenis layanan sebuah booking dari kolom Layanan.
+function bookingLayanan(b: BookingItem): 'kost' | 'penginapan' | 'lain' {
+  const l = String(b.Layanan || '').toUpperCase();
+  if (l.includes('KOS')) return 'kost';
+  if (l.includes('INAP') || l.includes('PENGINAP')) return 'penginapan';
+  return 'lain';
+}
+
 export default function BookingPage() {
   return (
     <Suspense fallback={null}>
@@ -49,6 +58,7 @@ function BookingPageInner() {
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<TabId>('semua');
+  const [layanan, setLayanan] = useState<LayananId>('semua');
   const [cari, setCari] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -126,11 +136,28 @@ function BookingPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, data, allBookings]);
 
+  // Jumlah booking per jenis layanan (untuk badge di pilihan filter).
+  const layananCount = useMemo(() => {
+    let kost = 0, penginapan = 0;
+    allBookings.forEach((b) => {
+      const l = bookingLayanan(b);
+      if (l === 'kost') kost++;
+      else if (l === 'penginapan') penginapan++;
+    });
+    return { semua: allBookings.length, kost, penginapan };
+  }, [allBookings]);
+
   const filtered = useMemo(() => {
     let list = allBookings;
+    // 1) Filter jenis layanan (kost / penginapan) lebih dulu.
+    if (layanan !== 'semua') {
+      list = list.filter((b) => bookingLayanan(b) === layanan);
+    }
+    // 2) Lalu filter status pembayaran.
     if (tab !== 'semua') {
       list = list.filter((b) => mapPayStatus(b) === (tab as PayStatus));
     }
+    // 3) Lalu pencarian.
     if (cari) {
       const q = cari.toLowerCase();
       list = list.filter(
@@ -139,7 +166,7 @@ function BookingPageInner() {
       );
     }
     return list;
-  }, [allBookings, tab, cari]);
+  }, [allBookings, layanan, tab, cari]);
 
   // Open the detail sheet — fetch full data first so all fields are present.
   function openDetail(b: BookingItem) {
@@ -330,7 +357,33 @@ function BookingPageInner() {
         />
       </div>
 
-      {/* Status tabs */}
+      {/* Filter 1: Jenis layanan — Kost vs Penginapan */}
+      <div className="text-caption font-semibold text-kk-ink mb-2">Jenis</div>
+      <div className="flex gap-2.5 overflow-x-auto pb-1.5 mb-4 -mx-1 px-1">
+        {([
+          { id: 'semua', label: 'Semua', n: layananCount.semua },
+          { id: 'kost', label: '🏠 Kost', n: layananCount.kost },
+          { id: 'penginapan', label: '🏨 Penginapan', n: layananCount.penginapan },
+        ] as { id: LayananId; label: string; n: number }[]).map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setLayanan(o.id)}
+            className={`flex-shrink-0 min-h-[48px] px-[18px] rounded-kk-pill font-body font-semibold text-[17px] border-2 ${
+              layanan === o.id
+                ? 'border-kk-navy bg-kk-navy text-white'
+                : 'border-kk-mauve bg-white text-kk-navy'
+            }`}
+          >
+            {o.label}
+            <span className={`ml-1.5 text-[13px] font-bold ${layanan === o.id ? 'text-white/80' : 'text-kk-ink'}`}>
+              {o.n}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Filter 2: Status pembayaran */}
+      <div className="text-caption font-semibold text-kk-ink mb-2">Status pembayaran</div>
       <div className="flex gap-2.5 overflow-x-auto pb-1.5 mb-5 -mx-1 px-1">
         {TABS.map((t) => (
           <button
@@ -351,7 +404,7 @@ function BookingPageInner() {
       <div className="flex flex-col gap-3">
         {filtered.length === 0 ? (
           <KkCard className="text-center text-body text-kk-ink py-7">
-            {cari || tab !== 'semua'
+            {cari || tab !== 'semua' || layanan !== 'semua'
               ? 'Tidak ada penyewa di kategori ini.'
               : 'Belum ada booking. Tekan tombol Tambah Penyewa di atas untuk mencatat penyewa pertama Anda.'}
           </KkCard>

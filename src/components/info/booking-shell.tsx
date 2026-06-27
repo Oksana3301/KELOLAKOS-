@@ -115,15 +115,19 @@ export function THSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 // Layar sukses setelah submit booking publik (Baru / Perpanjang).
 export function BookingDone({ nama, demo }: { nama?: string; demo?: boolean }) {
-  const waResmi = '628116646615'; // WA resmi Top Hills
-  const msg = `Halo Top Hills 🌸, saya baru kirim permintaan booking${nama ? ' atas nama ' + nama : ''}. Mohon dikonfirmasi & detail pembayarannya ya 🙏`;
+  const waResmi = '628116646615'; // WA resmi admin Top Hills
+  // Pesan konfirmasi pembayaran — tamu menekan tombol setelah upload bukti bayar.
+  const msg = `Hi Top Hills 🌸, aku sudah melakukan pembayaran untuk booking${nama ? ' atas nama ' + nama : ''}. Ini bukti transfernya ya, mohon dikonfirmasi 🙏`;
   return (
     <div className="text-center pt-3">
       <div className="text-[56px] leading-none">✅</div>
       <h1 style={{ fontFamily: TH_SERIF, color: TH.brown }} className="text-[28px] font-bold mt-2 mb-2">Permintaan Terkirim!</h1>
-      <p className="text-[14.5px] leading-relaxed mb-4" style={{ color: TH.brownSoft }}>
-        Tim Top Hills akan menghubungimu lewat <b style={{ color: TH.brown }}>WhatsApp</b> untuk konfirmasi data &amp; detail pembayaran.
-        Booking aktif <b style={{ color: TH.brown }}>setelah pembayaran dikonfirmasi</b> ya 🌸
+      <p className="text-[14.5px] leading-relaxed mb-3" style={{ color: TH.brownSoft }}>
+        Bukti bayarmu sudah kami terima. <b style={{ color: TH.brown }}>Satu langkah terakhir:</b> tekan tombol di bawah untuk
+        konfirmasi ke admin via WhatsApp supaya booking-mu segera diproses 🌸
+      </p>
+      <p className="text-[13px] leading-relaxed mb-4" style={{ color: TH.brownSoft }}>
+        Booking aktif <b style={{ color: TH.brown }}>setelah pembayaran dikonfirmasi admin</b> (maks 1×24 jam).
       </p>
       {demo && (
         <div className="text-[11.5px] rounded-full px-3 py-1.5 inline-block mb-4" style={{ background: '#FBF1D8', color: '#8A6A24', border: '1px solid #E7D3A0' }}>
@@ -132,10 +136,11 @@ export function BookingDone({ nama, demo }: { nama?: string; demo?: boolean }) {
       )}
       <div className="space-y-3 mt-2">
         <a href={`https://wa.me/${waResmi}?text=${encodeURIComponent(msg)}`} target="_blank" rel="noopener noreferrer"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-[14px] font-bold text-[15px] no-underline min-h-[50px] px-5"
-          style={{ background: 'linear-gradient(135deg,#B98C34,#8A6A24)', color: '#fff' }}>
-          💬 Chat Top Hills sekarang
+          className="inline-flex w-full items-center justify-center gap-2.5 rounded-[16px] font-bold text-[17px] no-underline min-h-[58px] px-5"
+          style={{ background: 'linear-gradient(135deg,#1FAF55,#178A43)', color: '#fff', boxShadow: '0 10px 26px rgba(23,138,67,0.32)' }}>
+          💬 Konfirmasi Pembayaran via WhatsApp
         </a>
+        <p className="text-[12px]" style={{ color: TH.brownSoft }}>ke admin Top Hills · 0811-6646-615</p>
         <THBtn variant="ghost" href="/info" block>Kembali ke beranda</THBtn>
       </div>
     </div>

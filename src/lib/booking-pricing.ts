@@ -42,6 +42,13 @@ export function isExtraBed(f: Fasilitas): boolean {
   return /extra\s*bed/.test(s) || s.includes('extrabed') || (s.includes('extra') && s.includes('bed'));
 }
 
+/** Fasilitas AC. Kost 6 bulan selalu NON-AC → opsi ini disembunyikan untuk paket itu. */
+export function isAcFacility(f: Fasilitas): boolean {
+  if (String(f.kode || '').trim().toUpperCase() === 'AC') return true;
+  const nama = String(f.nama || '').toLowerCase();
+  return /air\s*condition/.test(nama) || /\bac\b/.test(nama);
+}
+
 // Fallback demo (dipakai bila getFasilitas belum publik/deploy).
 const DEMO_FASILITAS: Fasilitas[] = [
   { id: 'demo-ac', kode: 'AC', nama: 'AC (Air Conditioner)', emoji: '❄️', price_adjust: 200000, satuan: 'per_bulan' },

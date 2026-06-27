@@ -156,25 +156,29 @@ export function Sheet({
   onClose,
   children,
   maxH = '88%',
+  dismissable = true,
 }: {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   maxH?: string;
+  /** Bila false, sheet TIDAK tertutup oleh tap latar / Escape — hanya lewat
+   *  tombol tutup (X). Dipakai untuk form isian panjang agar data tak hilang. */
+  dismissable?: boolean;
 }) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !dismissable) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, dismissable]);
 
   if (!open) return null;
   return (
     <div
-      onClick={onClose}
+      onClick={dismissable ? onClose : undefined}
       className="fixed inset-0 z-[60] flex items-end justify-center"
       style={{ background: 'rgba(12,44,71,.45)' }}
     >

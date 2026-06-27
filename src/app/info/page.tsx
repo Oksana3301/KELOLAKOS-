@@ -330,29 +330,48 @@ function Img({ src, label, ratio = 'aspect-[4/3]' }: { src?: string; label: stri
   );
 }
 
-// Hero — peta jarak ke kampus (foto/peta statis; tanpa angka yang keliru).
-function HeroVideo({ poster }: { poster?: string }) {
-  const src = poster ? driveImageUrl(poster) : '/video/tophills-map.jpg';
+// Ambil src iframe dari kode/URL "Embed a map" Google Maps (terima <iframe …> utuh atau URL .../embed?…).
+function mapsEmbedSrc(raw: string): string | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const m = s.match(/src=["']([^"']+)["']/i);
+  const url = m ? m[1] : s;
+  return /https?:\/\/(www\.)?google\.[^/]+\/maps\/embed/i.test(url) ? url : null;
+}
+
+// Hero — peta lokasi (Google Maps embed bila diatur) + tombol buka maps, lalu foto bangunan di bawahnya.
+function HeroMap({ mapsEmbed, mapsLink, poster }: { mapsEmbed?: string; mapsLink?: string; poster?: string }) {
+  const embed = mapsEmbedSrc(mapsEmbed || '');
   return (
-    <div className="mx-auto" style={{ maxWidth: 300 }}>
+    <div className="mx-auto" style={{ maxWidth: 360 }}>
+      {/* Peta interaktif di paling atas */}
       <div
         className="relative rounded-[22px] overflow-hidden"
         style={{ border: `1.5px solid ${C.gold}`, boxShadow: '0 18px 44px rgba(70,55,32,0.22)' }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          className="block w-full"
-          src={src}
-          alt="Lokasi Top Hills — 350 m ke gerbang UNAND, Padang"
-        />
-        {/* caption — info terpenting, hierarki teratas di kartu */}
+        {embed ? (
+          <iframe
+            src={embed}
+            title="Lokasi Top Hills di Google Maps"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="block w-full"
+            style={{ border: 0, height: 220 }}
+            allowFullScreen
+          />
+        ) : (
+          // Fallback: peta statis (atur "Embed a map" di Pengaturan → Halaman Info untuk peta interaktif).
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="block w-full" src="/video/tophills-map.jpg" alt="Lokasi Top Hills — 350 m ke gerbang UNAND, Padang" />
+        )}
         <div
-          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold"
+          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold pointer-events-none"
           style={{ fontFamily: body, background: 'rgba(20,14,5,0.62)', color: '#fff', backdropFilter: 'blur(3px)' }}
         >
-          📍 350 m ke UNAND
+          📍 ± 350 m dari UNAND
         </div>
       </div>
+
       <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
         <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12.5px] font-bold" style={{ fontFamily: body, background: C.card, border: `1px solid ${C.border}`, color: C.brown }}>
           🚶 6 menit jalan kaki
@@ -361,6 +380,31 @@ function HeroVideo({ poster }: { poster?: string }) {
           🚗 ± 3 menit berkendara
         </span>
       </div>
+
+      {/* Tombol buka Google Maps — dipindah dari section Lokasi ke hero */}
+      {mapsLink && (
+        <a
+          href={mapsLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-semibold no-underline"
+          style={{ fontFamily: body, background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}
+        >
+          🗺️ Buka di Google Maps
+        </a>
+      )}
+
+      {/* Foto bangunan — di BAWAH peta */}
+      {poster && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={driveImageUrl(poster)}
+          alt="Bangunan Top Hills, Limau Manis Padang"
+          className="block w-full mt-3 rounded-[18px] object-cover"
+          style={{ border: `1px solid ${C.border}`, maxHeight: 240 }}
+        />
+      )}
+
       <p className="mt-2 text-center text-[11.5px]" style={{ fontFamily: body, color: C.brownSoft }}>
         Jarak &amp; waktu ke gerbang UNAND · sumber Google Maps
       </p>
@@ -394,12 +438,42 @@ export default function InfoPage() {
     retry: 0,
     staleTime: 60 * 1000,
   });
+  // Cek ketersediaan per TANGGAL (opsional). Kosong = tampilkan status saat ini.
+  const [checkDate, setCheckDate] = useState('');
+  const roomList = useMemo(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
+  // Apakah backend sudah mengirim rentang booking (untuk cek per tanggal)?
+  const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
+  // Kamar terisi/dipesan pada tanggal tertentu (start ≤ tgl < end; end = check-out → bebas).
+  function bookedOn(r: { bookedRanges?: { start: string; end: string }[] }, d: string): boolean {
+    return (r.bookedRanges || []).some((rg) => rg.start && (rg.end ? d >= rg.start && d < rg.end : d >= rg.start));
+  }
+
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
-    (Array.isArray(rooms) ? rooms : []).forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
+    if (checkDate && hasRangeData) {
+      // Mode tanggal: perbaikan tetap perbaikan; selain itu terisi bila ada
+      // booking yang menutupi tanggal, sisanya kosong (siap dihuni).
+      roomList.forEach((r) => {
+        const st: RoomStatus3 = r.status === 'perbaikan' ? 'perbaikan' : bookedOn(r, checkDate) ? 'terisi' : 'kosong';
+        m.set(roomKey(r.nama), st);
+      });
+    } else {
+      roomList.forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
+    }
     return m;
-  }, [rooms]);
-  const totalKosong = (Array.isArray(rooms) ? rooms : []).filter((r) => r.status === 'kosong').length;
+  }, [roomList, checkDate, hasRangeData]);
+
+  const totalKosong = useMemo(() => {
+    if (checkDate && hasRangeData) return roomList.filter((r) => r.status !== 'perbaikan' && !bookedOn(r, checkDate)).length;
+    return roomList.filter((r) => r.status === 'kosong').length;
+  }, [roomList, checkDate, hasRangeData]);
+
+  // Format tanggal Indonesia untuk teks ("3 Juli 2026").
+  const checkDateLabel = useMemo(() => {
+    if (!checkDate) return '';
+    const d = new Date(checkDate + 'T00:00:00');
+    return isNaN(d.getTime()) ? checkDate : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  }, [checkDate]);
 
   const NAV = [
     { id: 'kost', label: 'Kost' },
@@ -451,9 +525,9 @@ export default function InfoPage() {
             </span>
           </div>
 
-          {/* Hero video — hook utama: sedekat apa ke kampus */}
+          {/* Hero — peta lokasi (hook utama: sedekat apa ke kampus), foto bangunan di bawahnya */}
           <div className="mt-7">
-            <HeroVideo poster={info.fotoHero} />
+            <HeroMap mapsEmbed={info.mapsEmbed} mapsLink={info.maps} poster={info.fotoHero} />
           </div>
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:justify-center max-w-[420px] sm:max-w-none mx-auto">
@@ -550,8 +624,8 @@ export default function InfoPage() {
 
         {/* Penginapan */}
         <section id="penginapan" className="py-8 scroll-mt-20">
-          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, bulanan & tahunan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & free air mineral di kamar. 💧" />
-          <FactChips items={['🚪 5 kamar', '🛏️ 3 tipe: Executive · Superior · Deluxe', '📅 Harian – Tahunan']} />
+          <SectionHead n="3" title="Penginapan — Gedung C" sub="Harian, mingguan & bulanan. Terbuka untuk umum (putra & putri). Semua kamar ber-AC, kamar mandi dalam (WC duduk + water heater), kasur lengkap, & free air mineral di kamar. 💧" />
+          <FactChips items={['🚪 5 kamar', '🛏️ 3 tipe: Executive · Superior · Deluxe', '📅 Harian · Mingguan · Bulanan']} />
           <div className="space-y-4">
             {info.penginapan.map((p) => (
               <Card key={p.nama} className="!p-0 overflow-hidden">
@@ -587,8 +661,8 @@ export default function InfoPage() {
                   <div className="grid grid-cols-3 gap-2 mt-4 text-center">
                     {[
                       ['Per malam', p.malam],
+                      ['Per minggu', p.mingguan],
                       ['Per bulan', p.bulan],
-                      ['Per tahun', p.tahun],
                     ].map(([l, v]) => (
                       <div key={l} className="rounded-[12px] py-2.5" style={{ background: C.cream, border: `1px solid ${C.border}` }}>
                         <div className="text-[11px]" style={{ color: C.brownSoft }}>
@@ -600,6 +674,9 @@ export default function InfoPage() {
                       </div>
                     ))}
                   </div>
+                  <p className="text-[12px] mt-2.5 leading-snug" style={{ color: C.brownSoft }}>
+                    ⚡ Untuk sewa lebih dari 1 hari, token listrik ditanggung tamu.
+                  </p>
                   <div className="mt-4">
                     <a href="/info/booking" className="flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-[15px] font-semibold no-underline w-full" style={{ fontFamily: body, background: C.gold, color: '#fff' }}>
                       🆕 Booking Online
@@ -621,9 +698,47 @@ export default function InfoPage() {
             title="Ketersediaan Kamar"
             sub="Status kamar diperbarui langsung dari sistem kami. Untuk memastikan ketersediaan & booking, silakan konfirmasi via WhatsApp ya. 🌸"
           />
+          {/* Cek ketersediaan per tanggal */}
+          <Card className="mb-5">
+            <div className="text-[14px] font-semibold mb-2" style={{ color: C.brown }}>
+              📅 Cek ketersediaan per tanggal
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <input
+                type="date"
+                value={checkDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setCheckDate(e.target.value)}
+                className="rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none"
+                style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }}
+              />
+              {checkDate && (
+                <button
+                  onClick={() => setCheckDate('')}
+                  className="rounded-full px-4 py-2.5 text-[13px] font-semibold"
+                  style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}
+                >
+                  Lihat status sekarang
+                </button>
+              )}
+            </div>
+            <p className="text-[12px] mt-2.5 leading-relaxed" style={{ color: C.brownSoft }}>
+              Pilih satu tanggal untuk melihat kamar yang <b>ready</b> di tanggal itu. Mau menginap
+              beberapa malam? Cek tiap tanggal yang diinginkan satu per satu, atau tanya admin via
+              WhatsApp dengan menyebutkan <b>tanggal-tanggal menginap</b> yang dimau ya. 🌸
+            </p>
+            {checkDate && !hasRangeData && (
+              <p className="text-[12px] mt-2 rounded-[10px] px-3 py-2" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
+                ⚠️ Ketersediaan per tanggal belum bisa ditampilkan otomatis. Untuk tanggal{' '}
+                <b>{checkDateLabel}</b>, mohon konfirmasi langsung via WhatsApp ya.
+              </p>
+            )}
+          </Card>
+
           {rooms && rooms.length > 0 ? (
             <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
-              <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b> siap dihuni saat ini.
+              <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b>{' '}
+              {checkDate && hasRangeData ? <>ready pada <b style={{ color: C.brown }}>{checkDateLabel}</b>.</> : 'siap dihuni saat ini.'}
             </div>
           ) : (
             <div className="text-center mb-5 text-[14px]" style={{ color: C.brownSoft }}>
@@ -701,7 +816,7 @@ export default function InfoPage() {
                 {[
                   'Check-in pukul 13.00 · check-out pukul 12.00 (check-in lewat 13.00 tetap dihitung check-out 12.00).',
                   'DP yang sudah dibayarkan tidak dapat dikembalikan apabila booking dibatalkan.',
-                  'Tambahan orang di atas 3: Executive +Rp 50rb · Superior +Rp 60rb · Deluxe +Rp 75rb /orang/malam.',
+                  'Tambahan orang di atas 1: Executive +Rp 50rb · Superior +Rp 60rb · Deluxe +Rp 75rb /orang/malam.',
                   'Extra bed +Rp 100.000/malam (bila diperlukan).',
                 ].map((t) => (
                   <li key={t} className="flex gap-2">
@@ -710,6 +825,13 @@ export default function InfoPage() {
                   </li>
                 ))}
               </ul>
+              <div className="mt-3 rounded-[12px] px-3.5 py-3 text-[13px] leading-relaxed" style={{ background: '#FBF3E0', border: `1px solid ${C.gold}`, color: C.brown }}>
+                ℹ️ <b>Kenapa tambahan orang di Deluxe paling mahal?</b> Justru karena kamarnya paling
+                ringkas. Makin kecil ukuran kamar, makin padat bila diisi lebih banyak orang —
+                sehingga keausan & beban fasilitas (AC, air, kebersihan) per orang lebih besar.
+                Karena itu tarif tambahan/orang dibuat berbanding terbalik dengan luas kamar:
+                Deluxe (terkecil) tertinggi, Executive (terluas) terendah.
+              </div>
             </Card>
           </div>
         </section>
@@ -721,7 +843,7 @@ export default function InfoPage() {
             <ol className="space-y-4">
               {[
                 ['Klik "Booking Online"', 'Pilih Booking Baru (penyewa baru) atau Perpanjang Kontrak (penyewa lama — cukup masukkan nomor WA, data lama kami tarik otomatis).'],
-                ['Lengkapi data & cek estimasi', 'Pilih kamar/tipe, durasi (kost: 6 bulan / 1 tahun · penginapan: harian–tahunan), jumlah orang & fasilitas tambahan. Total estimasi muncul otomatis.'],
+                ['Lengkapi data & cek estimasi', 'Pilih kamar/tipe, durasi (kost: 6 bulan / 1 tahun · penginapan: harian / mingguan / bulanan), jumlah orang & fasilitas tambahan. Total estimasi muncul otomatis.'],
                 ['Survey / tanya dulu? (opsional)', 'Belum yakin? Bisa janji survey atau tanya Bang Mezi via WhatsApp langsung dari form — tanpa harus bayar dulu.'],
                 ['Bayar & upload bukti', 'Transfer / scan QRIS resmi yang tampil (rekening kost & penginapan beda). DP minimal — kost Rp 4 juta, penginapan Rp 100rb — atau bayar lunas. Lalu upload bukti transfer (wajib).'],
                 ['Konfirmasi admin → booking aktif ✅', 'Admin cek pembayaran & data. Setelah disetujui, booking aktif dan invoice dikirim ke WhatsApp-mu. Sampai jumpa di Top Hills! 🌸'],
@@ -788,16 +910,11 @@ export default function InfoPage() {
                   {info.alamat}
                 </div>
                 <div className="text-[14px] mt-1" style={{ color: C.brownSoft }}>
-                  Dekat UNAND, ada akses langsung ke gerbang kampus 🎓
+                  Dekat UNAND, ada akses langsung ke gerbang kampus 🎓 (peta ada di bagian atas halaman)
                 </div>
               </div>
             </div>
-            <div className="mt-5">
-              <WAButton href={info.maps} variant="ghost">
-                🗺️ Buka di Google Maps
-              </WAButton>
-            </div>
-            <p className="text-[13px] mt-3 text-center" style={{ color: C.brownSoft }}>
+            <p className="text-[13px] mt-4 text-center" style={{ color: C.brownSoft }}>
               Ingin lihat kamar dulu sebelum booking? Tentu boleh 🌸 Jam survey 08.00–19.00 WIB — janji survey ke <b style={{ color: C.brown }}>Bang Mezi</b> ada di bagian <a href="#kontak" className="font-semibold no-underline" style={{ color: C.gold }}>Kontak</a> di bawah ya.
             </p>
           </Card>

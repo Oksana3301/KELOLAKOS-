@@ -18,6 +18,7 @@ const config: Config = {
           paper: '#FAF8F7',
           'mauve-soft': '#EFE9E7',
           'mint-soft': '#E4EFEE',
+          'yellow-soft': '#FBF1D8', // DP (uang muka) — background only
           'orange-soft': '#FBEFE9',
           'orange-shadow': '#8F3C20',
           'green-shadow': '#1F3D32',

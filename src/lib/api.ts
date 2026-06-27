@@ -178,8 +178,11 @@ export interface PublicRoom {
   tipe: string;
   layanan: string;
   lantai: number;
-  status: 'kosong' | 'terisi' | 'perbaikan';
+  status: 'kosong' | 'dp' | 'terisi' | 'perbaikan';
   harga?: number; // base harga kamar (kost) bila tersedia
+  // Rentang tanggal yang sudah dibooking (Lunas/DP) — untuk cek ketersediaan
+  // per tanggal di /info. start/end ISO 'YYYY-MM-DD' (end = tanggal check-out).
+  bookedRanges?: { start: string; end: string }[];
 }
 
 /** Fasilitas/add-on dari Pengaturan (AC, extra bed, dll). */
@@ -249,6 +252,12 @@ export interface SubmitBookingEditPayload {
   checkIn?: string; checkOut?: string; hargaKamar?: number;
   extraCharge?: number; diskon?: number; hargaTotal?: number;
   catatan?: string; extraRequest?: string; isEkstra?: boolean; fasilitasIds?: string[];
+}
+
+/** Ubah data booking PENDING dari /info (owner /booking) — tanpa ubah status bayar. */
+export interface EditPendingBookingPayload {
+  bookingId: string; nama?: string; whatsapp?: string; kamar?: string; tipe?: string;
+  layanan?: string; durasi?: string; jumlahOrang?: number; tglMulai?: string; catatan?: string;
 }
 
 export interface SubmitPaymentPayload {
@@ -456,6 +465,10 @@ export const api = {
     callApi<{ ok: boolean; bookingId: string }>('confirmBooking', { bookingId, status }),
   rejectBooking: (bookingId: string) =>
     callApi<{ ok: boolean; bookingId: string }>('rejectBooking', { bookingId }),
+  // Ubah data booking PENDING (tanpa mengubah status bayar). Lihat
+  // BACKEND_PATCH_EDIT_PENDING.gs.
+  editPendingBooking: (data: EditPendingBookingPayload) =>
+    callApi<{ ok: boolean; bookingId: string }>('editPendingBooking', { ...data, booking_id: data.bookingId }),
 
   submitStatusAction: (data: SubmitStatusActionPayload) =>
     callApi<{ message?: string }>('submitStatusAction', {

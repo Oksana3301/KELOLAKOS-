@@ -12,7 +12,7 @@ import { PostFormActions } from '@/components/info/post-form-actions';
 import { PaymentStep } from '@/components/info/payment-step';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
-import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
+import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, isAcFacility, kostBasePrice } from '@/lib/booking-pricing';
 
 export default function BookingBaruPage() {
   const [nama, setNama] = useState('');
@@ -38,7 +38,16 @@ export default function BookingBaruPage() {
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
   const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
-  const fasilitas = fasData?.list || [];
+  // Kost paket 6 bulan = SELALU non-AC → sembunyikan fasilitas AC (sama dgn /booking).
+  const acDisabled = layanan === 'KOS' && durasi === '6 Bulan';
+  const allFasilitas = fasData?.list || [];
+  const fasilitas = acDisabled ? allFasilitas.filter((f) => !isAcFacility(f)) : allFasilitas;
+  // Pastikan AC tak ikut terpilih/terhitung saat dinonaktifkan.
+  useEffect(() => {
+    if (!acDisabled) return;
+    setSelFac((prev) => prev.filter((id) => { const f = allFasilitas.find((x) => x.id === id); return !(f && isAcFacility(f)); }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acDisabled]);
 
   const kamarOptions = useMemo(() => {
     const arr = Array.isArray(rooms) ? rooms : [];
@@ -54,7 +63,7 @@ export default function BookingBaruPage() {
     return kosong.length ? kosong : matched.length ? matched : arr;
   }, [rooms, layanan]);
 
-  const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Bulanan'];
+  const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Mingguan', 'Bulanan'];
   const selRoom = kamarOptions.find((r) => `${r.nama} — ${r.gedung}` === kamar);
 
   // Harga dasar (estimasi) dari data publik.
@@ -70,6 +79,10 @@ export default function BookingBaruPage() {
       const malam = tipe ? parseRupiah(tipe.malam) : selRoom?.harga || 0;
       const n = Math.max(1, malamQty);
       return { price: malam * n, label: `${n} malam` };
+    }
+    if (durasi === 'Mingguan') {
+      const minggu = tipe ? parseRupiah(tipe.mingguan) : 0;
+      return { price: minggu, label: 'Per minggu' };
     }
     const bulan = tipe ? parseRupiah(tipe.bulan) : selRoom?.harga || 0;
     return { price: bulan, label: 'Per bulan' };
@@ -90,7 +103,7 @@ export default function BookingBaruPage() {
     const extra = Math.max(0, orang - baseOrang);
     if (!extra) return 0;
     const tipe = info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); const rt = (selRoom?.tipe || '').toLowerCase(); const rn = (selRoom?.nama || '').toLowerCase(); return (rt && (rt.includes(pn) || pn.includes(rt))) || rn.includes(pn); });
-    const nights = durasi === 'Per Malam' ? Math.max(1, malamQty) : 30;
+    const nights = durasi === 'Per Malam' ? Math.max(1, malamQty) : durasi === 'Mingguan' ? 7 : 30;
     return extra * (tipe?.extraPerOrang || 0) * nights;
   }, [layanan, orang, info, selRoom, durasi, malamQty]);
 
@@ -208,11 +221,22 @@ export default function BookingBaruPage() {
             <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
           </THField>
         )}
+        {layanan === 'PENGINAPAN' && durasi !== 'Per Malam' && (
+          <p className="text-[12px] leading-snug -mt-1" style={{ color: TH.brownSoft }}>
+            ⚡ Untuk sewa lebih dari 1 hari, token listrik ditanggung tamu.
+          </p>
+        )}
 
         <THField label="Jumlah orang" hint={layanan === 'KOS' ? `Maks ${maxOrang} orang (6bln/1thn). Orang ke-2 +${formatRupiah(info.kostExtraPerOrang || 0)}` : `Maks ${maxOrang} per kamar. Lebih dari ${info.penginapanBaseOrang || 1} kena +rate/orang/malam`}>
           <THInput type="number" min={1} max={maxOrang} value={orang}
             onChange={(e) => setOrang(Math.max(1, Math.min(maxOrang, Number(e.target.value) || 1)))} />
         </THField>
+
+        {acDisabled && (
+          <p className="text-[12px] leading-snug rounded-[12px] px-3 py-2.5" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
+            ❄️ Kost paket <b>6 Bulan</b> seluruh lantai <b>non-AC</b> — opsi fasilitas AC tidak tersedia untuk paket ini.
+          </p>
+        )}
 
         <FasilitasEstimasi
           fasilitas={fasilitas} demo={fasData?.demo}
