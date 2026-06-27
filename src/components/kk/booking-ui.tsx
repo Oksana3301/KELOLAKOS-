@@ -20,7 +20,7 @@ import {
 } from '@/lib/api';
 import { type Fasilitas, halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, type HalamanInfo } from '@/lib/halaman-info';
-import { kostBasePrice, parseRupiah } from '@/lib/booking-pricing';
+import { kostBasePrice, parseRupiah, isAcFacility } from '@/lib/booking-pricing';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
 import { MoneyInput } from './money-input';
@@ -321,7 +321,13 @@ export function buildRoomOptions(
   }
   return sorted.map((r) => {
     const paketPrices = paketPricesFor(r);
-    const primaryKind = primaryKindOf(paketPrices);
+    // Paket utama kartu disamakan dgn opsi form (config-driven), supaya harga
+    // di daftar kamar konsisten dgn /info: kost → 6 bulan, penginapan → harian.
+    const lay = String(r.Layanan_Default || '').toUpperCase();
+    let primaryKind: PaketKind | null;
+    if (lay.includes('KOS')) primaryKind = '6bulan';
+    else if (lay.includes('INAP') || lay.includes('PENGINAP')) primaryKind = 'harian';
+    else primaryKind = primaryKindOf(paketPrices);
     let harga = primaryKind ? paketPrices[primaryKind] || 0 : 0;
     // Selaraskan harga tampilan kartu dgn config /info (bila config terisi).
     if (info && primaryKind) {
@@ -347,8 +353,14 @@ function gotoBkSection(id: string) {
 // ═════════════════════════ TAMBAH / UBAH BOOKING FLOW ═════════════════════════
 // ── Harga dari Pengaturan (Halaman Info) — disamakan dengan form publik /info ──
 function matchTipe(room: RoomStatus, info: HalamanInfo) {
+  // Cocokkan tipe via Tipe_Kamar ATAU Nama_Kamar (mis. "Executive D01") —
+  // sama dengan logika form /info supaya harga selalu ketemu.
   const rt = String(room.Tipe_Kamar || '').toLowerCase();
-  return info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); return rt && (rt.includes(pn) || pn.includes(rt)); });
+  const rn = String(room.Nama_Kamar || '').toLowerCase();
+  return info.penginapan.find((p) => {
+    const pn = p.nama.toLowerCase();
+    return (rt && (rt.includes(pn) || pn.includes(rt))) || rn.includes(pn);
+  });
 }
 /** Harga per-unit paket dari config; 0 = tidak ada (pakai harga lama/price-rules). */
 function configHargaSatuan(room: RoomStatus | undefined, paketKind: PaketKind, info: HalamanInfo): number {
@@ -379,7 +391,9 @@ function extraOrangCharge(room: RoomStatus | undefined, paketKind: PaketKind, or
     const extra = Math.max(0, orang - base);
     if (!extra) return 0;
     const rate = matchTipe(room, info)?.extraPerOrang || 0;
-    const nights = paketKind === 'harian' ? lamaEff : 30;
+    // Jumlah malam untuk hitung tambahan orang: harian → per malam, mingguan →
+    // 7 malam/minggu, bulanan → 30 malam (selaras dengan form /info).
+    const nights = paketKind === 'harian' ? lamaEff : paketKind === 'mingguan' ? 7 * lamaEff : 30 * lamaEff;
     return extra * rate * nights;
   }
   return 0;
@@ -525,36 +539,45 @@ export function BookingFlow({
   );
   const chosen = options.find((o) => o.room.RoomID === roomId) || null;
 
-  // Pakets this room actually has a price for (sorted Harian→Setahun).
+  // Opsi paket — DISAMAKAN PERSIS dengan form publik /info supaya harga & booking
+  // konsisten (tidak ikut baris harga sheet yang bisa bikin opsi/harga ngaco):
+  //   • Kost       → hanya "Per 6 Bulan" & "Per Tahun" (harga flat dari Pengaturan).
+  //   • Penginapan → "Per Hari", "Per Minggu", "Per Bulan", "Per Tahun" (harga per tipe).
+  // Untuk layanan tak dikenal → pakai paket dari baris harga (fallback lama).
   const availablePakets = useMemo<PaketKind[]>(() => {
     if (!chosen) return [];
-    let kinds = (Object.keys(chosen.paketPrices) as PaketKind[]).sort(
+    const lay = String(chosen.room.Layanan_Default || '').toUpperCase();
+    if (lay.includes('KOS')) return ['6bulan', 'setahun'];
+    // Penginapan: harian/mingguan/bulanan + tahunan (tahun memang DISEMBUNYIKAN
+    // hanya di /info publik, tapi tetap tersedia untuk owner di /booking).
+    if (lay.includes('INAP') || lay.includes('PENGINAP')) return ['harian', 'mingguan', 'bulanan', 'setahun'];
+    return (Object.keys(chosen.paketPrices) as PaketKind[]).sort(
       (a, b) => PAKET_META[a].order - PAKET_META[b].order,
     );
-    // Kost: hanya 6 Bulan & Setahun (opsi harian/mingguan/bulanan diskret
-    // dihilangkan). Untuk hitungan per-hari, pakai mode "Atur tanggal sendiri".
-    const isKost = (chosen.room.Layanan_Default || '').trim().toUpperCase() === 'KOS';
-    if (isKost) {
-      const only = kinds.filter((k) => k === '6bulan' || k === 'setahun');
-      kinds = only.length ? only : (['6bulan', 'setahun'] as PaketKind[]);
-    }
-    return kinds;
   }, [chosen]);
 
-  // When the chosen room (or its pakets) changes, keep paketKind valid: prefer
-  // the current pick if still available, else the room's primary paket.
+  // Saat kamar/paket berubah, pastikan paketKind selalu VALID (ada di availablePakets).
+  // Kost → default "Per 6 Bulan" · Penginapan → default "Per Hari".
   useEffect(() => {
     if (!chosen) return;
     if (!availablePakets.includes(paketKind)) {
-      // Penginapan → default "Per Hari" (tarif harian) bila tersedia, supaya
-      // estimasi tampil sebagai harga per malam, bukan per bulan.
-      const isInap = String(chosen.room.Layanan_Default || '').toUpperCase().includes('INAP') ||
-        String(chosen.room.Layanan_Default || '').toUpperCase().includes('PENGINAP');
-      const preferred = isInap && availablePakets.includes('harian') ? 'harian' : undefined;
-      setPaketKind(preferred || chosen.primaryKind || availablePakets[0] || 'bulanan');
+      const lay = String(chosen.room.Layanan_Default || '').toUpperCase();
+      let next: PaketKind;
+      if (lay.includes('KOS')) next = '6bulan';
+      else if (lay.includes('INAP') || lay.includes('PENGINAP')) next = 'harian';
+      else if (chosen.primaryKind && availablePakets.includes(chosen.primaryKind)) next = chosen.primaryKind;
+      else next = availablePakets[0] || 'bulanan';
+      setPaketKind(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, availablePakets.join(',')]);
+
+  // Kost = paket flat (bukan per hari) → mode "Atur tanggal sendiri" tidak berlaku.
+  const isKostChosen = String(chosen?.room.Layanan_Default || '').toUpperCase().includes('KOS');
+  useEffect(() => {
+    if (isKostChosen && customDate) setCustomDate(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isKostChosen]);
 
   // Distinct buildings & floors across the pickable rooms (for the pill filters).
   const gedungList = useMemo(() => {
@@ -623,9 +646,22 @@ export function BookingFlow({
         (chosen?.paketPrices.bulanan ? Math.round(chosen.paketPrices.bulanan / 30) : 0)
       : chosen?.paketPrices[paketKind] || 0;
 
+  // Kost paket 6 bulan = SELALU non-AC → sembunyikan opsi fasilitas AC.
+  const acDisabled = isKostChosen && paketKind === '6bulan';
   // Biaya fasilitas — pakai satuan tiap fasilitas (per bulan / per hari),
   // dikonversi memakai jumlah hari kalender nyata (bukan 30 tetap).
-  const activeFas = facilities.filter((f) => f.is_active);
+  const activeFas = facilities.filter((f) => f.is_active && !(acDisabled && isAcFacility(f)));
+  // Pastikan AC tidak ikut terhitung/terkirim saat dinonaktifkan (mis. ganti paket).
+  useEffect(() => {
+    if (!acDisabled) return;
+    setSelFas((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      facilities.forEach((f) => { if (isAcFacility(f) && next.has(f.id)) { next.delete(f.id); changed = true; } });
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acDisabled]);
   function facCost(f: Fasilitas): number {
     const rate = f.price_adjust || 0;
     const fUnit = f.satuan || 'per_bulan';
@@ -1087,29 +1123,32 @@ export function BookingFlow({
               </div>
             )}
 
-            {/* Mode: pilihan cepat (per bulan/hari) atau atur tanggal sendiri */}
+            {/* Mode: pilihan cepat (per bulan/hari) atau atur tanggal sendiri.
+                Kost = paket flat (6 bulan / setahun) → mode "Atur tanggal" disembunyikan. */}
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">Lama sewa</div>
-            <div className="flex gap-2.5 mb-5">
-              <button
-                onClick={() => setCustomDate(false)}
-                className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
-                  !customDate ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
-                }`}
-              >
-                Pilihan cepat
-              </button>
-              <button
-                onClick={() => {
-                  setCustomDate(true);
-                  if (!keluarDate) setKeluarDate(addDays(masuk, 1));
-                }}
-                className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
-                  customDate ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
-                }`}
-              >
-                Atur tanggal
-              </button>
-            </div>
+            {!isKostChosen && (
+              <div className="flex gap-2.5 mb-5">
+                <button
+                  onClick={() => setCustomDate(false)}
+                  className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
+                    !customDate ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+                  }`}
+                >
+                  Pilihan cepat
+                </button>
+                <button
+                  onClick={() => {
+                    setCustomDate(true);
+                    if (!keluarDate) setKeluarDate(addDays(masuk, 1));
+                  }}
+                  className={`flex-1 min-h-[52px] rounded-kk-pill font-body font-semibold text-body border-2 ${
+                    customDate ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+                  }`}
+                >
+                  Atur tanggal
+                </button>
+              </div>
+            )}
 
             {!customDate ? (
               <>
@@ -1227,6 +1266,13 @@ export function BookingFlow({
                     className="w-12 h-12 rounded-kk-card border-2 border-kk-mauve text-[24px] font-bold text-kk-navy grid place-items-center">+</button>
                   {extraOrang > 0 && <span className="font-heading font-bold text-[17px] text-kk-green">+ {rupiah(extraOrang)}</span>}
                 </div>
+              </div>
+            )}
+
+            {/* Kost 6 bulan = non-AC */}
+            {acDisabled && (
+              <div className="mb-5 rounded-kk-card border-2 border-kk-mauve bg-kk-mauve-soft p-3 text-[13px] text-kk-navy">
+                ❄️ Paket <b>Kost 6 Bulan</b> seluruh lantai <b>non-AC</b> — opsi fasilitas AC tidak tersedia untuk paket ini.
               </div>
             )}
 

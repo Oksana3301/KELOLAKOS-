@@ -12,7 +12,7 @@ import { PostFormActions } from '@/components/info/post-form-actions';
 import { PaymentStep } from '@/components/info/payment-step';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
-import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
+import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, isAcFacility, kostBasePrice } from '@/lib/booking-pricing';
 
 export default function BookingBaruPage() {
   const [nama, setNama] = useState('');
@@ -38,7 +38,16 @@ export default function BookingBaruPage() {
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
   const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
-  const fasilitas = fasData?.list || [];
+  // Kost paket 6 bulan = SELALU non-AC → sembunyikan fasilitas AC (sama dgn /booking).
+  const acDisabled = layanan === 'KOS' && durasi === '6 Bulan';
+  const allFasilitas = fasData?.list || [];
+  const fasilitas = acDisabled ? allFasilitas.filter((f) => !isAcFacility(f)) : allFasilitas;
+  // Pastikan AC tak ikut terpilih/terhitung saat dinonaktifkan.
+  useEffect(() => {
+    if (!acDisabled) return;
+    setSelFac((prev) => prev.filter((id) => { const f = allFasilitas.find((x) => x.id === id); return !(f && isAcFacility(f)); }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acDisabled]);
 
   const kamarOptions = useMemo(() => {
     const arr = Array.isArray(rooms) ? rooms : [];
@@ -222,6 +231,12 @@ export default function BookingBaruPage() {
           <THInput type="number" min={1} max={maxOrang} value={orang}
             onChange={(e) => setOrang(Math.max(1, Math.min(maxOrang, Number(e.target.value) || 1)))} />
         </THField>
+
+        {acDisabled && (
+          <p className="text-[12px] leading-snug rounded-[12px] px-3 py-2.5" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
+            ❄️ Kost paket <b>6 Bulan</b> seluruh lantai <b>non-AC</b> — opsi fasilitas AC tidak tersedia untuk paket ini.
+          </p>
+        )}
 
         <FasilitasEstimasi
           fasilitas={fasilitas} demo={fasData?.demo}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, RupiahInput, SectionTitle } from '@/components/info/booking-shell';
@@ -12,7 +12,7 @@ import { lookupPenyewa, DEMO_HINT } from '@/lib/perpanjang-demo';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
-import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, kostBasePrice } from '@/lib/booking-pricing';
+import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, isAcFacility, kostBasePrice } from '@/lib/booking-pricing';
 import { api, type PenyewaLookup, type BuktiFile } from '@/lib/api';
 
 type Step = 'input' | 'pilih' | 'form';
@@ -58,7 +58,7 @@ export default function PerpanjangPage() {
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
   const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
-  const fasilitas = fasData?.list || [];
+  const allFasilitas = fasData?.list || [];
   const kamarTerisi = useMemo(() => {
     const arr = Array.isArray(rooms) ? rooms : [];
     const terisi = arr.filter((r) => r.status === 'terisi');
@@ -98,6 +98,14 @@ export default function PerpanjangPage() {
   }
 
   const isKost = String(sel?.layanan).toUpperCase() === 'KOS';
+  // Kost paket 6 bulan = SELALU non-AC → sembunyikan fasilitas AC (konsisten dgn /booking & /info baru).
+  const acDisabled = isKost && durasi === '6 Bulan';
+  const fasilitas = acDisabled ? allFasilitas.filter((f) => !isAcFacility(f)) : allFasilitas;
+  useEffect(() => {
+    if (!acDisabled) return;
+    setSelFac((prev) => prev.filter((id) => { const f = allFasilitas.find((x) => x.id === id); return !(f && isAcFacility(f)); }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acDisabled]);
 
   const base = useMemo(() => {
     if (!sel) return { price: 0, label: 'Perpanjangan' };
@@ -287,6 +295,12 @@ export default function PerpanjangPage() {
               <THInput type="number" min={1} max={maxOrang} value={orang}
                 onChange={(e) => setOrang(Math.max(1, Math.min(maxOrang, Number(e.target.value) || 1)))} />
             </THField>
+
+            {acDisabled && (
+              <p className="text-[12px] leading-snug rounded-[12px] px-3 py-2.5" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
+                ❄️ Kost paket <b>6 Bulan</b> seluruh lantai <b>non-AC</b> — opsi fasilitas AC tidak tersedia untuk paket ini.
+              </p>
+            )}
 
             <FasilitasEstimasi
               fasilitas={fasilitas} demo={fasData?.demo}

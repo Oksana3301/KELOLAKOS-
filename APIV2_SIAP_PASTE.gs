@@ -604,14 +604,60 @@ function v2_infoFolder_() {
 // Data AMAN: nama kamar, gedung, tipe, lantai, status. Tanpa nama
 // penghuni / uang / detail booking.
 // ======================================================
+// Status denah dihitung dari pembayaran booking aktif: Lunas→terisi, DP→dp,
+// Belum Bayar/tanpa booking→kosong, maintenance→perbaikan.
+function _publicRoomKey_(nama) {
+  var s = String(nama || '').trim().toUpperCase();
+  var code = s.match(/\bD0?\d+\b/);
+  return (code ? code[0] : s).replace(/\s+/g, '');
+}
+function _publicPayStatus_(b) {
+  var booking = String(b.Status_Booking || '').toUpperCase();
+  if (booking.indexOf('BATAL') >= 0 || booking.indexOf('CANCEL') >= 0 ||
+      booking.indexOf('TOLAK') >= 0 || booking.indexOf('REJECT') >= 0) return 'abaikan';
+  if (booking.indexOf('MENUNGGU') >= 0) return 'abaikan';
+  var bayar = String(b.Status_Bayar || '').toUpperCase();
+  var total = Number(b.Harga_Total_Net || 0);
+  var dibayar = Number(b.Net_Diterima || b.Total_Bayar || 0);
+  var sisaRaw = b.Sisa_Bayar;
+  var sisa = (sisaRaw === '' || sisaRaw === null || sisaRaw === undefined)
+    ? Math.max(total - dibayar, 0) : Number(sisaRaw);
+  if (bayar.indexOf('LUNAS') >= 0) return dibayar > 0 ? 'lunas' : 'belum';
+  if (bayar.indexOf('DP') >= 0 || bayar.indexOf('PARSIAL') >= 0 ||
+      bayar.indexOf('SEBAGIAN') >= 0 || bayar.indexOf('CICIL') >= 0) return 'dp';
+  if (bayar.indexOf('BELUM') >= 0) return dibayar > 0 ? 'dp' : 'belum';
+  if (dibayar <= 0) return 'belum';
+  if (total > 0 && sisa <= 0) return 'lunas';
+  return 'dp';
+}
+function _publicBookingStatusByRoom_() {
+  var map = {};
+  try {
+    var rows = (typeof getSheetObjects_ === 'function') ? (getSheetObjects_(SHEETS.BOOKINGS) || []) : [];
+    for (var i = 0; i < rows.length; i++) {
+      var st = _publicPayStatus_(rows[i]);
+      if (st !== 'lunas' && st !== 'dp') continue;
+      var key = _publicRoomKey_(rows[i].Nama_Kamar);
+      if (!key) continue;
+      if (map[key] === 'terisi') continue;
+      map[key] = (st === 'lunas') ? 'terisi' : 'dp';
+    }
+  } catch (e) {}
+  return map;
+}
+
 function v2_getPublicRooms() {
   try {
     var rooms = (typeof getRoomStatusList_ === 'function') ? getRoomStatusList_() : [];
+    var bookStatus = _publicBookingStatusByRoom_();
     return rooms.map(function (r) {
       var code = String(r.Status_Code || '').toUpperCase();
-      var status = 'terisi';
-      if (code === 'READY' || code === 'TERSEDIA' || code === 'KOSONG') status = 'kosong';
-      else if (code === 'NONAKTIF' || code.indexOf('MAINT') >= 0 || code.indexOf('PERBAIKAN') >= 0) status = 'perbaikan';
+      var status;
+      if (code === 'NONAKTIF' || code.indexOf('MAINT') >= 0 || code.indexOf('PERBAIKAN') >= 0) {
+        status = 'perbaikan';
+      } else {
+        status = bookStatus[_publicRoomKey_(r.Nama_Kamar)] || 'kosong';
+      }
 
       // Lantai diambil dari Tipe_Kamar / Catatan ("Lantai 2" -> 2), kalau ada.
       var src = String(r.Tipe_Kamar || '') + ' ' + String(r.Catatan || '');
