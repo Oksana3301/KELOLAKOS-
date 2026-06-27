@@ -652,7 +652,7 @@ export default function InfoPage() {
                 'Air sudah termasuk · listrik token diisi sendiri.',
                 'Pilihan AC & non-AC (harga lengkap via WhatsApp).',
                 'Minimal sewa 6 bulan · tersedia paket 6 bulan & setahun.',
-                'DP minimal Rp 4 juta untuk booking kamar (berlaku paket 6 bulan & setahun).',
+                'DP minimal Rp 4 juta per kamar untuk booking (berlaku paket 6 bulan & setahun) — mis. 2 kamar = DP Rp 8 juta.',
               ].map((t) => (
                 <li key={t} className="flex gap-2.5">
                   <span style={{ color: C.gold }}>✦</span>
@@ -913,6 +913,7 @@ export default function InfoPage() {
               <ul className="space-y-2 text-[14px]" style={{ color: C.brownSoft }}>
                 {[
                   'Check-in pukul 13.00 · check-out pukul 12.00 (check-in lewat 13.00 tetap dihitung check-out 12.00).',
+                  'DP minimal Rp 100.000 per kamar — mis. booking 2 kamar = DP Rp 200.000.',
                   'DP yang sudah dibayarkan tidak dapat dikembalikan apabila booking dibatalkan.',
                   'Tambahan orang di atas 1: Executive +Rp 50rb · Superior +Rp 60rb · Deluxe +Rp 75rb /orang/malam.',
                   'Extra bed +Rp 100.000/malam (bila diperlukan).',
@@ -943,7 +944,7 @@ export default function InfoPage() {
                 ['Klik "Booking Online"', 'Pilih Booking Baru (penyewa baru) atau Perpanjang Kontrak (penyewa lama — cukup masukkan nomor WA, data lama kami tarik otomatis).'],
                 ['Lengkapi data & cek estimasi', 'Pilih kamar/tipe, durasi (kost: 6 bulan / 1 tahun · penginapan: harian / mingguan / bulanan), jumlah orang & fasilitas tambahan. Total estimasi muncul otomatis.'],
                 ['Survey / tanya dulu? (opsional)', 'Belum yakin? Bisa janji survey atau tanya Bang Mezi via WhatsApp langsung dari form — tanpa harus bayar dulu.'],
-                ['Bayar & upload bukti', 'Transfer / scan QRIS resmi yang tampil (rekening kost & penginapan beda). DP minimal — kost Rp 4 juta, penginapan Rp 100rb — atau bayar lunas. Lalu upload bukti transfer (wajib).'],
+                ['Bayar & upload bukti', 'Transfer / scan QRIS resmi yang tampil (rekening kost & penginapan beda). DP minimal per kamar — kost Rp 4 juta, penginapan Rp 100rb (mis. 2 kamar penginapan = DP Rp 200rb) — atau bayar lunas. Lalu upload bukti transfer (wajib).'],
                 ['Konfirmasi admin → booking aktif ✅', 'Admin cek pembayaran & data. Setelah disetujui, booking aktif dan invoice dikirim ke WhatsApp-mu. Sampai jumpa di Top Hills! 🌸'],
               ].map(([t, d], i) => (
                 <li key={t} className="flex gap-3">
