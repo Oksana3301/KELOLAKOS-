@@ -49,6 +49,9 @@ export interface HalamanInfo {
   // Minimum DP (editable)
   kostDpMin: number;
   penginapanDpMin: number;
+  // KOST: kunci tanggal check-in = tanggal pelunasan, check-out = +periode (otomatis).
+  // Default true → laporan rapi. Bila false, owner isi tanggal manual.
+  kostKunciTanggal: boolean;
   // Pembayaran
   caraBayar: string;
   rekeningKost: BankInfo;
@@ -99,6 +102,7 @@ export const DEFAULT_INFO: HalamanInfo = {
   kostHargaSetahunLt4: 14000000,
   kostDpMin: 4000000,
   penginapanDpMin: 100000,
+  kostKunciTanggal: true,
   caraBayar:
     'Transfer ke rekening atau scan QRIS di atas sesuai nominal. Setelah bayar, upload bukti di bawah. Booking aktif setelah admin verifikasi (maks 1×24 jam). 🌸',
   rekeningKost: { bank: 'BCA', nomor: '-', atasNama: 'Top Hills' },
@@ -140,6 +144,8 @@ export function mergeInfo(saved: Partial<HalamanInfo> & { galeri?: unknown; vide
   return {
     ...DEFAULT_INFO,
     ...saved,
+    // Default TRUE — hanya false bila owner sengaja men-uncheck di Pengaturan.
+    kostKunciTanggal: saved.kostKunciTanggal !== false,
     penginapan: peng,
     fotoHero: typeof saved.fotoHero === 'string' ? saved.fotoHero : '',
     fotoKost: arr(saved.fotoKost, MAX_FOTO),

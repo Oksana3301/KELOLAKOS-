@@ -1388,6 +1388,13 @@ export function HalamanInfoPanel() {
           <FormField label="DP minimum (Rp)"><input type="number" className="input" value={form.kostDpMin} onChange={(e) => setNum('kostDpMin', e.target.value)} /></FormField>
         </div>
 
+        <label className="flex items-start gap-2.5 mt-1 cursor-pointer rounded-md border border-bd bg-sf2 p-2.5">
+          <input type="checkbox" className="mt-0.5 w-4 h-4 flex-shrink-0" checked={form.kostKunciTanggal} onChange={(e) => set('kostKunciTanggal', e.target.checked)} />
+          <span className="text-[11px] text-tx2 leading-relaxed">
+            <b>🔒 Kunci tanggal kost otomatis</b> — check-in = <b>tanggal pelunasan</b>, check-out = <b>+periode</b> (6 bln / 1 thn). Tanggal baru terisi saat status <b>Lunas</b> (DP/Belum Bayar → kosong dulu). Matikan kalau mau isi tanggal manual. <span className="text-tx3">Disarankan ON biar laporan rapi.</span>
+          </span>
+        </label>
+
         <div className="text-xs font-semibold text-tx2 mt-2">🛏️ Penginapan — kapasitas & biaya orang</div>
         <div className="grid grid-cols-2 gap-2">
           <FormField label="Termasuk berapa orang" hint="Harga base sudah termasuk segini; di atasnya kena tambahan."><input type="number" className="input" value={form.penginapanBaseOrang} onChange={(e) => setNum('penginapanBaseOrang', e.target.value, 1)} /></FormField>

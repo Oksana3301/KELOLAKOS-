@@ -686,11 +686,20 @@ export function BookingFlow({
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
 
+  // KOST + kunci tanggal (default ON): check-in = TANGGAL PELUNASAN, check-out =
+  // +periode. Tanggal HANYA terisi saat LUNAS; DP/Belum Bayar → kosong dulu.
+  // (Penginapan & kost-unlock pakai tanggal manual seperti biasa.)
+  const kostLocked = isKostRoom && info.kostKunciTanggal !== false;
+  const effCheckIn = kostLocked ? (bayar === 'Lunas' ? (tglBayar || TODAY()) : '') : masuk;
+  const effCheckOut = kostLocked
+    ? (effCheckIn ? addPaket(effCheckIn, paketKind, lama) : '')
+    : keluar;
+
   // Form utuh: semua syarat dicek sekaligus (bukan per-langkah lagi).
   const bisaLanjut =
     nama.trim().length > 0 &&
     (isEdit || !!chosen) &&
-    !!masuk &&
+    (kostLocked || !!masuk) &&
     (customDate ? customHari >= 1 : lama >= 1) &&
     (bayar !== 'DP' || Number(dp) > 0);
 
@@ -698,7 +707,8 @@ export function BookingFlow({
   // [masuk, keluar). Status mengikuti pembayaran (sama dengan /info & denah):
   // Lunas → 'terisi', DP → 'dp', Belum Bayar → tidak memblok. Hari check-out bebas.
   const dateConflict = useMemo<{ level: 'terisi' | 'dp'; bookings: BookingItem[] } | null>(() => {
-    if (!chosen || !masuk || !keluar) return null;
+    // Pakai tanggal efektif (kost-kunci: hanya ada saat Lunas). Tanpa tanggal → skip.
+    if (!chosen || !effCheckIn || !effCheckOut) return null;
     const sameRoom = (b: BookingItem) =>
       (b.RoomID && chosen.room.RoomID && b.RoomID === chosen.room.RoomID) ||
       (b.Nama_Kamar || '').trim().toLowerCase() === (chosen.room.Nama_Kamar || '').trim().toLowerCase();
@@ -706,8 +716,8 @@ export function BookingFlow({
       const bIn = b.CheckIn ? new Date(b.CheckIn).toISOString().split('T')[0] : '';
       const bOut = b.CheckOut ? new Date(b.CheckOut).toISOString().split('T')[0] : '';
       if (!bIn) return false;
-      // overlap [masuk,keluar) vs [bIn, bOut) — hari check-out bebas
-      return masuk < (bOut || '9999-12-31') && bIn < keluar;
+      // overlap [effCheckIn,effCheckOut) vs [bIn, bOut) — hari check-out bebas
+      return effCheckIn < (bOut || '9999-12-31') && bIn < effCheckOut;
     };
     const hits = bookings.filter(
       (b) => b.BookingID !== editBooking?.BookingID && sameRoom(b) && overlaps(b),
@@ -724,7 +734,7 @@ export function BookingFlow({
     if (lunas) return { level: 'terisi', bookings: relevant.filter((b) => mapPayStatus(b) === 'Lunas') };
     if (hasDp) return { level: 'dp', bookings: relevant.filter((b) => mapPayStatus(b) === 'DP') };
     return null;
-  }, [chosen, masuk, keluar, bookings, editBooking]);
+  }, [chosen, effCheckIn, effCheckOut, bookings, editBooking]);
 
   // Status SAAT INI per kamar (untuk badge di daftar kamar), selaras /info:
   // Lunas → terisi, DP → dp, Belum Bayar/tanpa → kosong, maintenance → perbaikan.
@@ -781,7 +791,7 @@ export function BookingFlow({
             layanan: chosen.room.Layanan_Default,
             durasi: PAKET_BACKEND[customDate ? 'harian' : paketKind],
             jumlahOrang,
-            tglMulai: masuk,
+            tglMulai: effCheckIn,
           });
         }
         // 2) Harga (IKUT tipe kamar + paket terpilih) + total + tanggal + fasilitas.
@@ -789,8 +799,8 @@ export function BookingFlow({
           bookingId: editBooking.BookingID,
           customerName: nama.trim(),
           whatsapp: hp ? waPhone(hp) : '',
-          checkIn: masuk,
-          checkOut: keluar,
+          checkIn: effCheckIn,
+          checkOut: effCheckOut,
           hargaKamar: hargaKamarEff,
           extraCharge: editBooking.Extra_Charge,
           diskon: editBooking.Diskon,
@@ -806,8 +816,8 @@ export function BookingFlow({
         roomId: chosen.room.RoomID,
         customerName: nama.trim(),
         whatsapp: hp ? waPhone(hp) : '',
-        checkIn: masuk,
-        checkOut: keluar,
+        checkIn: effCheckIn,
+        checkOut: effCheckOut,
         paket: PAKET_BACKEND[customDate ? 'harian' : paketKind],
         jumlahPeriode: lamaEff,
         jumlahOrang,
@@ -1297,9 +1307,27 @@ export function BookingFlow({
                   ))}
                 </div>
 
-                <BookingField label="Tanggal Mulai Masuk" hint="Tanggal penyewa mulai menempati kamar.">
-                  <DatePicker variant="kk" value={masuk} onChange={setMasuk} placeholder="Pilih tanggal" />
-                </BookingField>
+                {kostLocked ? (
+                  <div className="rounded-kk-card border-2 border-kk-mauve bg-kk-mauve-soft p-3.5">
+                    <div className="font-heading font-bold text-[15px] text-kk-navy mb-1">📅 Tanggal otomatis (kost)</div>
+                    {effCheckIn ? (
+                      <p className="text-[13px] text-kk-ink m-0 leading-snug">
+                        Check-in <b className="text-kk-navy">{tglPendek(effCheckIn)}</b> → check-out{' '}
+                        <b className="text-kk-navy">{tglPendek(effCheckOut)}</b>{' '}
+                        <span className="text-kk-ink/70">(dari tanggal pelunasan + {PAKET_META[paketKind].label.toLowerCase()})</span>
+                      </p>
+                    ) : (
+                      <p className="text-[13px] text-kk-ink m-0 leading-snug">
+                        Check-in &amp; check-out di-set <b>otomatis saat status Lunas</b> (= tanggal pelunasan + periode).
+                        Untuk DP/Belum Bayar, tanggal sengaja dikosongkan dulu biar laporan rapi.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <BookingField label="Tanggal Mulai Masuk" hint="Tanggal penyewa mulai menempati kamar.">
+                    <DatePicker variant="kk" value={masuk} onChange={setMasuk} placeholder="Pilih tanggal" />
+                  </BookingField>
+                )}
               </>
             ) : (
               <>
@@ -1450,7 +1478,9 @@ export function BookingFlow({
                     Kamar {rupiah(hargaKamarEff)} × {lamaEff} {unit}
                   </span>
                   <span className="text-caption text-kk-ink">
-                    sampai {keluar ? tglPendek(keluar) : '—'}
+                    {kostLocked
+                      ? (effCheckOut ? `sampai ${tglPendek(effCheckOut)}` : 'tanggal otomatis saat Lunas')
+                      : `sampai ${keluar ? tglPendek(keluar) : '—'}`}
                   </span>
                 </div>
                 {extraOrang > 0 && (
@@ -1553,7 +1583,11 @@ export function BookingFlow({
             {bayar !== 'Belum Bayar' && (
               <BookingField
                 label={bayar === 'DP' ? 'Tanggal DP (opsional)' : 'Tanggal Pelunasan (opsional)'}
-                hint="Kosongkan = pakai tanggal hari ini."
+                hint={
+                  kostLocked && bayar === 'Lunas'
+                    ? 'Tanggal ini jadi CHECK-IN kost (check-out otomatis +periode). Kosongkan = hari ini.'
+                    : 'Kosongkan = pakai tanggal hari ini.'
+                }
               >
                 <DatePicker variant="kk" value={tglBayar} onChange={setTglBayar} clearable placeholder="Pilih tanggal" />
               </BookingField>
@@ -1566,7 +1600,7 @@ export function BookingFlow({
               <InfoRow label="Kamar" value={chosen ? chosen.room.Nama_Kamar : '—'} />
               <InfoRow
                 label="Periode"
-                value={`${tglPendek(masuk)} – ${keluar ? tglPendek(keluar) : '—'}`}
+                value={effCheckIn ? `${tglPendek(effCheckIn)} – ${effCheckOut ? tglPendek(effCheckOut) : '—'}` : 'otomatis saat Lunas'}
               />
               <InfoRow label="Total sewa" value={rupiah(total)} />
               <InfoRow label="Dibayar sekarang" value={rupiah(dibayar)} accent="green" />
