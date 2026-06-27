@@ -55,16 +55,27 @@ export default function BookingBaruPage() {
   const kamarOptions = useMemo(() => {
     const arr = Array.isArray(rooms) ? rooms : [];
     const isKost = layanan === 'KOS';
-    const matchLayanan = (r: PublicRoom) => {
+    // Klasifikasi penginapan SAMA dgn cek ketersediaan di /info: berdasarkan
+    // GEDUNG (Gedung C = penginapan) / kode D / field layanan. Lebih andal
+    // daripada hanya field layanan yang sering kosong.
+    const isPenginapan = (r: PublicRoom) => {
+      const g = String(r.gedung || '').toUpperCase();
       const lay = String(r.layanan || '').toUpperCase();
-      if (!lay) return true; // layanan tak diset → tampilkan di dua-duanya
-      return isKost ? lay.includes('KOS') : lay.includes('PENGINAP') || lay.includes('INAP');
+      if (lay.includes('PENGINAP') || lay.includes('INAP')) return true;
+      if (lay.includes('KOS')) return false;
+      return g.includes('C') || g.includes('PENGINAPAN') || /\bD0?\d+/i.test(String(r.nama || ''));
     };
-    const matched = arr.filter(matchLayanan);
+    const matched = arr.filter((r) => (isKost ? !isPenginapan(r) : isPenginapan(r)));
     // HANYA tampilkan kamar yang TERSEDIA (kosong) — kamar terisi/DP/perbaikan
-    // tidak bisa dipilih di /info. Bila status belum termuat (data kosong), pakai
-    // matched sebagai fallback supaya form tidak kosong saat awal load.
+    // tidak bisa dipilih (konsisten dgn cek ketersediaan di /info).
     const kosong = matched.filter((r) => r.status === 'kosong');
+    // Urutkan: nomor kecil → besar (sama dgn tampilan ketersediaan /info).
+    const numOf = (s?: string) => { const m = String(s || '').match(/\d+/); return m ? Number(m[0]) : 9999; };
+    kosong.sort((a, b) => {
+      const na = numOf(a.nama), nb = numOf(b.nama);
+      if (na !== nb) return na - nb;
+      return String(a.nama || '').localeCompare(String(b.nama || ''));
+    });
     return arr.length === 0 ? [] : kosong;
   }, [rooms, layanan]);
   // Kamar yang dipilih tapi jadi tidak tersedia → kosongkan pilihan.
