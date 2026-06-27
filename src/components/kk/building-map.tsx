@@ -198,7 +198,7 @@ function FilterPanel({
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-[12px] font-bold uppercase tracking-wide mb-2" style={{ color: '#9A8B70' }}>
+        <div className="text-[13px] font-bold uppercase tracking-wide mb-2" style={{ color: '#9A8B70' }}>
           Layanan
         </div>
         <div className="flex flex-wrap gap-2">
@@ -215,7 +215,7 @@ function FilterPanel({
       </div>
 
       <div>
-        <div className="text-[12px] font-bold uppercase tracking-wide mb-2" style={{ color: '#9A8B70' }}>
+        <div className="text-[13px] font-bold uppercase tracking-wide mb-2" style={{ color: '#9A8B70' }}>
           Lantai
         </div>
         <div className="flex flex-wrap gap-2">
@@ -231,14 +231,14 @@ function FilterPanel({
       </div>
 
       <div>
-        <div className="text-[12px] font-bold uppercase tracking-wide mb-2" style={{ color: '#9A8B70' }}>
+        <div className="text-[13px] font-bold uppercase tracking-wide mb-2" style={{ color: '#9A8B70' }}>
           Keterangan warna
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {LEGEND_ORDER.map((s) => (
-            <span key={s} className="inline-flex items-center gap-2 text-[12.5px]" style={{ color: '#5b4a32' }}>
+            <span key={s} className="inline-flex items-center gap-2.5 text-[14px] font-semibold" style={{ color: '#5b4a32' }}>
               <span
-                className="w-3.5 h-3.5 rounded-[4px] flex-shrink-0"
+                className="w-5 h-5 rounded-[5px] flex-shrink-0"
                 style={{ background: STATUS_STYLE[s].bg, border: `2px solid ${STATUS_STYLE[s].border}` }}
               />
               {STATUS_STYLE[s].label}

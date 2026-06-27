@@ -9,7 +9,7 @@ import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { ScrollFab } from '@/components/kk/scroll-fab';
 import { BuildingViewer } from '@/components/kk/building-map';
-import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
+import { roomKey, statusOnDate, type RoomStatus3 } from '@/lib/building-layout';
 
 const SEMUA = 'Semua';
 
@@ -97,9 +97,16 @@ export default function LayoutPropertiPage() {
   // Peta status per kamar dari getPublicRooms (kunci = roomKey nama kamar) —
   // identik dengan /info: Lunas→terisi, DP→dp, Belum Bayar/tanpa→kosong, maintenance→perbaikan.
   const statusByKey = useMemo(() => {
+    const todayISO = new Date().toISOString().slice(0, 10);
     const m = new Map<string, DenahStat>();
     (Array.isArray(publicRooms) ? publicRooms : []).forEach((r) => {
-      const s: DenahStat = r.status === 'dp' || r.status === 'terisi' || r.status === 'perbaikan' ? r.status : 'kosong';
+      // REAL-TIME hari ini: perbaikan tetap; selain itu hitung dari rentang booking
+      // pada tanggal hari ini (terisi=lunas, dp=DP, kosong) — sinkron dgn /info.
+      const s: DenahStat = r.status === 'perbaikan'
+        ? 'perbaikan'
+        : Array.isArray(r.bookedRanges)
+          ? statusOnDate(r.bookedRanges, todayISO, r.status)
+          : (r.status === 'dp' || r.status === 'terisi' ? r.status : 'kosong');
       m.set(roomKey(r.nama), s);
     });
     return m;
