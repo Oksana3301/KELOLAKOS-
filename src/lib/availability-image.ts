@@ -1,6 +1,7 @@
-// Membuat gambar PNG "Ketersediaan Kamar" yang rapih untuk dibagikan ke calon
-// penyewa lewat WhatsApp. Dipakai di /info — admin cek tanggal lalu Salin/Bagikan.
-// Hanya menampilkan kamar yang TERSEDIA (kosong), lengkap dengan Gedung & Lantai.
+// Membuat gambar PNG "Kamar Tersedia" bergaya DENAH untuk dibagikan ke calon
+// penyewa lewat WhatsApp. Dipakai di /info — admin isi tanggal lalu "Salin Gambar".
+// Hanya menampilkan kamar KOSONG sebagai kotak (nama kamar di dalam kotak),
+// dikelompokkan per Gedung & Lantai, plus foto preview per kategori.
 
 export type AvailRoom = { nama: string; gedung: string; lantai: number; tipe?: string };
 export type AvailPhoto = { img: HTMLImageElement; caption?: string };
@@ -11,11 +12,75 @@ export type AvailGroup = {
   photos?: AvailPhoto[];
 };
 
+export interface AvailImageOpts {
+  title: string;     // "Kamar Tersedia"
+  subtitle: string;  // "Tersedia 27 Jun – 30 Jun 2026"
+  note?: string;     // "Check-in & check-out pukul 12.00 WIB"
+  groups: AvailGroup[];
+  footer: string;
+}
+
+// Palet selaras /info (cream + gold) + status kosong (hijau) & badge layanan.
+const COL = {
+  bg: '#F4ECDD',
+  card: '#FFFFFF',
+  border: '#E0CFA8',
+  gold: '#A9802F',
+  brown: '#463720',
+  brownSoft: '#7A6A4F',
+  kostBg: '#1E4E8C',
+  penginapanBg: '#6B2FA0',
+  boxBg: '#DCFCE7',
+  boxBorder: '#16A34A',
+  boxText: '#15803D',
+};
+
+const FONT = "'Inter', system-ui, -apple-system, sans-serif";
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, r: number) {
+  const ar = img.width / img.height;
+  const tar = w / h;
+  let sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (ar > tar) { sh = img.height; sw = sh * tar; sx = (img.width - sw) / 2; }
+  else { sw = img.width; sh = sw / tar; sy = (img.height - sh) / 2; }
+  ctx.save();
+  roundRect(ctx, x, y, w, h, r);
+  ctx.clip();
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  ctx.restore();
+}
+
+function trim(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
+
+// "Gedung C (Penginapan)" / "Gedung A" → "A" · "C". Terima juga "A"/"C" polos.
+function shortGedung(g: string): string {
+  const m = String(g || '').toUpperCase().match(/\b([ABC])\b/);
+  return m ? m[1] : String(g || '').replace(/gedung/i, '').trim() || '-';
+}
+function roomNum(s: string): number {
+  const m = String(s || '').match(/\d+/);
+  return m ? Number(m[0]) : 9999;
+}
+
 /**
- * URL gambar yang AMAN untuk digambar ke canvas (tidak meng-"taint" sehingga
- * toBlob tetap jalan). Gambar Google/Drive di-route lewat proxy same-origin.
- * Selain Google → kembalikan '' (di-skip) supaya satu foto eksternal tak bikin
- * seluruh PNG gagal dibuat. Praktis aman karena semua foto di-upload ke Drive.
+ * URL gambar yang AMAN untuk canvas (tidak meng-"taint"). Gambar Google/Drive
+ * di-route lewat proxy same-origin; selain itu '' (di-skip).
  */
 export function proxiedImageUrl(url: string): string {
   if (!url) return '';
@@ -25,7 +90,6 @@ export function proxiedImageUrl(url: string): string {
   return '';
 }
 
-/** Muat gambar (resolve null bila gagal/timeout — biar PNG tetap jadi tanpa foto). */
 export function loadImage(url: string, timeoutMs = 8000): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     if (!url) return resolve(null);
@@ -40,136 +104,144 @@ export function loadImage(url: string, timeoutMs = 8000): Promise<HTMLImageEleme
   });
 }
 
-// Gambar foto "cover" (isi penuh kotak, crop tengah) di dalam kotak rounded.
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, r: number) {
-  const ar = img.width / img.height;
-  const tar = w / h;
-  let sx = 0, sy = 0, sw = img.width, sh = img.height;
-  if (ar > tar) { sh = img.height; sw = sh * tar; sx = (img.width - sw) / 2; }
-  else { sw = img.width; sh = sw / tar; sy = (img.height - sh) / 2; }
-  ctx.save();
-  roundRect(ctx, x, y, w, h, r);
-  ctx.clip();
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-  ctx.restore();
-}
-
-export interface AvailImageOpts {
-  title: string;     // mis. "Kamar Tersedia"
-  subtitle: string;  // mis. "Menginap 27 Jun – 30 Jun 2026" / "Hari ini (real-time)"
-  groups: AvailGroup[];
-  footer: string;    // mis. "Hubungi kami untuk booking · tophillspadang.com"
-}
-
-// Palet selaras dengan /info (cream + gold) & badge layanan di denah.
-const COL = {
-  bg: '#F4ECDD',
-  card: '#FFFFFF',
-  border: '#E0CFA8',
-  gold: '#A9802F',
-  brown: '#463720',
-  brownSoft: '#7A6A4F',
-  kostBg: '#1E4E8C',
-  penginapanBg: '#6B2FA0',
-};
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  const rr = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
-}
-
-const FONT = "'Inter', system-ui, -apple-system, sans-serif";
-
-/** Render daftar kamar tersedia menjadi PNG Blob (siap dibagikan/disalin). */
+/** Render denah kamar tersedia menjadi PNG Blob. */
 export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob> {
-  const scale = 2; // tajam di layar HP (retina)
+  const scale = 2;
   const W = 760;
   const pad = 36;
+  const contentW = W - pad * 2;
   const colGap = 16;
-  const cols = 2;
-  const colW = (W - pad * 2 - colGap * (cols - 1)) / cols;
-  const rowH = 56;
-  const ghH = 46;     // tinggi header grup
-  const groupGap = 22;
-  // Foto: 2 per baris, rasio ~16:10, caption overlay di bawah.
+
+  // Foto: 2 per baris
   const photoCols = 2;
-  const photoW = (W - pad * 2 - colGap * (photoCols - 1)) / photoCols;
+  const photoW = (contentW - colGap * (photoCols - 1)) / photoCols;
   const photoH = Math.round(photoW * 0.62);
   const photoGap = 10;
-  const stripHeight = (n: number) => (n > 0 ? Math.ceil(n / photoCols) * (photoH + photoGap) + 6 : 0);
 
-  // ── Hitung tinggi dulu (measure pass) ──
-  let h = 0;
-  h += 150; // blok header (brand + judul + subjudul)
-  for (const g of opts.groups) {
-    h += ghH + 12;
-    h += stripHeight((g.photos || []).length);
-    h += Math.ceil(g.rooms.length / cols) * rowH;
-    h += groupGap;
+  // Kotak denah
+  const boxH = 44, boxGap = 8, boxPadX = 14, minBoxW = 56;
+  const ghH = 46;        // header grup (badge)
+  const subHeadH = 22;   // sub-judul "Gedung A · Lantai 1"
+  const groupGap = 20;
+  const subGap = 14;
+
+  // Header
+  const brandY = 44;
+  const titleY = brandY + 56;
+  const subtitleY = titleY + 28;
+  const noteY = subtitleY + 20;
+  const dividerY = opts.note ? noteY + 12 : subtitleY + 22;
+  const contentStart = dividerY + 18;
+
+  // Sub-grup kamar per Gedung + Lantai (urut Gedung A→C, lantai kecil→besar).
+  function subGroupsOf(rooms: AvailRoom[]) {
+    const map = new Map<string, { gedung: string; lantai: number; rooms: AvailRoom[] }>();
+    for (const r of rooms) {
+      const k = `${shortGedung(r.gedung)}|${r.lantai}`;
+      if (!map.has(k)) map.set(k, { gedung: r.gedung, lantai: r.lantai, rooms: [] });
+      map.get(k)!.rooms.push(r);
+    }
+    const arr = [...map.values()];
+    arr.sort((a, b) => {
+      const ga = shortGedung(a.gedung), gb = shortGedung(b.gedung);
+      if (ga !== gb) return ga < gb ? -1 : 1;
+      return (a.lantai || 0) - (b.lantai || 0);
+    });
+    arr.forEach((s) => s.rooms.sort((a, b) => (roomNum(a.nama) - roomNum(b.nama)) || a.nama.localeCompare(b.nama)));
+    return arr;
   }
-  h += 76; // footer
-  const H = Math.max(Math.round(h), 360);
 
+  // Tata letak kotak (wrap) untuk satu sub-grup. Mengembalikan rects + tinggi.
+  function layoutBoxes(ctx: CanvasRenderingContext2D, names: string[], ox: number, oy: number, maxW: number) {
+    ctx.font = `800 16px ${FONT}`;
+    const rects: { x: number; y: number; w: number; h: number; name: string }[] = [];
+    let x = ox, y = oy;
+    for (const name of names) {
+      const w = Math.max(minBoxW, Math.ceil(ctx.measureText(name).width) + boxPadX * 2);
+      if (x > ox && x + w > ox + maxW) { x = ox; y += boxH + boxGap; }
+      rects.push({ x, y, w, h: boxH, name });
+      x += w + boxGap;
+    }
+    const height = rects.length ? rects[rects.length - 1].y + boxH - oy : 0;
+    return { rects, height };
+  }
+
+  // ── Canvas + ctx (tinggi sementara dulu, lalu di-resize setelah ukur) ──
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(W * scale);
-  canvas.height = Math.round(H * scale);
+  canvas.height = 200;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas tidak didukung di perangkat ini.');
   ctx.scale(scale, scale);
+
+  // ── Ukur tinggi total ──
+  let total = contentStart;
+  for (const g of opts.groups) {
+    total += ghH + 12;
+    const photos = g.photos || [];
+    if (photos.length) total += Math.ceil(photos.length / photoCols) * (photoH + photoGap) + 6;
+    for (const sub of subGroupsOf(g.rooms)) {
+      total += subHeadH + 6;
+      total += layoutBoxes(ctx, sub.rooms.map((r) => r.nama), 0, 0, contentW).height;
+      total += subGap;
+    }
+    total += groupGap;
+  }
+  total += 76; // footer
+  const H = Math.max(Math.round(total), 360);
+
+  // resize → reset transform → re-scale
+  canvas.height = Math.round(H * scale);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.textBaseline = 'alphabetic';
 
-  // Latar + aksen emas di atas
+  // ── Latar ──
   ctx.fillStyle = COL.bg;
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = COL.gold;
   ctx.fillRect(0, 0, W, 8);
 
   // ── Header ──
-  let y = 44;
   ctx.fillStyle = COL.gold;
   ctx.font = `700 22px ${FONT}`;
-  ctx.fillText('TOP HILLS', pad, y);
+  ctx.fillText('TOP HILLS', pad, brandY);
   ctx.fillStyle = COL.brownSoft;
   ctx.font = `600 13px ${FONT}`;
-  ctx.fillText('Kost Putri & Penginapan · Padang', pad, y + 20);
+  ctx.fillText('Kost Putri & Penginapan · Padang', pad, brandY + 20);
 
-  y += 56;
   ctx.fillStyle = COL.brown;
   ctx.font = `800 30px ${FONT}`;
-  ctx.fillText(opts.title, pad, y);
+  ctx.fillText(opts.title, pad, titleY);
 
-  y += 30;
   ctx.fillStyle = COL.gold;
   ctx.font = `600 16px ${FONT}`;
-  ctx.fillText(opts.subtitle, pad, y);
+  ctx.fillText(opts.subtitle, pad, subtitleY);
 
-  y += 26;
-  // garis pemisah tipis
+  if (opts.note) {
+    ctx.fillStyle = COL.brownSoft;
+    ctx.font = `600 12px ${FONT}`;
+    ctx.fillText(opts.note, pad, noteY);
+  }
+
   ctx.strokeStyle = COL.border;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(pad, y);
-  ctx.lineTo(W - pad, y);
+  ctx.moveTo(pad, dividerY);
+  ctx.lineTo(W - pad, dividerY);
   ctx.stroke();
-  y += 18;
 
   // ── Grup ──
+  let y = contentStart;
   for (const g of opts.groups) {
-    // Header grup (badge berwarna)
+    // Badge header
     const badgeBg = g.key === 'kost' ? COL.kostBg : COL.penginapanBg;
-    roundRect(ctx, pad, y, W - pad * 2, ghH, 12);
+    roundRect(ctx, pad, y, contentW, ghH, 12);
     ctx.fillStyle = badgeBg;
     ctx.fill();
     ctx.fillStyle = '#FFFFFF';
     ctx.font = `800 17px ${FONT}`;
     ctx.fillText(g.label, pad + 16, y + ghH / 2 + 6);
-    const cnt = `${g.rooms.length} kamar tersedia`;
+    const cnt = `${g.rooms.length} kamar kosong`;
     ctx.font = `700 14px ${FONT}`;
     const cntW = ctx.measureText(cnt).width;
     ctx.globalAlpha = 0.92;
@@ -177,7 +249,7 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
     ctx.globalAlpha = 1;
     y += ghH + 12;
 
-    // Strip foto (maks beberapa) dengan caption tipe di bawahnya
+    // Foto preview
     const photos = g.photos || [];
     if (photos.length) {
       photos.forEach((p, i) => {
@@ -186,13 +258,11 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
         const x = pad + col * (photoW + colGap);
         const py = y + rowIdx * (photoH + photoGap);
         drawCover(ctx, p.img, x, py, photoW, photoH, 12);
-        // border tipis
         roundRect(ctx, x, py, photoW, photoH, 12);
         ctx.strokeStyle = COL.border;
         ctx.lineWidth = 1.5;
         ctx.stroke();
         if (p.caption) {
-          // gradient gelap di bawah utk caption
           const gh = 30;
           const grad = ctx.createLinearGradient(0, py + photoH - gh, 0, py + photoH);
           grad.addColorStop(0, 'rgba(0,0,0,0)');
@@ -208,33 +278,34 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
           ctx.fillText(trim(ctx, p.caption, photoW - 20), x + 12, py + photoH - 10);
         }
       });
-      y += stripHeight(photos.length);
+      y += Math.ceil(photos.length / photoCols) * (photoH + photoGap) + 6;
     }
 
-    // Kartu kamar — 2 kolom
-    g.rooms.forEach((r, i) => {
-      const col = i % cols;
-      const rowIdx = Math.floor(i / cols);
-      const x = pad + col * (colW + colGap);
-      const cy = y + rowIdx * rowH;
-      const ch = rowH - 10;
-      roundRect(ctx, x, cy, colW, ch, 11);
-      ctx.fillStyle = COL.card;
-      ctx.fill();
-      ctx.strokeStyle = COL.border;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
+    // Denah per Gedung & Lantai
+    for (const sub of subGroupsOf(g.rooms)) {
       ctx.fillStyle = COL.brown;
-      ctx.font = `800 17px ${FONT}`;
-      ctx.fillText(trim(ctx, r.nama, colW - 28), x + 14, cy + 22);
+      ctx.font = `800 14px ${FONT}`;
+      const head = `Gedung ${shortGedung(sub.gedung)}${sub.lantai ? ` · Lantai ${sub.lantai}` : ''}`;
+      ctx.fillText(head, pad, y + 15);
+      y += subHeadH + 6;
 
-      const loc = `Gedung ${shortGedung(r.gedung)}${r.lantai ? ` · Lantai ${r.lantai}` : ''}`;
-      ctx.fillStyle = COL.brownSoft;
-      ctx.font = `600 13px ${FONT}`;
-      ctx.fillText(trim(ctx, loc, colW - 28), x + 14, cy + 40);
-    });
-    y += Math.ceil(g.rooms.length / cols) * rowH + groupGap;
+      const { rects, height } = layoutBoxes(ctx, sub.rooms.map((r) => r.nama), pad, y, contentW);
+      rects.forEach((b) => {
+        roundRect(ctx, b.x, b.y, b.w, b.h, 10);
+        ctx.fillStyle = COL.boxBg;
+        ctx.fill();
+        ctx.strokeStyle = COL.boxBorder;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = COL.boxText;
+        ctx.font = `800 16px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(b.name, b.x + b.w / 2, b.y + b.h / 2 + 6);
+        ctx.textAlign = 'left';
+      });
+      y += height + subGap;
+    }
+    y += groupGap;
   }
 
   // ── Footer ──
@@ -253,38 +324,9 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
   });
 }
 
-// "Gedung C (Penginapan)" / "Gedung A" → "A" · "C". Terima juga "A"/"C" polos.
-function shortGedung(g: string): string {
-  const m = String(g || '').toUpperCase().match(/\b([ABC])\b/);
-  return m ? m[1] : String(g || '').replace(/gedung/i, '').trim() || '-';
-}
-
-function trim(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (ctx.measureText(text).width <= maxW) return text;
-  let t = text;
-  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
-  return t + '…';
-}
-
 export type ImageDelivery = 'shared' | 'copied' | 'downloaded' | 'cancelled';
 
-/** Bagikan gambar (Web Share / native sheet → WhatsApp). Fallback: unduh. */
-export async function shareAvailabilityImage(blob: Blob, filename: string): Promise<ImageDelivery> {
-  const file = new File([blob], filename, { type: 'image/png' });
-  const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
-  if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
-    try {
-      await nav.share({ files: [file], title: 'Ketersediaan Kamar Top Hills' });
-      return 'shared';
-    } catch (e) {
-      if ((e as Error)?.name === 'AbortError') return 'cancelled';
-      // selain dibatalkan → lanjut ke unduh
-    }
-  }
-  return downloadImage(blob, filename);
-}
-
-/** Salin gambar ke clipboard (paling enak di desktop). Fallback: unduh. */
+/** Salin gambar ke clipboard. Fallback: unduh (untuk dilampirkan ke chat). */
 export async function copyAvailabilityImage(blob: Blob, filename: string): Promise<ImageDelivery> {
   try {
     const CI = (window as unknown as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem;
@@ -292,7 +334,7 @@ export async function copyAvailabilityImage(blob: Blob, filename: string): Promi
       await navigator.clipboard.write([new CI({ 'image/png': blob })]);
       return 'copied';
     }
-  } catch (e) {
+  } catch {
     // clipboard gambar tak didukung → unduh
   }
   return downloadImage(blob, filename);
