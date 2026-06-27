@@ -16,9 +16,10 @@ import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
 
 type Interval = { start: string; end: string };
+type BookedInterval = { start: string; end: string; status: 'lunas' | 'dp' };
 type RangeRow = {
   nama: string; tipe: string; gedung: string; lantai: number; layanan: 'kost' | 'penginapan';
-  num: number; status: RoomStatus3; free: Interval[]; booked: Interval[];
+  num: number; status: RoomStatus3; free: Interval[]; booked: BookedInterval[];
 };
 
 // JSON-LD (LodgingBusiness) — bantu Google menampilkan rich result untuk /info.
@@ -485,26 +486,29 @@ export default function InfoPage() {
     }
     return free.filter((iv) => iv.start < iv.end);
   }
-  // Potongan waktu TERISI dalam [qs, qe) (untuk ditampilkan ke user).
-  function bookedWithin(booked: { start: string; end: string }[], qs: string, qe: string): Interval[] {
-    const out: Interval[] = [];
-    for (const b of booked) {
+  // Potongan waktu TERPESAN dalam [qs, qe) + status pembayarannya (lunas/dp).
+  // Status diambil per-booking; bila backend belum kirim, fallback ke status
+  // snapshot kamar (r.status: terisi→lunas, lainnya→dp).
+  function bookedWithin(r: PublicRoom, qs: string, qe: string): BookedInterval[] {
+    const fallback: 'lunas' | 'dp' = r.status === 'terisi' ? 'lunas' : 'dp';
+    const out: BookedInterval[] = [];
+    for (const b of r.bookedRanges || []) {
       if (!b.start) continue;
       const be = b.end || qe;
       const s = b.start > qs ? b.start : qs;
       const e = be < qe ? be : qe;
-      if (s < e) out.push({ start: s, end: e });
+      if (s < e) out.push({ start: s, end: e, status: b.status === 'lunas' || b.status === 'dp' ? b.status : fallback });
     }
     return out;
   }
+  // Status kamar untuk rentang: TERISI hanya jika ada booking LUNAS yang menutupi;
+  // DP-only → 'dp' (bukan terisi); tidak ada booking → kosong.
   function rangeStatusOf(r: PublicRoom, qs: string, qe: string): RoomStatus3 {
     if (r.status === 'perbaikan') return 'perbaikan';
-    const free = freeIntervals(r.bookedRanges || [], qs, qe);
-    const freeDays = free.reduce((s, iv) => s + daysBetween(iv.start, iv.end), 0);
-    const span = daysBetween(qs, qe);
-    if (freeDays >= span) return 'kosong';   // bebas sepanjang rentang
-    if (freeDays <= 0) return 'terisi';      // penuh terisi
-    return 'dp';                             // sebagian terisi
+    const booked = bookedWithin(r, qs, qe);
+    if (booked.length === 0) return 'kosong';
+    if (booked.some((b) => b.status === 'lunas')) return 'terisi'; // ada yang lunas → terisi
+    return 'dp';                                                   // hanya DP → tetap DP
   }
 
   const statusMap = useMemo(() => {
@@ -546,7 +550,7 @@ export default function InfoPage() {
         num: roomNum(r.nama),
         status: rangeStatusOf(r, rangeStart, rangeEnd),
         free: freeIntervals(r.bookedRanges || [], rangeStart, rangeEnd),
-        booked: bookedWithin(r.bookedRanges || [], rangeStart, rangeEnd),
+        booked: bookedWithin(r, rangeStart, rangeEnd),
       }))
       .filter((x) => x.status === 'dp' || x.status === 'terisi')
       .sort((a, b) => {
@@ -861,7 +865,7 @@ export default function InfoPage() {
                 ] as { key: string; label: string; rows: RangeRow[] }[]).filter((g) => g.rows.length > 0).map((g) => (
                   <div key={g.key} className="mb-3">
                     <div className="text-[12px] font-bold uppercase tracking-wide mb-1.5" style={{ color: C.gold }}>
-                      {g.label} — ada tanggal terisi
+                      {g.label} — ada tanggal terpesan
                     </div>
                     <div className="space-y-2">
                       {g.rows.slice(0, 10).map((row) => (
@@ -871,7 +875,7 @@ export default function InfoPage() {
                               {row.nama}{row.tipe ? ` · ${row.tipe}` : ''}
                             </span>
                             <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={row.status === 'dp' ? { background: '#FEF3C7', color: '#B45309' } : { background: '#E2E8F0', color: '#334155' }}>
-                              {row.status === 'dp' ? 'sebagian terisi' : 'penuh terisi'}
+                              {row.status === 'dp' ? 'DP (dipesan)' : 'Terisi (lunas)'}
                             </span>
                           </div>
                           <div className="text-[11.5px] mt-0.5" style={{ color: C.brownSoft }}>
@@ -882,9 +886,14 @@ export default function InfoPage() {
                               ✅ Tersedia: {row.free.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
                             </div>
                           )}
-                          {row.booked.length > 0 && (
+                          {row.booked.filter((b) => b.status === 'lunas').length > 0 && (
+                            <div className="text-[12px] mt-0.5" style={{ color: '#334155' }}>
+                              ⛔ Terisi (lunas): {row.booked.filter((b) => b.status === 'lunas').map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
+                            </div>
+                          )}
+                          {row.booked.filter((b) => b.status === 'dp').length > 0 && (
                             <div className="text-[12px] mt-0.5" style={{ color: '#B45309' }}>
-                              ⛔ Terisi: {row.booked.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
+                              🟡 DP (dipesan): {row.booked.filter((b) => b.status === 'dp').map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
                             </div>
                           )}
                         </div>

@@ -664,7 +664,7 @@ function _publicBookedRangesByRoom_() {
         var key = _publicRoomKey_(b.Nama_Kamar);
         if (!key) continue;
         if (!map[key]) map[key] = [];
-        map[key].push({ start: ci, end: co });
+        map[key].push({ start: ci, end: co, status: st });   // st = 'lunas' | 'dp'
       } catch (e) {}
     }
   } catch (e) {}
