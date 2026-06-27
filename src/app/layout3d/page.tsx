@@ -6,8 +6,6 @@ import { api, type RoomStatus } from '@/lib/api';
 import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard, Sheet, SheetHead, InfoRow } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
-import { denahRoomStatus } from '@/components/kk/status';
-import type { BookingItem } from '@/lib/api';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { ScrollFab } from '@/components/kk/scroll-fab';
 import { BuildingViewer } from '@/components/kk/building-map';
@@ -74,6 +72,21 @@ export default function LayoutPropertiPage() {
     queryKey: ['initial-data'],
     queryFn: api.getInitialData,
   });
+  // Status kamar untuk denah diambil dari getPublicRooms — SUMBER YANG SAMA
+  // dengan denah ketersediaan di /info, jadi keduanya dijamin sinkron.
+  const { data: publicRooms, dataUpdatedAt, isFetching, refetch: refetchPublic } = useQuery({
+    queryKey: ['public-rooms'],
+    queryFn: api.getPublicRooms,
+    retry: 0,
+  });
+  // Waktu data terakhir dimuat, format WIB (GMT+7) — jelas untuk semua zona waktu.
+  const updatedWIB = useMemo(() => {
+    if (!dataUpdatedAt) return '';
+    const d = new Date(dataUpdatedAt);
+    const tgl = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
+    const jam = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+    return `${tgl}, ${jam} WIB (GMT+7)`;
+  }, [dataUpdatedAt]);
 
   useEffect(() => {
     if (isError) toast.error('Gagal memuat data: ' + (error as Error)?.message);
@@ -81,33 +94,21 @@ export default function LayoutPropertiPage() {
 
   const rooms = useMemo(() => data?.roomStatus || [], [data]);
 
-  // Semua booking (dedup) untuk menentukan status DP/Lunas per kamar di denah.
-  const bookingsByRoom = useMemo(() => {
-    const m = new Map<string, BookingItem[]>();
-    const seen = new Set<string>();
-    [
-      ...(data?.paymentBookings || []),
-      ...(data?.statusActionBookings || []),
-      ...(data?.closingBookings || []),
-      ...(data?.feeBookingOptions || []),
-    ].forEach((b) => {
-      if (seen.has(b.BookingID)) return;
-      seen.add(b.BookingID);
-      const key = b.RoomID || b.Nama_Kamar;
-      if (!key) return;
-      const list = m.get(key) || [];
-      list.push(b);
-      m.set(key, list);
+  // Peta status per kamar dari getPublicRooms (kunci = roomKey nama kamar) —
+  // identik dengan /info: Lunas→terisi, DP→dp, Belum Bayar/tanpa→kosong, maintenance→perbaikan.
+  const statusByKey = useMemo(() => {
+    const m = new Map<string, DenahStat>();
+    (Array.isArray(publicRooms) ? publicRooms : []).forEach((r) => {
+      const s: DenahStat = r.status === 'dp' || r.status === 'terisi' || r.status === 'perbaikan' ? r.status : 'kosong';
+      m.set(roomKey(r.nama), s);
     });
     return m;
-  }, [data]);
+  }, [publicRooms]);
 
-  // Status denah satu kamar (Lunas→terisi, DP→dp, Belum Bayar/tanpa→kosong,
-  // maintenance→perbaikan) — dipakai denah, tiles, ringkasan, & filter.
+  // Status denah satu kamar (sinkron /info) — dipakai denah, tiles, ringkasan, filter.
   const denahOf = useMemo(
-    () => (r: RoomStatus): DenahStat =>
-      denahRoomStatus(r, bookingsByRoom.get(r.RoomID) || bookingsByRoom.get(r.Nama_Kamar) || []) as DenahStat,
-    [bookingsByRoom],
+    () => (r: RoomStatus): DenahStat => statusByKey.get(roomKey(r.Nama_Kamar)) || 'kosong',
+    [statusByKey],
   );
 
   // Status per kamar untuk Denah (cocokkan via nama kamar).
@@ -228,7 +229,21 @@ export default function LayoutPropertiPage() {
 
       {/* Denah per lantai (sesuai tata letak gedung) */}
       <KkCard className="mb-6 overflow-x-auto">
-        <h2 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-4">Denah Properti</h2>
+        <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+          <h2 className="font-heading font-bold text-subhead text-kk-navy m-0">Denah Properti</h2>
+          <button
+            onClick={() => { refetch(); refetchPublic(); }}
+            disabled={isFetching}
+            className="rounded-full px-3 py-1 text-caption font-semibold border-2 border-kk-mauve text-kk-navy bg-white"
+          >
+            {isFetching ? 'Memuat…' : '🔄 Perbarui'}
+          </button>
+        </div>
+        {updatedWIB && (
+          <p className="text-caption text-kk-ink mt-0 mb-3">
+            🕒 Status kamar per <b className="text-kk-navy">{updatedWIB}</b> · sinkron dengan denah di /info
+          </p>
+        )}
         <BuildingViewer statusByRoom={statusMap} accent="#0C2C47" />
       </KkCard>
 
