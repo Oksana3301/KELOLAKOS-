@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api, type BookingFullData } from '@/lib/api';
+import { api, type BookingFullData, type RoomStatus } from '@/lib/api';
 import { KkCard, KkButton, Sheet } from './ui';
 import { rupiah } from './status';
 
@@ -37,8 +37,12 @@ function tglID(iso?: string) {
 export function PendingConfirmations() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['pending-bookings'], queryFn: api.getPendingBookings, retry: 0, refetchInterval: 60_000 });
+  // Daftar kamar (untuk pilih/ganti kamar saat edit) — berbagi cache dgn /booking.
+  const { data: initial } = useQuery({ queryKey: ['initial-data'], queryFn: api.getInitialData });
+  const rooms = useMemo<RoomStatus[]>(() => initial?.roomStatus || [], [initial]);
   const list = Array.isArray(data) ? data : [];
   const [sel, setSel] = useState<BookingFullData | null>(null);
+  const [edit, setEdit] = useState<BookingFullData | null>(null);
 
   const confirm = useMutation({
     mutationFn: (v: { id: string; status: 'DP' | 'Lunas' }) => api.confirmBooking(v.id, v.status),
@@ -54,6 +58,16 @@ export function PendingConfirmations() {
     mutationFn: (id: string) => api.rejectBooking(id),
     onSuccess: () => { toast.success('Booking ditolak'); setSel(null); qc.invalidateQueries({ queryKey: ['pending-bookings'] }); },
     onError: (e) => toast.error('Gagal: ' + (e as Error).message),
+  });
+  const saveEdit = useMutation({
+    mutationFn: (v: Parameters<typeof api.editPendingBooking>[0]) => api.editPendingBooking(v),
+    onSuccess: () => {
+      toast.success('✓ Data booking diperbarui');
+      setEdit(null);
+      qc.invalidateQueries({ queryKey: ['pending-bookings'] });
+      qc.invalidateQueries({ queryKey: ['initial-data'] });
+    },
+    onError: (e) => toast.error('Gagal menyimpan: ' + (e as Error).message),
   });
 
   if (!list.length) return null;
@@ -109,8 +123,19 @@ export function PendingConfirmations() {
           b={sel}
           busy={busy}
           onClose={() => setSel(null)}
+          onEdit={() => { setEdit(sel); setSel(null); }}
           onConfirm={(s) => confirm.mutate({ id: sel.BookingID, status: s })}
           onReject={() => { if (window.confirm(`Tolak booking ${sel.Nama_Customer}?`)) reject.mutate(sel.BookingID); }}
+        />
+      )}
+
+      {edit && (
+        <PendingEditSheet
+          b={edit}
+          rooms={rooms}
+          busy={saveEdit.isPending}
+          onClose={() => setEdit(null)}
+          onSave={(payload) => saveEdit.mutate(payload)}
         />
       )}
     </>
@@ -127,8 +152,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function PendingDetailSheet({ b, busy, onClose, onConfirm, onReject }: {
-  b: BookingFullData; busy: boolean; onClose: () => void; onConfirm: (s: 'DP' | 'Lunas') => void; onReject: () => void;
+function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
+  b: BookingFullData; busy: boolean; onClose: () => void; onEdit: () => void; onConfirm: (s: 'DP' | 'Lunas') => void; onReject: () => void;
 }) {
   const p = parseCatatan(b.Catatan);
   const orang = safeOrang(b, p);
@@ -178,6 +203,11 @@ function PendingDetailSheet({ b, busy, onClose, onConfirm, onReject }: {
 
         {b.Catatan ? <p className="text-[12px] text-kk-ink/80 leading-snug mb-5 whitespace-pre-line">📝 {b.Catatan}</p> : null}
 
+        {/* Ubah data dulu (mis. ganti kamar / betulkan nama) tanpa harus konfirmasi */}
+        <KkButton variant="secondary" block onClick={onEdit} disabled={busy} className="mb-3">
+          ✏️ Ubah Data Booking
+        </KkButton>
+
         {/* Aksi */}
         <div className="grid grid-cols-2 gap-2">
           <KkButton variant="success" onClick={() => onConfirm('DP')} disabled={busy}>Terima · DP</KkButton>
@@ -187,5 +217,153 @@ function PendingDetailSheet({ b, busy, onClose, onConfirm, onReject }: {
         <KkButton variant="secondary" block onClick={onClose} disabled={busy} className="mt-2">Tutup</KkButton>
       </div>
     </Sheet>
+  );
+}
+
+// ── Ubah data booking PENDING — bebas (nama, WA, kamar/tipe, dll) tanpa ubah status bayar.
+function toDateInput(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+}
+function kamarLabel(nama?: string, gedung?: string): string {
+  const n = String(nama || '').trim();
+  const g = String(gedung || '').trim();
+  return g ? `${n} — ${g}` : n;
+}
+
+function PendingEditSheet({ b, rooms, busy, onClose, onSave }: {
+  b: BookingFullData;
+  rooms: RoomStatus[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (payload: Parameters<typeof api.editPendingBooking>[0]) => void;
+}) {
+  const [nama, setNama] = useState(b.Nama_Customer || '');
+  const [hp, setHp] = useState(String(b.WhatsApp || ''));
+  const [layanan, setLayanan] = useState<'KOS' | 'PENGINAPAN'>(
+    String(b.Layanan || '').toUpperCase().includes('KOS') ? 'KOS' : 'PENGINAPAN',
+  );
+  const [kamar, setKamar] = useState(kamarLabel(b.Nama_Kamar, b.Gedung));
+  const [durasi, setDurasi] = useState(b.Paket || b.Durasi || '');
+  const [orang, setOrang] = useState(safeOrang(b, parseCatatan(b.Catatan)) || 1);
+  const [masuk, setMasuk] = useState(toDateInput(b.CheckIn));
+  const [catatan, setCatatan] = useState(b.Catatan || '');
+
+  // Opsi kamar per layanan; selalu sertakan kamar yang sedang dipilih.
+  const kamarOpts = useMemo(() => {
+    const want = layanan === 'KOS' ? 'KOS' : 'PENGINAP';
+    const opts = rooms
+      .filter((r) => String(r.Layanan_Default || '').toUpperCase().includes(want))
+      .map((r) => kamarLabel(r.Nama_Kamar, r.Gedung));
+    const set = new Set(opts);
+    if (kamar && !set.has(kamar)) opts.unshift(kamar);
+    return Array.from(new Set(opts));
+  }, [rooms, layanan, kamar]);
+
+  // Tipe kamar diturunkan dari kamar terpilih (untuk dikirim & ditampilkan).
+  const tipe = useMemo(() => {
+    const r = rooms.find((x) => kamarLabel(x.Nama_Kamar, x.Gedung) === kamar);
+    return r?.Tipe_Kamar || b.Tipe_Kamar || '';
+  }, [rooms, kamar, b.Tipe_Kamar]);
+
+  function save() {
+    if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
+    onSave({
+      bookingId: b.BookingID,
+      nama: nama.trim(),
+      whatsapp: hp.trim(),
+      kamar,
+      tipe,
+      layanan,
+      durasi: durasi.trim(),
+      jumlahOrang: orang,
+      tglMulai: masuk,
+      catatan,
+    });
+  }
+
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="px-6 pt-5 pb-8">
+        <h2 className="font-heading font-black text-[22px] text-kk-navy m-0 mb-1">Ubah Data Booking</h2>
+        <p className="text-caption text-kk-ink mt-0 mb-4">
+          Betulkan data atau pindah kamar. Status tetap <b>menunggu konfirmasi</b> — kamu yang Terima/Tolak nanti.
+        </p>
+
+        <div className="space-y-3.5">
+          <Field label="Nama penyewa">
+            <input className="kk-input" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Nama" />
+          </Field>
+          <Field label="WhatsApp">
+            <input className="kk-input" value={hp} onChange={(e) => setHp(e.target.value)} placeholder="62812…" inputMode="numeric" />
+          </Field>
+
+          <Field label="Layanan">
+            <div className="grid grid-cols-2 gap-2">
+              {(['KOS', 'PENGINAPAN'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLayanan(l)}
+                  className={`min-h-[48px] rounded-kk-pill font-body font-semibold border-2 ${
+                    layanan === l ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+                  }`}
+                >
+                  {l === 'KOS' ? 'Kost' : 'Penginapan'}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Kamar" hint={tipe ? `Tipe: ${tipe}` : undefined}>
+            <select className="kk-input" value={kamar} onChange={(e) => setKamar(e.target.value)}>
+              {kamarOpts.length === 0 && <option value="">(tidak ada kamar)</option>}
+              {kamarOpts.map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Durasi / paket">
+              <input className="kk-input" value={durasi} onChange={(e) => setDurasi(e.target.value)} placeholder="mis. 6 Bulan / Per Malam" />
+            </Field>
+            <Field label="Tanggal masuk">
+              <input type="date" className="kk-input" value={masuk} onChange={(e) => setMasuk(e.target.value)} />
+            </Field>
+          </div>
+
+          <Field label="Jumlah orang">
+            <div className="flex items-center gap-4">
+              <button type="button" onClick={() => setOrang((o) => Math.max(1, o - 1))}
+                className="w-12 h-12 rounded-kk-card border-2 border-kk-mauve text-[24px] font-bold text-kk-navy grid place-items-center">−</button>
+              <span className="font-heading font-black text-[22px] text-kk-navy w-8 text-center">{orang}</span>
+              <button type="button" onClick={() => setOrang((o) => Math.min(30, o + 1))}
+                className="w-12 h-12 rounded-kk-card border-2 border-kk-mauve text-[24px] font-bold text-kk-navy grid place-items-center">+</button>
+            </div>
+          </Field>
+
+          <Field label="Catatan">
+            <textarea className="kk-input resize-y" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)} />
+          </Field>
+        </div>
+
+        <KkButton variant="primary" block onClick={save} disabled={busy} className="mt-5">
+          {busy ? 'Menyimpan…' : 'Simpan Perubahan'}
+        </KkButton>
+        <KkButton variant="secondary" block onClick={onClose} disabled={busy} className="mt-2">Batal</KkButton>
+      </div>
+    </Sheet>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-[13px] font-semibold text-kk-navy mb-1.5">{label}</span>
+      {children}
+      {hint ? <span className="block text-[12px] text-kk-ink mt-1">{hint}</span> : null}
+    </label>
   );
 }

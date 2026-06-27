@@ -748,7 +748,7 @@ export default function InfoPage() {
                 {[
                   'Check-in pukul 13.00 · check-out pukul 12.00 (check-in lewat 13.00 tetap dihitung check-out 12.00).',
                   'DP yang sudah dibayarkan tidak dapat dikembalikan apabila booking dibatalkan.',
-                  'Tambahan orang di atas 3: Executive +Rp 50rb · Superior +Rp 60rb · Deluxe +Rp 75rb /orang/malam.',
+                  'Tambahan orang di atas 1: Executive +Rp 50rb · Superior +Rp 60rb · Deluxe +Rp 75rb /orang/malam.',
                   'Extra bed +Rp 100.000/malam (bila diperlukan).',
                 ].map((t) => (
                   <li key={t} className="flex gap-2">
@@ -757,6 +757,13 @@ export default function InfoPage() {
                   </li>
                 ))}
               </ul>
+              <div className="mt-3 rounded-[12px] px-3.5 py-3 text-[13px] leading-relaxed" style={{ background: '#FBF3E0', border: `1px solid ${C.gold}`, color: C.brown }}>
+                ℹ️ <b>Kenapa tambahan orang di Deluxe paling mahal?</b> Justru karena kamarnya paling
+                ringkas. Makin kecil ukuran kamar, makin padat bila diisi lebih banyak orang —
+                sehingga keausan & beban fasilitas (AC, air, kebersihan) per orang lebih besar.
+                Karena itu tarif tambahan/orang dibuat berbanding terbalik dengan luas kamar:
+                Deluxe (terkecil) tertinggi, Executive (terluas) terendah.
+              </div>
             </Card>
           </div>
         </section>

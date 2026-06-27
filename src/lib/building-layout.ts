@@ -2,7 +2,10 @@
 // Dipakai untuk Denah 2D (dan nanti visual 3D). Tiap kamar dicocokkan ke status
 // live lewat namanya (mis. "1A", "23B", "Executive D01").
 
-export type RoomStatus3 = 'kosong' | 'terisi' | 'perbaikan' | 'unknown';
+// Status kamar di denah. 'dp' = sudah dibooking & bayar DP (belum lunas → belum
+// benar-benar terisi); 'terisi' hanya untuk yang sudah Lunas. Booking yang masih
+// "Belum Bayar" dianggap masih tersedia ('kosong').
+export type RoomStatus3 = 'kosong' | 'dp' | 'terisi' | 'perbaikan' | 'unknown';
 
 export type GedungKey = 'A' | 'B' | 'C';
 

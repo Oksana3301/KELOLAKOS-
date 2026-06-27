@@ -70,6 +70,28 @@ export function mapRoomStatus(r: Pick<RoomStatus, 'Status_Code'>): RoomDisplaySt
   return 'Terisi';
 }
 
+// Status kamar untuk DENAH (peta 2D/3D), berdasarkan pembayaran booking aktifnya:
+//   Lunas → terisi · DP → dp · Belum Bayar / tidak ada booking → kosong (masih
+//   tersedia) · kamar perbaikan/maintenance → perbaikan.
+// Beda dari mapRoomStatus (yang murni dari Status_Code) — di sini DP & Belum Bayar
+// dibedakan supaya owner tahu kamar yang baru DP belum benar-benar terisi.
+type DenahStatus3 = 'kosong' | 'dp' | 'terisi' | 'perbaikan';
+export function denahRoomStatus(
+  room: Pick<RoomStatus, 'Status_Code'>,
+  bookings: Array<Parameters<typeof mapPayStatus>[0]>,
+): DenahStatus3 {
+  const code = (room.Status_Code || '').toUpperCase();
+  if (code === 'NONAKTIF' || code.includes('MAINT') || code.includes('PERBAIKAN')) return 'perbaikan';
+  let hasDp = false;
+  for (const b of bookings) {
+    const pay = mapPayStatus(b);
+    if (pay === 'Lunas') return 'terisi'; // lunas → benar-benar terisi
+    if (pay === 'DP') hasDp = true;
+    // 'Belum Bayar' & 'Batal' → tidak memblokir kamar (tetap tersedia)
+  }
+  return hasDp ? 'dp' : 'kosong';
+}
+
 const rupiahFmt = new Intl.NumberFormat('id-ID', {
   style: 'currency',
   currency: 'IDR',

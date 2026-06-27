@@ -506,6 +506,8 @@ function dispatchV2_(action, payload) {
     case 'getPendingBookings':   return { ok: true, data: getPendingBookings() };
     case 'confirmBooking':       return confirmBooking(payload);
     case 'rejectBooking':        return rejectBooking(payload);
+    // Edit booking PENDING (internal — implementasi di BACKEND_PATCH_EDIT_PENDING.gs)
+    case 'editPendingBooking':   return editPendingBooking(payload);
     default:                     return null; // Not a V2 action
   }
 }

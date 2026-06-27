@@ -6,7 +6,8 @@ import { api, type RoomStatus } from '@/lib/api';
 import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard, Sheet, SheetHead, InfoRow, RoomBadge } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
-import { mapRoomStatus, type RoomDisplayStatus } from '@/components/kk/status';
+import { mapRoomStatus, denahRoomStatus, type RoomDisplayStatus } from '@/components/kk/status';
+import type { BookingItem } from '@/lib/api';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { ScrollFab } from '@/components/kk/scroll-fab';
 import { BuildingViewer } from '@/components/kk/building-map';
@@ -85,16 +86,37 @@ export default function LayoutPropertiPage() {
 
   const rooms = useMemo(() => data?.roomStatus || [], [data]);
 
-  // Status per kamar untuk Denah (cocokkan via nama kamar).
+  // Semua booking (dedup) untuk menentukan status DP/Lunas per kamar di denah.
+  const bookingsByRoom = useMemo(() => {
+    const m = new Map<string, BookingItem[]>();
+    const seen = new Set<string>();
+    [
+      ...(data?.paymentBookings || []),
+      ...(data?.statusActionBookings || []),
+      ...(data?.closingBookings || []),
+      ...(data?.feeBookingOptions || []),
+    ].forEach((b) => {
+      if (seen.has(b.BookingID)) return;
+      seen.add(b.BookingID);
+      const key = b.RoomID || b.Nama_Kamar;
+      if (!key) return;
+      const list = m.get(key) || [];
+      list.push(b);
+      m.set(key, list);
+    });
+    return m;
+  }, [data]);
+
+  // Status per kamar untuk Denah (cocokkan via nama kamar). Lunas → terisi,
+  // DP → dp, Belum Bayar / tanpa booking → kosong, perbaikan → perbaikan.
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
     rooms.forEach((r) => {
-      const s = mapRoomStatus(r);
-      const v: RoomStatus3 = s === 'Tersedia' ? 'kosong' : s === 'Terisi' ? 'terisi' : 'perbaikan';
-      m.set(roomKey(r.Nama_Kamar), v);
+      const bks = bookingsByRoom.get(r.RoomID) || bookingsByRoom.get(r.Nama_Kamar) || [];
+      m.set(roomKey(r.Nama_Kamar), denahRoomStatus(r, bks));
     });
     return m;
-  }, [rooms]);
+  }, [rooms, bookingsByRoom]);
 
   // Occupancy summary counts (3 plain statuses).
   const stats = useMemo(

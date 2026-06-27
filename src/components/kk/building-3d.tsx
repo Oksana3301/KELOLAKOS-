@@ -20,12 +20,14 @@ import {
 // Warna kotak per status (selaras dengan denah 2D).
 const SC3: Record<RoomStatus3, string> = {
   kosong: '#4FB07B',
+  dp: '#E3B43C',
   terisi: '#B9B1A2',
   perbaikan: '#E08A4E',
   unknown: '#D8C9A6',
 };
 const STATUS_LABEL: Record<RoomStatus3, string> = {
   kosong: 'Kosong',
+  dp: 'DP (dipesan)',
   terisi: 'Terisi',
   perbaikan: 'Perbaikan',
   unknown: 'Belum ada data',
@@ -173,7 +175,7 @@ export default function Building3D({
 
       {/* Legend + petunjuk */}
       <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-[12px]" style={{ color: '#7A6A4F' }}>
-        {(['kosong', 'terisi', 'perbaikan'] as RoomStatus3[]).map((s) => (
+        {(['kosong', 'dp', 'terisi', 'perbaikan'] as RoomStatus3[]).map((s) => (
           <span key={s} className="inline-flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-[3px]" style={{ background: SC3[s] }} />
             <span>{STATUS_LABEL[s]}</span>

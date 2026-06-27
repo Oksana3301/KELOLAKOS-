@@ -19,9 +19,15 @@ const Building3D = dynamic(() => import('./building-3d'), {
 
 const SC: Record<RoomStatus3, { bg: string; bd: string; fg: string }> = {
   kosong: { bg: '#EAF5EE', bd: '#9ED9B4', fg: '#15724A' },
+  dp: { bg: '#FBF1D8', bd: '#E7CF8E', fg: '#8A6A24' },
   terisi: { bg: '#F0EFEC', bd: '#CFC9BF', fg: '#776E60' },
   perbaikan: { bg: '#FBE7DC', bd: '#E7B79A', fg: '#B85A28' },
   unknown: { bg: '#F6F1E7', bd: '#E3D6BC', fg: '#9A8B70' },
+};
+
+// Label ramah untuk legenda/tooltip.
+const SC_LABEL: Record<RoomStatus3, string> = {
+  kosong: 'Kosong', dp: 'DP (dipesan)', terisi: 'Terisi', perbaikan: 'Perbaikan', unknown: 'Belum ada data',
 };
 
 function RoomBox({
@@ -168,10 +174,10 @@ export function BuildingMap2D({
 
       {/* Legend */}
       <div className="flex justify-center flex-wrap gap-3 mb-4 text-[12px]" style={{ color: '#7A6A4F' }}>
-        {(['kosong', 'terisi', 'perbaikan'] as RoomStatus3[]).map((s) => (
+        {(['kosong', 'dp', 'terisi', 'perbaikan'] as RoomStatus3[]).map((s) => (
           <span key={s} className="inline-flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full" style={{ background: SC[s].bd, borderColor: SC[s].fg }} />
-            <span className="capitalize">{s}</span>
+            <span>{SC_LABEL[s]}</span>
           </span>
         ))}
       </div>
