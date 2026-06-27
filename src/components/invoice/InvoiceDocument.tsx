@@ -212,16 +212,12 @@ export function InvoiceDocument({
               <PayRow label="Atas Nama" value={<span style={{ fontSize: 16.5, color: '#2C2620', fontWeight: 600 }}>{identity.accountName}</span>} />
               <div style={{ fontSize: 14, color: '#8A8170', marginTop: 16, lineHeight: 1.55 }}>Kirim bukti transfer <span style={{ color: '#5A5446' }}>asli</span> ke WhatsApp Resmi · {identity.waResmi} untuk diverifikasi admin.</div>
             </div>
-            {showQR && (
+            {/* QR hanya tampil bila ADA gambar QRIS (kost = tanpa QR). Bila QR
+                dimatikan / kosong, blok QR ini hilang & kolom bayar full-width. */}
+            {showQR && identity.qrisBase64 && (
               <div style={{ width: 172, flex: 'none', border: '1px solid rgba(156,122,46,.26)', borderRadius: 16, padding: 16, background: 'rgba(156,122,46,.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                {identity.qrisBase64 ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={identity.qrisBase64} alt="QRIS" style={{ width: 120, height: 120, borderRadius: 10, objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ width: 120, height: 120, borderRadius: 10, background: 'repeating-linear-gradient(45deg,#9C7A2E 0 6px, #EFE7D6 6px 12px)', opacity: .55, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontFamily: SANS, fontSize: 11, letterSpacing: 1.5, color: '#F6EFDF', background: GOLD, padding: '3px 7px', borderRadius: 4, fontWeight: 700 }}>QRIS</span>
-                  </div>
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={identity.qrisBase64} alt="QRIS" style={{ width: 120, height: 120, borderRadius: 10, objectFit: 'cover' }} />
                 <div style={{ fontSize: 12.5, letterSpacing: 1.6, color: '#7A7164', marginTop: 12, textAlign: 'center' }}>SCAN UNTUK BAYAR</div>
               </div>
             )}
