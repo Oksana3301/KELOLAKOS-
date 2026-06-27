@@ -13,25 +13,16 @@ import {
   FLOOR_H,
   ROOM_H,
   GEDUNG_LABEL,
+  STATUS_STYLE,
+  gedungLayanan,
+  type LayananKey,
   type RoomStatus3,
   type Room3D,
 } from '@/lib/building-layout';
 
-// Warna kotak per status (selaras dengan denah 2D).
-const SC3: Record<RoomStatus3, string> = {
-  kosong: '#4FB07B',
-  dp: '#E3B43C',
-  terisi: '#B9B1A2',
-  perbaikan: '#E08A4E',
-  unknown: '#D8C9A6',
-};
-const STATUS_LABEL: Record<RoomStatus3, string> = {
-  kosong: 'Kosong',
-  dp: 'DP (dipesan)',
-  terisi: 'Terisi',
-  perbaikan: 'Perbaikan',
-  unknown: 'Belum ada data',
-};
+// Warna kotak per status — SATU sumber dengan denah 2D (STATUS_STYLE).
+const SC3 = (s: RoomStatus3) => STATUS_STYLE[s].hex;
+const STATUS_LABEL = (s: RoomStatus3) => STATUS_STYLE[s].label;
 
 interface Placed extends Room3D {
   status: RoomStatus3;
@@ -48,7 +39,7 @@ function RoomMesh({
   onSelect: (r: Placed) => void;
 }) {
   const [hover, setHover] = useState(false);
-  const color = SC3[room.status];
+  const color = SC3(room.status);
   return (
     <mesh
       position={[room.cx, room.y, room.cz]}
@@ -85,7 +76,7 @@ function RoomMesh({
               boxShadow: '0 4px 14px rgba(0,0,0,.3)',
             }}
           >
-            {room.nama} · {STATUS_LABEL[room.status]}
+            {room.nama} · {STATUS_LABEL(room.status)}
           </div>
         </Html>
       ) : null}
@@ -137,19 +128,26 @@ function Scene({
 export default function Building3D({
   statusByRoom,
   accent = '#A9802F',
+  layananFilter = 'semua',
+  lantaiFilter = 'semua',
 }: {
   statusByRoom: Map<string, RoomStatus3>;
   accent?: string;
+  layananFilter?: 'semua' | LayananKey;
+  lantaiFilter?: 'semua' | number;
 }) {
   const [selected, setSelected] = useState<Placed | null>(null);
 
   const rooms = useMemo<Placed[]>(() => {
-    return room3DPositions().map((r) => {
-      const status = statusByRoom.get(roomKey(r.nama)) || 'unknown';
-      const y = (r.lantai - 1) * FLOOR_H + ROOM_H / 2;
-      return { ...r, status, y };
-    });
-  }, [statusByRoom]);
+    return room3DPositions()
+      .filter((r) => layananFilter === 'semua' || gedungLayanan(r.gedung) === layananFilter)
+      .filter((r) => lantaiFilter === 'semua' || r.lantai === lantaiFilter)
+      .map((r) => {
+        const status = statusByRoom.get(roomKey(r.nama)) || 'unknown';
+        const y = (r.lantai - 1) * FLOOR_H + ROOM_H / 2;
+        return { ...r, status, y };
+      });
+  }, [statusByRoom, layananFilter, lantaiFilter]);
 
   const selKey = selected ? `${selected.lantai}-${selected.nama}` : null;
 
@@ -177,8 +175,8 @@ export default function Building3D({
       <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-[12px]" style={{ color: '#7A6A4F' }}>
         {(['kosong', 'dp', 'terisi', 'perbaikan'] as RoomStatus3[]).map((s) => (
           <span key={s} className="inline-flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-[3px]" style={{ background: SC3[s] }} />
-            <span>{STATUS_LABEL[s]}</span>
+            <span className="w-3 h-3 rounded-[3px]" style={{ background: SC3(s) }} />
+            <span>{STATUS_LABEL(s)}</span>
           </span>
         ))}
       </div>
@@ -195,7 +193,7 @@ export default function Building3D({
             {selected.nama}
           </div>
           <div className="text-[12px] mt-0.5" style={{ color: '#7A6A4F' }}>
-            {GEDUNG_LABEL[selected.gedung]} · Lantai {selected.lantai} · {STATUS_LABEL[selected.status]}
+            {GEDUNG_LABEL[selected.gedung]} · Lantai {selected.lantai} · {STATUS_LABEL(selected.status)}
           </div>
         </div>
       ) : null}
