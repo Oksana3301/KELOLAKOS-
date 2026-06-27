@@ -46,13 +46,6 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().split('T')[0];
 }
 
-// Real number of days in the calendar month of `iso` (akurat, bukan 30 tetap).
-function daysInMonth(iso: string): number {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return 30;
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-}
-
 export type Satuan = 'Bulanan' | 'Harian';
 
 // ── Paket (rental period) model ──────────────────────────────────────────────
@@ -633,7 +626,6 @@ export function BookingFlow({
   // Tanggal keluar (untuk menghitung jumlah hari kalender ASLI): check-in +
   // count × paket (custom mode → +count hari).
   const keluar = customDate ? keluarDate : addPaket(masuk, paketKind, lama);
-  const actualDays = Math.max(1, daysBetween(masuk, keluar) || lamaEff);
 
   // Room unit price for the active paket. Custom (per-day) mode uses the daily
   // price, deriving from the monthly one (/30) only when no daily price is set.
@@ -648,8 +640,6 @@ export function BookingFlow({
 
   // Kost paket 6 bulan = SELALU non-AC → sembunyikan opsi fasilitas AC.
   const acDisabled = isKostChosen && paketKind === '6bulan';
-  // Biaya fasilitas — pakai satuan tiap fasilitas (per bulan / per hari),
-  // dikonversi memakai jumlah hari kalender nyata (bukan 30 tetap).
   const activeFas = facilities.filter((f) => f.is_active && !(acDisabled && isAcFacility(f)));
   // Pastikan AC tidak ikut terhitung/terkirim saat dinonaktifkan (mis. ganti paket).
   useEffect(() => {
@@ -662,21 +652,11 @@ export function BookingFlow({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acDisabled]);
+  // Biaya fasilitas = FLAT (sama dengan form /info): harga tiap fasilitas ditambah
+  // SEKALI, tidak dikali lama sewa / bulan / hari. Total final tetap bisa
+  // disesuaikan owner. Disamakan supaya estimasi /booking == /info.
   function facCost(f: Fasilitas): number {
-    const rate = f.price_adjust || 0;
-    const fUnit = f.satuan || 'per_bulan';
-    if (fUnit === 'per_hari') return Math.round(rate * actualDays);
-    // Jumlah bulan sewa (paket bulanan/6 bulan/setahun bila bukan custom).
-    const totalBulan =
-      !customDate && PAKET_META[paketKind].months >= 1 ? PAKET_META[paketKind].months * lamaEff : 0;
-    if (fUnit === 'per_tahun') {
-      // Per tahun → prorate: × (jumlah bulan ÷ 12), atau pakai hari nyata ÷ 365.
-      if (totalBulan > 0) return Math.round((rate * totalBulan) / 12);
-      return Math.round((rate / 365) * actualDays);
-    }
-    // per_bulan: × total bulan; sewa harian/mingguan/custom → prorate per hari.
-    if (totalBulan > 0) return Math.round(rate * totalBulan);
-    return Math.round((rate / daysInMonth(masuk)) * actualDays);
+    return Math.round(f.price_adjust || 0);
   }
   const fasTotal = activeFas.reduce((s, f) => (selFas.has(f.id) ? s + facCost(f) : s), 0);
 
