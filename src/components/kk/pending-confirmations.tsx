@@ -261,11 +261,9 @@ function PendingEditSheet({ b, rooms, busy, onClose, onSave }: {
     return Array.from(new Set(opts));
   }, [rooms, layanan, kamar]);
 
-  // Tipe kamar diturunkan dari kamar terpilih (untuk dikirim & ditampilkan).
-  const tipe = useMemo(() => {
-    const r = rooms.find((x) => kamarLabel(x.Nama_Kamar, x.Gedung) === kamar);
-    return r?.Tipe_Kamar || b.Tipe_Kamar || '';
-  }, [rooms, kamar, b.Tipe_Kamar]);
+  // Tipe & RoomID diturunkan dari kamar terpilih (untuk dikirim & ditampilkan).
+  const selRoom = useMemo(() => rooms.find((x) => kamarLabel(x.Nama_Kamar, x.Gedung) === kamar), [rooms, kamar]);
+  const tipe = selRoom?.Tipe_Kamar || b.Tipe_Kamar || '';
 
   function save() {
     if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
@@ -273,6 +271,7 @@ function PendingEditSheet({ b, rooms, busy, onClose, onSave }: {
       bookingId: b.BookingID,
       nama: nama.trim(),
       whatsapp: hp.trim(),
+      roomId: selRoom?.RoomID,
       kamar,
       tipe,
       layanan,

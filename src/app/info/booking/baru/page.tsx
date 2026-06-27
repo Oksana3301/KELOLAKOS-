@@ -58,10 +58,17 @@ export default function BookingBaruPage() {
       return isKost ? lay.includes('KOS') : lay.includes('PENGINAP') || lay.includes('INAP');
     };
     const matched = arr.filter(matchLayanan);
+    // HANYA tampilkan kamar yang TERSEDIA (kosong) — kamar terisi/DP/perbaikan
+    // tidak bisa dipilih di /info. Bila status belum termuat (data kosong), pakai
+    // matched sebagai fallback supaya form tidak kosong saat awal load.
     const kosong = matched.filter((r) => r.status === 'kosong');
-    // Utamakan yang kosong; kalau tidak ada (status belum rapi), tampilkan semua.
-    return kosong.length ? kosong : matched.length ? matched : arr;
+    return arr.length === 0 ? [] : kosong;
   }, [rooms, layanan]);
+  // Kamar yang dipilih tapi jadi tidak tersedia → kosongkan pilihan.
+  useEffect(() => {
+    if (kamar && !kamarOptions.some((r) => `${r.nama} — ${r.gedung}` === kamar)) setKamar('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kamarOptions]);
 
   const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Mingguan', 'Bulanan'];
   const selRoom = kamarOptions.find((r) => `${r.nama} — ${r.gedung}` === kamar);
@@ -189,12 +196,12 @@ export default function BookingBaruPage() {
           </div>
         </THField>
 
-        <THField label="Pilih kamar" hint={!rooms ? 'Memuat data kamar…' : kamarOptions.length === 0 ? 'Belum ada data kamar — chat Helpdesk di bawah ya' : undefined}>
+        <THField label="Pilih kamar (hanya yang tersedia)" hint={!rooms ? 'Memuat data kamar…' : kamarOptions.length === 0 ? `Saat ini tidak ada kamar ${layanan === 'KOS' ? 'kost' : 'penginapan'} yang tersedia — chat Helpdesk di bawah ya 🌸` : 'Hanya menampilkan kamar yang masih kosong.'}>
           <THSelect value={kamar} onChange={(e) => setKamar(e.target.value)}>
             <option value="">— pilih kamar —</option>
             {kamarOptions.map((r) => (
               <option key={`${r.nama}-${r.gedung}`} value={`${r.nama} — ${r.gedung}`}>
-                {r.nama} — {r.gedung}{r.tipe ? ` (${r.tipe})` : ''}{r.status && r.status !== 'kosong' ? ` · ${r.status}` : ''}
+                {r.nama} — {r.gedung}{r.tipe ? ` (${r.tipe})` : ''}
               </option>
             ))}
           </THSelect>

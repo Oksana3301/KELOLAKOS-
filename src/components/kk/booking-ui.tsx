@@ -672,9 +672,11 @@ export function BookingFlow({
   const fasTotal = activeFas.reduce((s, f) => (selFas.has(f.id) ? s + facCost(f) : s), 0);
 
   // Money math. Total selalu dihitung ulang = (harga kamar × jumlah paket) +
-  // fasilitas. Di edit, harga kamar pakai nilai per-unit tersimpan booking.
+  // fasilitas. Saat EDIT pun harga ikut tipe kamar + paket yang dipilih (harga
+  // nempel ke tipe). Hanya jatuh ke harga tersimpan bila tipe/paket tak punya
+  // harga di Pengaturan (mis. booking lama berharga khusus) supaya tak jadi 0.
   const hargaSatuan = hargaSatuanRoom;
-  const hargaKamarEff = isEdit ? Number(editBooking!.Harga_Kamar) || hargaSatuan : hargaSatuan;
+  const hargaKamarEff = hargaSatuan > 0 ? hargaSatuan : (isEdit ? Number(editBooking!.Harga_Kamar) || 0 : 0);
   // Biaya orang tambahan (rate dari Pengaturan) — hanya untuk booking baru.
   const extraOrang = isEdit ? 0 : extraOrangCharge(chosen?.room, paketKind, jumlahOrang, lamaEff, info);
   const isKostRoom = String(chosen?.room.Layanan_Default || '').toUpperCase().includes('KOS');
@@ -765,13 +767,31 @@ export function BookingFlow({
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (isEdit && editBooking) {
+        // 1) Kolom kamar/tipe/identitas (yang TIDAK disentuh submitBookingEdit) —
+        //    supaya ganti kamar/tipe ikut tersimpan. Aman: hanya set kolom,
+        //    status pembayaran tetap. Pakai aksi editPendingBooking (by BookingID).
+        if (chosen) {
+          await api.editPendingBooking({
+            bookingId: editBooking.BookingID,
+            nama: nama.trim(),
+            whatsapp: hp ? waPhone(hp) : undefined,
+            roomId: chosen.room.RoomID,
+            kamar: `${chosen.room.Nama_Kamar}${chosen.room.Gedung ? ' — ' + chosen.room.Gedung : ''}`,
+            tipe: chosen.room.Tipe_Kamar,
+            layanan: chosen.room.Layanan_Default,
+            durasi: PAKET_BACKEND[customDate ? 'harian' : paketKind],
+            jumlahOrang,
+            tglMulai: masuk,
+          });
+        }
+        // 2) Harga (IKUT tipe kamar + paket terpilih) + total + tanggal + fasilitas.
         return api.submitBookingEdit({
           bookingId: editBooking.BookingID,
           customerName: nama.trim(),
           whatsapp: hp ? waPhone(hp) : '',
           checkIn: masuk,
           checkOut: keluar,
-          hargaKamar: editBooking.Harga_Kamar,
+          hargaKamar: hargaKamarEff,
           extraCharge: editBooking.Extra_Charge,
           diskon: editBooking.Diskon,
           hargaTotal: total,

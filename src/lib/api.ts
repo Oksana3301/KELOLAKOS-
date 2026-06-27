@@ -254,9 +254,9 @@ export interface SubmitBookingEditPayload {
   catatan?: string; extraRequest?: string; isEkstra?: boolean; fasilitasIds?: string[];
 }
 
-/** Ubah data booking PENDING dari /info (owner /booking) — tanpa ubah status bayar. */
+/** Ubah data booking (pending atau aktif) — kolom data, tanpa ubah status bayar. */
 export interface EditPendingBookingPayload {
-  bookingId: string; nama?: string; whatsapp?: string; kamar?: string; tipe?: string;
+  bookingId: string; nama?: string; whatsapp?: string; roomId?: string; kamar?: string; tipe?: string;
   layanan?: string; durasi?: string; jumlahOrang?: number; tglMulai?: string; catatan?: string;
 }
 
