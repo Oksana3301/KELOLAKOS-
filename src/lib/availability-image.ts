@@ -3,7 +3,56 @@
 // Hanya menampilkan kamar yang TERSEDIA (kosong), lengkap dengan Gedung & Lantai.
 
 export type AvailRoom = { nama: string; gedung: string; lantai: number; tipe?: string };
-export type AvailGroup = { key: 'kost' | 'penginapan'; label: string; rooms: AvailRoom[] };
+export type AvailPhoto = { img: HTMLImageElement; caption?: string };
+export type AvailGroup = {
+  key: 'kost' | 'penginapan';
+  label: string;
+  rooms: AvailRoom[];
+  photos?: AvailPhoto[];
+};
+
+/**
+ * URL gambar yang AMAN untuk digambar ke canvas (tidak meng-"taint" sehingga
+ * toBlob tetap jalan). Gambar Google/Drive di-route lewat proxy same-origin.
+ * Selain Google → kembalikan '' (di-skip) supaya satu foto eksternal tak bikin
+ * seluruh PNG gagal dibuat. Praktis aman karena semua foto di-upload ke Drive.
+ */
+export function proxiedImageUrl(url: string): string {
+  if (!url) return '';
+  if (/(google\.com|googleusercontent\.com)/i.test(url)) {
+    return `/api/img?u=${encodeURIComponent(url)}`;
+  }
+  return '';
+}
+
+/** Muat gambar (resolve null bila gagal/timeout — biar PNG tetap jadi tanpa foto). */
+export function loadImage(url: string, timeoutMs = 8000): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    let done = false;
+    const finish = (v: HTMLImageElement | null) => { if (!done) { done = true; resolve(v); } };
+    img.crossOrigin = 'anonymous';
+    img.onload = () => finish(img);
+    img.onerror = () => finish(null);
+    setTimeout(() => finish(null), timeoutMs);
+    img.src = url;
+  });
+}
+
+// Gambar foto "cover" (isi penuh kotak, crop tengah) di dalam kotak rounded.
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, r: number) {
+  const ar = img.width / img.height;
+  const tar = w / h;
+  let sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (ar > tar) { sh = img.height; sw = sh * tar; sx = (img.width - sw) / 2; }
+  else { sw = img.width; sh = sw / tar; sy = (img.height - sh) / 2; }
+  ctx.save();
+  roundRect(ctx, x, y, w, h, r);
+  ctx.clip();
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  ctx.restore();
+}
 
 export interface AvailImageOpts {
   title: string;     // mis. "Kamar Tersedia"
@@ -48,12 +97,19 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
   const rowH = 56;
   const ghH = 46;     // tinggi header grup
   const groupGap = 22;
+  // Foto: 2 per baris, rasio ~16:10, caption overlay di bawah.
+  const photoCols = 2;
+  const photoW = (W - pad * 2 - colGap * (photoCols - 1)) / photoCols;
+  const photoH = Math.round(photoW * 0.62);
+  const photoGap = 10;
+  const stripHeight = (n: number) => (n > 0 ? Math.ceil(n / photoCols) * (photoH + photoGap) + 6 : 0);
 
   // ── Hitung tinggi dulu (measure pass) ──
   let h = 0;
   h += 150; // blok header (brand + judul + subjudul)
   for (const g of opts.groups) {
     h += ghH + 12;
+    h += stripHeight((g.photos || []).length);
     h += Math.ceil(g.rooms.length / cols) * rowH;
     h += groupGap;
   }
@@ -120,6 +176,40 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
     ctx.fillText(cnt, W - pad - 16 - cntW, y + ghH / 2 + 5);
     ctx.globalAlpha = 1;
     y += ghH + 12;
+
+    // Strip foto (maks beberapa) dengan caption tipe di bawahnya
+    const photos = g.photos || [];
+    if (photos.length) {
+      photos.forEach((p, i) => {
+        const col = i % photoCols;
+        const rowIdx = Math.floor(i / photoCols);
+        const x = pad + col * (photoW + colGap);
+        const py = y + rowIdx * (photoH + photoGap);
+        drawCover(ctx, p.img, x, py, photoW, photoH, 12);
+        // border tipis
+        roundRect(ctx, x, py, photoW, photoH, 12);
+        ctx.strokeStyle = COL.border;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        if (p.caption) {
+          // gradient gelap di bawah utk caption
+          const gh = 30;
+          const grad = ctx.createLinearGradient(0, py + photoH - gh, 0, py + photoH);
+          grad.addColorStop(0, 'rgba(0,0,0,0)');
+          grad.addColorStop(1, 'rgba(0,0,0,0.62)');
+          ctx.save();
+          roundRect(ctx, x, py, photoW, photoH, 12);
+          ctx.clip();
+          ctx.fillStyle = grad;
+          ctx.fillRect(x, py + photoH - gh, photoW, gh);
+          ctx.restore();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = `700 13px ${FONT}`;
+          ctx.fillText(trim(ctx, p.caption, photoW - 20), x + 12, py + photoH - 10);
+        }
+      });
+      y += stripHeight(photos.length);
+    }
 
     // Kartu kamar — 2 kolom
     g.rooms.forEach((r, i) => {
