@@ -15,7 +15,6 @@ import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, ALL_ROOMS, type RoomStatus3 } from '@/lib/building-layout';
 import {
   buildAvailabilityImage,
-  shareAvailabilityImage,
   copyAvailabilityImage,
   loadImage,
   proxiedImageUrl,
@@ -629,14 +628,11 @@ export default function InfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, statusMap, layoutByKey]);
 
-  const [copyScope, setCopyScope] = useState<'semua' | 'kost' | 'penginapan'>('semua');
   const [imgBusy, setImgBusy] = useState(false);
   const [imgMsg, setImgMsg] = useState('');
 
   const availKost = useMemo(() => availList.filter((r) => r.layanan === 'kost'), [availList]);
   const availPng = useMemo(() => availList.filter((r) => r.layanan === 'penginapan'), [availList]);
-  const scopedCount =
-    copyScope === 'kost' ? availKost.length : copyScope === 'penginapan' ? availPng.length : availList.length;
 
   // Muat hingga 2 foto per kategori yang TERSEDIA, dari Pengaturan → Halaman Info.
   // Kost → info.fotoKost · Penginapan → foto per tipe yang ada kamarnya.
@@ -665,39 +661,33 @@ export default function InfoPage() {
 
   async function assembleImageOpts() {
     const groups: AvailGroup[] = [];
-    if (copyScope !== 'penginapan' && availKost.length)
+    if (availKost.length)
       groups.push({ key: 'kost', label: '🏠 KOST PUTRI', rooms: availKost, photos: await loadKostPhotos() });
-    if (copyScope !== 'kost' && availPng.length)
+    if (availPng.length)
       groups.push({ key: 'penginapan', label: '🏨 PENGINAPAN', rooms: availPng, photos: await loadPenginapanPhotos() });
-    const subtitle = rangeActive
-      ? `Tersedia ${fmtLong(rangeStart)} – ${fmtLong(rangeEnd)}`
-      : `Tersedia hari ini · ${updatedWIB || ''}`.trim();
     return {
       title: 'Kamar Tersedia',
-      subtitle,
+      subtitle: `Tersedia ${fmtLong(rangeStart)} – ${fmtLong(rangeEnd)}`,
+      note: 'Check-in & check-out pukul 12.00 WIB',
       groups,
       footer: 'Hubungi kami untuk booking 🌸 · tophillspadang.com',
     };
   }
 
-  async function handleCopyImage(mode: 'share' | 'copy') {
+  async function handleSalinGambar() {
     if (imgBusy) return;
-    if (scopedCount === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
+    if (availList.length === 0) return;
     setImgBusy(true);
     setImgMsg('Menyiapkan gambar & foto…');
     try {
       const opts = await assembleImageOpts();
       if (opts.groups.length === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
       const blob = await buildAvailabilityImage(opts);
-      const fname = `ketersediaan-top-hills-${rangeActive ? `${rangeStart}_${rangeEnd}` : todayISO}.png`;
-      const res = mode === 'share'
-        ? await shareAvailabilityImage(blob, fname)
-        : await copyAvailabilityImage(blob, fname);
+      const fname = `ketersediaan-top-hills-${rangeStart}_${rangeEnd}.png`;
+      const res = await copyAvailabilityImage(blob, fname);
       setImgMsg(
-        res === 'copied' ? '✅ Gambar tersalin — tinggal paste ke chat WhatsApp.'
-        : res === 'shared' ? '✅ Gambar siap dibagikan.'
-        : res === 'downloaded' ? '✅ Gambar terunduh — lampirkan ke chat.'
-        : '',
+        res === 'copied' ? '✅ Gambar tersalin — tinggal tempel (paste) ke chat WhatsApp.'
+        : '✅ Gambar terunduh — lampirkan ke chat WhatsApp.',
       );
     } catch (e) {
       setImgMsg('⚠️ Gagal membuat gambar. Coba lagi ya.');
@@ -971,7 +961,8 @@ export default function InfoPage() {
 
             <p className="text-[12px] mt-3 leading-relaxed" style={{ color: C.brownSoft }}>
               Isi tanggal <b>check-in</b> &amp; <b>check-out</b> untuk cek kamar yang bebas sepanjang masa
-              menginapmu — lengkap dengan tanggal yang sudah terisi per kamar. 🌸
+              menginapmu. Setelah tanggal diisi &amp; ada kamar kosong, muncul tombol
+              <b> Salin Gambar</b> (denah kamar tersedia) untuk dikirim ke calon penyewa. 🌸
             </p>
 
             {/* Peringatan bila backend belum kirim data rentang */}
@@ -1062,72 +1053,38 @@ export default function InfoPage() {
               </div>
             )}
 
-            {/* SALIN/BAGIKAN ketersediaan sebagai gambar — selalu tampil supaya mudah ditemukan */}
-            <div className="mt-5 rounded-[16px] p-4" style={{ background: '#FBF7EC', border: `2px solid ${C.gold}` }}>
-                <div className="text-[15px] font-extrabold mb-1" style={{ color: C.brown }}>
-                  📤 Salin / Bagikan kamar yang tersedia (PNG)
-                </div>
-                <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.brownSoft }}>
-                  Pilih layanan, lalu <b>Salin</b> atau <b>Bagikan</b> sebagai gambar (PNG) yang rapi — lengkap nomor kamar,
-                  Gedung &amp; Lantai, plus <b>foto kamar</b>{rangeActive ? <> untuk tanggal <b>{rangeLabel}</b></> : <> (real-time hari ini)</>}.
-                  Cocok dikirim ke calon penyewa yang nanya kamar kosong. 🌸
-                </p>
-
-                {/* Pilih layanan */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {([
-                    ['semua', `Semua (${availList.length})`],
-                    ['kost', `🏠 Kost (${availKost.length})`],
-                    ['penginapan', `🏨 Penginapan (${availPng.length})`],
-                  ] as [typeof copyScope, string][]).map(([v, l]) => (
-                    <button
-                      key={v}
-                      onClick={() => setCopyScope(v)}
-                      className="min-h-[40px] px-3.5 rounded-full text-[13px] font-semibold border-2 transition-colors"
-                      style={copyScope === v
-                        ? { background: C.gold, color: '#fff', borderColor: C.gold }
-                        : { background: '#fff', color: C.brown, borderColor: C.border }}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Tombol aksi — full-width di mobile */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* SALIN GAMBAR — hanya muncul bila tanggal diisi & ADA kamar kosong */}
+            {rangeActive && hasRangeData && (
+              availList.length > 0 ? (
+                <div className="mt-5 rounded-[16px] p-4" style={{ background: '#FBF7EC', border: `2px solid ${C.gold}` }}>
+                  <div className="text-[15px] font-extrabold mb-1" style={{ color: C.brown }}>
+                    📋 Salin denah kamar tersedia
+                  </div>
+                  <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.brownSoft }}>
+                    Denah kamar <b>kosong</b> untuk <b>{rangeLabel}</b> — lengkap Gedung, Lantai &amp; foto.
+                    Tinggal <b>tempel (paste)</b> ke chat WhatsApp calon penyewa. 🌸
+                  </p>
                   <button
-                    onClick={() => handleCopyImage('share')}
-                    disabled={imgBusy || scopedCount === 0}
-                    className="min-h-[48px] rounded-[14px] font-bold text-[14px] disabled:opacity-50"
+                    onClick={handleSalinGambar}
+                    disabled={imgBusy}
+                    className="w-full min-h-[50px] rounded-[14px] font-bold text-[15px] disabled:opacity-50"
                     style={{ background: C.gold, color: '#fff' }}
                   >
-                    {imgBusy ? 'Menyiapkan…' : '📤 Bagikan Gambar'}
+                    {imgBusy ? 'Menyiapkan…' : '📋 Salin Gambar'}
                   </button>
-                  <button
-                    onClick={() => handleCopyImage('copy')}
-                    disabled={imgBusy || scopedCount === 0}
-                    className="min-h-[48px] rounded-[14px] font-bold text-[14px] disabled:opacity-50"
-                    style={{ background: '#fff', color: C.brown, border: `2px solid ${C.gold}` }}
-                  >
-                    📋 Salin Gambar
-                  </button>
-                </div>
-
-                {!rooms ? (
-                  <p className="text-[12px] mt-2.5" style={{ color: C.brownSoft }}>Memuat data kamar…</p>
-                ) : scopedCount === 0 ? (
-                  <p className="text-[12px] mt-2.5" style={{ color: C.brownSoft }}>
-                    Tidak ada kamar {copyScope === 'semua' ? '' : copyScope + ' '}yang tersedia {rangeActive ? `untuk ${rangeLabel}` : 'saat ini'}.
+                  {imgMsg && (
+                    <p className="text-[12.5px] mt-2.5 font-semibold" style={{ color: C.brown }}>{imgMsg}</p>
+                  )}
+                  <p className="text-[11px] mt-2.5 leading-snug" style={{ color: C.brownSoft }}>
+                    🖼️ Atur foto di <b>Pengaturan → Halaman Info</b>: “Foto Kost” &amp; “Foto Executive/Superior/Deluxe”.
                   </p>
-                ) : null}
-                {imgMsg && (
-                  <p className="text-[12.5px] mt-2.5 font-semibold" style={{ color: C.brown }}>{imgMsg}</p>
-                )}
-                <p className="text-[11px] mt-2.5 leading-snug" style={{ color: C.brownSoft }}>
-                  💡 Di HP: tombol <b>Bagikan</b> langsung buka pilihan WhatsApp. Di komputer: <b>Salin</b> lalu tempel (paste) ke chat.
-                  <br />🖼️ Atur foto di <b>Pengaturan → Halaman Info</b>: “Foto Kost” &amp; “Foto Executive/Superior/Deluxe” (2 foto pertama yang dipakai).
-                </p>
-            </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-[14px] px-4 py-3 text-[13px]" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
+                  😔 Maaf, semua kamar terisi untuk <b>{rangeLabel}</b>. Coba tanggal lain ya.
+                </div>
+              )
+            )}
           </Card>
 
           {rooms && rooms.length > 0 ? (
