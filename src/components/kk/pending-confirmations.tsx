@@ -284,7 +284,7 @@ function PendingEditSheet({ b, rooms, busy, onClose, onSave }: {
   }
 
   return (
-    <Sheet open onClose={onClose}>
+    <Sheet open onClose={onClose} dismissable={false}>
       <div className="px-6 pt-5 pb-8">
         <h2 className="font-heading font-black text-[22px] text-kk-navy m-0 mb-1">Ubah Data Booking</h2>
         <p className="text-caption text-kk-ink mt-0 mb-4">

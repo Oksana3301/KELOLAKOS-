@@ -180,6 +180,9 @@ export interface PublicRoom {
   lantai: number;
   status: 'kosong' | 'dp' | 'terisi' | 'perbaikan';
   harga?: number; // base harga kamar (kost) bila tersedia
+  // Rentang tanggal yang sudah dibooking (Lunas/DP) — untuk cek ketersediaan
+  // per tanggal di /info. start/end ISO 'YYYY-MM-DD' (end = tanggal check-out).
+  bookedRanges?: { start: string; end: string }[];
 }
 
 /** Fasilitas/add-on dari Pengaturan (AC, extra bed, dll). */

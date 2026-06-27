@@ -438,12 +438,42 @@ export default function InfoPage() {
     retry: 0,
     staleTime: 60 * 1000,
   });
+  // Cek ketersediaan per TANGGAL (opsional). Kosong = tampilkan status saat ini.
+  const [checkDate, setCheckDate] = useState('');
+  const roomList = useMemo(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
+  // Apakah backend sudah mengirim rentang booking (untuk cek per tanggal)?
+  const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
+  // Kamar terisi/dipesan pada tanggal tertentu (start ≤ tgl < end; end = check-out → bebas).
+  function bookedOn(r: { bookedRanges?: { start: string; end: string }[] }, d: string): boolean {
+    return (r.bookedRanges || []).some((rg) => rg.start && (rg.end ? d >= rg.start && d < rg.end : d >= rg.start));
+  }
+
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
-    (Array.isArray(rooms) ? rooms : []).forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
+    if (checkDate && hasRangeData) {
+      // Mode tanggal: perbaikan tetap perbaikan; selain itu terisi bila ada
+      // booking yang menutupi tanggal, sisanya kosong (siap dihuni).
+      roomList.forEach((r) => {
+        const st: RoomStatus3 = r.status === 'perbaikan' ? 'perbaikan' : bookedOn(r, checkDate) ? 'terisi' : 'kosong';
+        m.set(roomKey(r.nama), st);
+      });
+    } else {
+      roomList.forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
+    }
     return m;
-  }, [rooms]);
-  const totalKosong = (Array.isArray(rooms) ? rooms : []).filter((r) => r.status === 'kosong').length;
+  }, [roomList, checkDate, hasRangeData]);
+
+  const totalKosong = useMemo(() => {
+    if (checkDate && hasRangeData) return roomList.filter((r) => r.status !== 'perbaikan' && !bookedOn(r, checkDate)).length;
+    return roomList.filter((r) => r.status === 'kosong').length;
+  }, [roomList, checkDate, hasRangeData]);
+
+  // Format tanggal Indonesia untuk teks ("3 Juli 2026").
+  const checkDateLabel = useMemo(() => {
+    if (!checkDate) return '';
+    const d = new Date(checkDate + 'T00:00:00');
+    return isNaN(d.getTime()) ? checkDate : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  }, [checkDate]);
 
   const NAV = [
     { id: 'kost', label: 'Kost' },
@@ -668,9 +698,47 @@ export default function InfoPage() {
             title="Ketersediaan Kamar"
             sub="Status kamar diperbarui langsung dari sistem kami. Untuk memastikan ketersediaan & booking, silakan konfirmasi via WhatsApp ya. 🌸"
           />
+          {/* Cek ketersediaan per tanggal */}
+          <Card className="mb-5">
+            <div className="text-[14px] font-semibold mb-2" style={{ color: C.brown }}>
+              📅 Cek ketersediaan per tanggal
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <input
+                type="date"
+                value={checkDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setCheckDate(e.target.value)}
+                className="rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none"
+                style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }}
+              />
+              {checkDate && (
+                <button
+                  onClick={() => setCheckDate('')}
+                  className="rounded-full px-4 py-2.5 text-[13px] font-semibold"
+                  style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}
+                >
+                  Lihat status sekarang
+                </button>
+              )}
+            </div>
+            <p className="text-[12px] mt-2.5 leading-relaxed" style={{ color: C.brownSoft }}>
+              Pilih satu tanggal untuk melihat kamar yang <b>ready</b> di tanggal itu. Mau menginap
+              beberapa malam? Cek tiap tanggal yang diinginkan satu per satu, atau tanya admin via
+              WhatsApp dengan menyebutkan <b>tanggal-tanggal menginap</b> yang dimau ya. 🌸
+            </p>
+            {checkDate && !hasRangeData && (
+              <p className="text-[12px] mt-2 rounded-[10px] px-3 py-2" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
+                ⚠️ Ketersediaan per tanggal belum bisa ditampilkan otomatis. Untuk tanggal{' '}
+                <b>{checkDateLabel}</b>, mohon konfirmasi langsung via WhatsApp ya.
+              </p>
+            )}
+          </Card>
+
           {rooms && rooms.length > 0 ? (
             <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
-              <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b> siap dihuni saat ini.
+              <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b>{' '}
+              {checkDate && hasRangeData ? <>ready pada <b style={{ color: C.brown }}>{checkDateLabel}</b>.</> : 'siap dihuni saat ini.'}
             </div>
           ) : (
             <div className="text-center mb-5 text-[14px]" style={{ color: C.brownSoft }}>

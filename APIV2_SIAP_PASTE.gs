@@ -646,10 +646,36 @@ function _publicBookingStatusByRoom_() {
   return map;
 }
 
+// Peta kunci kamar → daftar rentang tanggal terbooking (Lunas/DP) untuk cek
+// ketersediaan per-tanggal di /info. Tanggal diformat 'yyyy-MM-dd'.
+function _publicBookedRangesByRoom_() {
+  var map = {};
+  try {
+    var rows = (typeof getSheetObjects_ === 'function') ? (getSheetObjects_(SHEETS.BOOKINGS) || []) : [];
+    var tz = Session.getScriptTimeZone() || 'GMT+7';
+    for (var i = 0; i < rows.length; i++) {
+      try {
+        var b = rows[i];
+        var st = _publicPayStatus_(b);
+        if (st !== 'lunas' && st !== 'dp') continue;
+        if (!b.CheckIn) continue;
+        var ci = Utilities.formatDate(new Date(b.CheckIn), tz, 'yyyy-MM-dd');
+        var co = b.CheckOut ? Utilities.formatDate(new Date(b.CheckOut), tz, 'yyyy-MM-dd') : '';
+        var key = _publicRoomKey_(b.Nama_Kamar);
+        if (!key) continue;
+        if (!map[key]) map[key] = [];
+        map[key].push({ start: ci, end: co });
+      } catch (e) {}
+    }
+  } catch (e) {}
+  return map;
+}
+
 function v2_getPublicRooms() {
   try {
     var rooms = (typeof getRoomStatusList_ === 'function') ? getRoomStatusList_() : [];
     var bookStatus = _publicBookingStatusByRoom_();
+    var bookedRanges = _publicBookedRangesByRoom_();
     return rooms.map(function (r) {
       var code = String(r.Status_Code || '').toUpperCase();
       var status;
@@ -671,7 +697,8 @@ function v2_getPublicRooms() {
         layanan: r.Layanan_Default || '',
         lantai: lantai,
         status: status,
-        harga: Number(r.Harga_Kamar || r.Harga || r.Harga_Sewa || r.Harga_Bulanan || 0) || 0
+        harga: Number(r.Harga_Kamar || r.Harga || r.Harga_Sewa || r.Harga_Bulanan || 0) || 0,
+        bookedRanges: bookedRanges[_publicRoomKey_(r.Nama_Kamar)] || []
       };
     });
   } catch (e) {

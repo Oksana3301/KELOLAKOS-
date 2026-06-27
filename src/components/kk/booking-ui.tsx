@@ -841,7 +841,9 @@ export function BookingFlow({
           </button>
         </div>
       )}
-      <Sheet open={open} onClose={onClose}>
+      {/* Form isian panjang → JANGAN tutup karena tap latar/Escape (data bisa hilang).
+          Hanya tombol X (SheetHead) yang menutup. */}
+      <Sheet open={open} onClose={onClose} dismissable={false}>
         <SheetHead title={judul} onClose={onClose} />
       <div className="px-6 pb-8 pt-2">
         <div ref={headRef} />
