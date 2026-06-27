@@ -858,56 +858,80 @@ export default function InfoPage() {
               </p>
             )}
 
-            {/* Rincian rentang per kamar — dikelompokkan Kost / Penginapan, urut nomor */}
+            {/* Rincian rentang per kamar — hierarki jelas: ringkasan → grup → kartu kamar */}
             {rangeActive && hasRangeData && (
-              <div className="mt-4">
-                <div className="text-[13px] font-semibold mb-2" style={{ color: C.brown }}>
-                  Ketersediaan <b>{rangeLabel}</b> — <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar bebas penuh</b>
-                  <span style={{ color: C.brownSoft }}> (🏠 {availFull.kost} kost · 🏨 {availFull.penginapan} penginapan)</span>
-                  {rangeDetail.length === 0 ? ' 🎉' : ''}
+              <div className="mt-5">
+                {/* Ringkasan besar */}
+                <div className="rounded-[14px] px-4 py-3 mb-4" style={{ background: '#EAF5EE', border: '1.5px solid #9ED9B4' }}>
+                  <div className="text-[13px]" style={{ color: C.brownSoft }}>Ketersediaan {rangeLabel}</div>
+                  <div className="text-[20px] font-bold mt-0.5" style={{ fontFamily: serif, color: '#15724A' }}>
+                    {totalKosong} kamar bebas penuh
+                  </div>
+                  <div className="text-[13px] mt-0.5" style={{ color: C.brownSoft }}>
+                    🏠 {availFull.kost} kost · 🏨 {availFull.penginapan} penginapan {rangeDetail.length === 0 ? '· semua bebas 🎉' : ''}
+                  </div>
                 </div>
+
+                {rangeDetail.length > 0 && (
+                  <div className="text-[14px] font-bold mb-2.5" style={{ color: C.brown }}>
+                    Kamar dengan tanggal terpesan:
+                  </div>
+                )}
 
                 {([
                   { key: 'kost', label: '🏠 Kost', rows: rangeDetail.filter((r) => r.layanan === 'kost') },
                   { key: 'penginapan', label: '🏨 Penginapan', rows: rangeDetail.filter((r) => r.layanan === 'penginapan') },
                 ] as { key: string; label: string; rows: RangeRow[] }[]).filter((g) => g.rows.length > 0).map((g) => (
-                  <div key={g.key} className="mb-3">
-                    <div className="text-[12px] font-bold uppercase tracking-wide mb-1.5" style={{ color: C.gold }}>
-                      {g.label} — ada tanggal terpesan
+                  <div key={g.key} className="mb-5">
+                    {/* Header grup — bar jelas */}
+                    <div className="flex items-center gap-2 mb-2.5 pb-1.5" style={{ borderBottom: `2px solid ${C.border}` }}>
+                      <span className="text-[15px] font-bold" style={{ color: C.brown }}>{g.label}</span>
+                      <span className="text-[12px] font-semibold rounded-full px-2 py-0.5" style={{ background: '#FBF3E0', color: C.gold, border: `1px solid ${C.goldSoft}` }}>
+                        {g.rows.length} kamar
+                      </span>
                     </div>
-                    <div className="space-y-2">
+
+                    <div className="space-y-2.5">
                       {g.rows.slice(0, 10).map((row) => (
-                        <div key={row.nama} className="rounded-[12px] px-3 py-2.5" style={{ background: C.card, border: `1px solid ${C.border}` }}>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[13.5px] font-bold" style={{ color: C.brown }}>
-                              {row.nama}{row.tipe ? ` · ${row.tipe}` : ''}
+                        <div key={row.nama} className="rounded-[14px] p-3.5" style={{ background: C.card, border: `1px solid ${C.border}` }}>
+                          {/* Baris 1: nama kamar besar + status badge */}
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[16px] font-bold" style={{ fontFamily: serif, color: C.brown }}>
+                              {row.nama}
                             </span>
-                            <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={row.status === 'dp' ? { background: '#FEF3C7', color: '#B45309' } : { background: '#E2E8F0', color: '#334155' }}>
-                              {row.status === 'dp' ? 'DP (dipesan)' : 'Terisi (lunas)'}
+                            <span className="text-[12px] font-bold rounded-full px-2.5 py-1" style={row.status === 'dp' ? { background: '#FEF3C7', color: '#B45309' } : { background: '#E2E8F0', color: '#334155' }}>
+                              {row.status === 'dp' ? '🟡 DP (dipesan)' : '⬛ Terisi (lunas)'}
                             </span>
                           </div>
-                          <div className="text-[11.5px] mt-0.5" style={{ color: C.brownSoft }}>
-                            📍 {row.gedung || '—'}{row.lantai ? ` · Lantai ${row.lantai}` : ''}
+                          {/* Baris 2: tipe · gedung · lantai */}
+                          <div className="text-[13px] mb-2" style={{ color: C.brownSoft }}>
+                            {row.tipe ? `${row.tipe} · ` : ''}📍 {row.gedung || '—'}{row.lantai ? ` · Lantai ${row.lantai}` : ''}
                           </div>
-                          {row.free.length > 0 && (
-                            <div className="text-[12px] mt-1" style={{ color: '#15803D' }}>
-                              ✅ Tersedia: {row.free.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
-                            </div>
-                          )}
-                          {row.booked.filter((b) => b.status === 'lunas').length > 0 && (
-                            <div className="text-[12px] mt-0.5" style={{ color: '#334155' }}>
-                              ⛔ Terisi (lunas): {row.booked.filter((b) => b.status === 'lunas').map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
-                            </div>
-                          )}
-                          {row.booked.filter((b) => b.status === 'dp').length > 0 && (
-                            <div className="text-[12px] mt-0.5" style={{ color: '#B45309' }}>
-                              🟡 DP (dipesan): {row.booked.filter((b) => b.status === 'dp').map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
-                            </div>
-                          )}
+                          {/* Baris 3: tanggal — hierarki warna jelas */}
+                          <div className="space-y-1">
+                            {row.free.length > 0 && (
+                              <div className="text-[13px] flex gap-1.5" style={{ color: '#15803D' }}>
+                                <span className="font-bold flex-shrink-0">✅ Bisa:</span>
+                                <span>{row.free.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}</span>
+                              </div>
+                            )}
+                            {row.booked.filter((b) => b.status === 'lunas').length > 0 && (
+                              <div className="text-[13px] flex gap-1.5" style={{ color: '#334155' }}>
+                                <span className="font-bold flex-shrink-0">⬛ Terisi:</span>
+                                <span>{row.booked.filter((b) => b.status === 'lunas').map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}</span>
+                              </div>
+                            )}
+                            {row.booked.filter((b) => b.status === 'dp').length > 0 && (
+                              <div className="text-[13px] flex gap-1.5" style={{ color: '#B45309' }}>
+                                <span className="font-bold flex-shrink-0">🟡 DP:</span>
+                                <span>{row.booked.filter((b) => b.status === 'dp').map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                       {g.rows.length > 10 && (
-                        <p className="text-[12px]" style={{ color: C.brownSoft }}>…dan {g.rows.length - 10} kamar {g.key} lain. Tanya admin via WhatsApp untuk detailnya ya.</p>
+                        <p className="text-[13px]" style={{ color: C.brownSoft }}>…dan {g.rows.length - 10} kamar {g.key} lain. Tanya admin via WhatsApp untuk detailnya ya.</p>
                       )}
                     </div>
                   </div>
