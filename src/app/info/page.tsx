@@ -7,13 +7,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type PublicRoom } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/halaman-info';
 import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, type RoomStatus3 } from '@/lib/building-layout';
 import { SITE_URL, INFO_URL } from '@/lib/seo';
+
+type Interval = { start: string; end: string };
+type RangeRow = { nama: string; tipe: string; status: RoomStatus3; free: Interval[]; booked: Interval[] };
 
 // JSON-LD (LodgingBusiness) — bantu Google menampilkan rich result untuk /info.
 const JSON_LD = {
@@ -438,42 +441,94 @@ export default function InfoPage() {
     retry: 0,
     staleTime: 60 * 1000,
   });
-  // Cek ketersediaan per TANGGAL (opsional). Kosong = tampilkan status saat ini.
-  const [checkDate, setCheckDate] = useState('');
-  const roomList = useMemo(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
-  // Apakah backend sudah mengirim rentang booking (untuk cek per tanggal)?
+  // ── Cek ketersediaan berdasarkan RENTANG tanggal (check-in → check-out) ────
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
+  const roomList = useMemo<PublicRoom[]>(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
+  // Apakah backend sudah mengirim rentang booking (untuk cek ketersediaan)?
   const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
-  // Kamar terisi/dipesan pada tanggal tertentu (start ≤ tgl < end; end = check-out → bebas).
-  function bookedOn(r: { bookedRanges?: { start: string; end: string }[] }, d: string): boolean {
-    return (r.bookedRanges || []).some((rg) => rg.start && (rg.end ? d >= rg.start && d < rg.end : d >= rg.start));
+
+  const rangeActive = !!rangeStart && !!rangeEnd && rangeStart < rangeEnd;
+
+  const daysBetween = (a: string, b: string) =>
+    Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / 86400000);
+  const fmtShort = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  };
+
+  // Potongan waktu BEBAS dalam [qs, qe) setelah dikurangi semua booking.
+  function freeIntervals(booked: { start: string; end: string }[], qs: string, qe: string): Interval[] {
+    let free: Interval[] = [{ start: qs, end: qe }];
+    for (const b of booked) {
+      if (!b.start) continue;
+      const bs = b.start;
+      const be = b.end || '9999-12-31';
+      free = free.flatMap((iv) => {
+        if (be <= iv.start || bs >= iv.end) return [iv];
+        const out: Interval[] = [];
+        if (bs > iv.start) out.push({ start: iv.start, end: bs < iv.end ? bs : iv.end });
+        if (be < iv.end) out.push({ start: be > iv.start ? be : iv.start, end: iv.end });
+        return out;
+      });
+    }
+    return free.filter((iv) => iv.start < iv.end);
+  }
+  // Potongan waktu TERISI dalam [qs, qe) (untuk ditampilkan ke user).
+  function bookedWithin(booked: { start: string; end: string }[], qs: string, qe: string): Interval[] {
+    const out: Interval[] = [];
+    for (const b of booked) {
+      if (!b.start) continue;
+      const be = b.end || qe;
+      const s = b.start > qs ? b.start : qs;
+      const e = be < qe ? be : qe;
+      if (s < e) out.push({ start: s, end: e });
+    }
+    return out;
+  }
+  function rangeStatusOf(r: PublicRoom, qs: string, qe: string): RoomStatus3 {
+    if (r.status === 'perbaikan') return 'perbaikan';
+    const free = freeIntervals(r.bookedRanges || [], qs, qe);
+    const freeDays = free.reduce((s, iv) => s + daysBetween(iv.start, iv.end), 0);
+    const span = daysBetween(qs, qe);
+    if (freeDays >= span) return 'kosong';   // bebas sepanjang rentang
+    if (freeDays <= 0) return 'terisi';      // penuh terisi
+    return 'dp';                             // sebagian terisi
   }
 
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
-    if (checkDate && hasRangeData) {
-      // Mode tanggal: perbaikan tetap perbaikan; selain itu terisi bila ada
-      // booking yang menutupi tanggal, sisanya kosong (siap dihuni).
-      roomList.forEach((r) => {
-        const st: RoomStatus3 = r.status === 'perbaikan' ? 'perbaikan' : bookedOn(r, checkDate) ? 'terisi' : 'kosong';
-        m.set(roomKey(r.nama), st);
-      });
+    if (rangeActive && hasRangeData) {
+      roomList.forEach((r) => m.set(roomKey(r.nama), rangeStatusOf(r, rangeStart, rangeEnd)));
     } else {
       roomList.forEach((r) => m.set(roomKey(r.nama), r.status as RoomStatus3));
     }
     return m;
-  }, [roomList, checkDate, hasRangeData]);
+  }, [roomList, rangeStart, rangeEnd, rangeActive, hasRangeData]);
 
   const totalKosong = useMemo(() => {
-    if (checkDate && hasRangeData) return roomList.filter((r) => r.status !== 'perbaikan' && !bookedOn(r, checkDate)).length;
+    if (rangeActive && hasRangeData) return roomList.filter((r) => rangeStatusOf(r, rangeStart, rangeEnd) === 'kosong').length;
     return roomList.filter((r) => r.status === 'kosong').length;
-  }, [roomList, checkDate, hasRangeData]);
+  }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
-  // Format tanggal Indonesia untuk teks ("3 Juli 2026").
-  const checkDateLabel = useMemo(() => {
-    if (!checkDate) return '';
-    const d = new Date(checkDate + 'T00:00:00');
-    return isNaN(d.getTime()) ? checkDate : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-  }, [checkDate]);
+  // Rincian per kamar untuk mode rentang: hanya kamar yang sebagian/penuh terisi
+  // (yang punya kendala tanggal) — kamar bebas penuh cukup dihitung jumlahnya.
+  const rangeDetail = useMemo(() => {
+    if (!rangeActive || !hasRangeData) return [] as RangeRow[];
+    return roomList
+      .map((r) => ({
+        nama: r.nama,
+        tipe: r.tipe || '',
+        status: rangeStatusOf(r, rangeStart, rangeEnd),
+        free: freeIntervals(r.bookedRanges || [], rangeStart, rangeEnd),
+        booked: bookedWithin(r.bookedRanges || [], rangeStart, rangeEnd),
+      }))
+      .filter((x) => x.status === 'dp' || x.status === 'terisi')
+      .sort((a, b) => (a.status === b.status ? a.nama.localeCompare(b.nama, 'id', { numeric: true }) : a.status === 'dp' ? -1 : 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
+
+  const rangeLabel = rangeActive ? `${fmtShort(rangeStart)} – ${fmtShort(rangeEnd)}` : '';
 
   const NAV = [
     { id: 'kost', label: 'Kost' },
@@ -698,47 +753,90 @@ export default function InfoPage() {
             title="Ketersediaan Kamar"
             sub="Status kamar diperbarui langsung dari sistem kami. Untuk memastikan ketersediaan & booking, silakan konfirmasi via WhatsApp ya. 🌸"
           />
-          {/* Cek ketersediaan per tanggal */}
+          {/* Cek ketersediaan berdasarkan rentang tanggal menginap */}
           <Card className="mb-5">
-            <div className="text-[14px] font-semibold mb-2" style={{ color: C.brown }}>
-              📅 Cek ketersediaan per tanggal
+            <div className="text-[14px] font-semibold mb-3" style={{ color: C.brown }}>
+              📅 Cek ketersediaan kamar
             </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <input
-                type="date"
-                value={checkDate}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setCheckDate(e.target.value)}
-                className="rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none"
-                style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }}
-              />
-              {checkDate && (
-                <button
-                  onClick={() => setCheckDate('')}
-                  className="rounded-full px-4 py-2.5 text-[13px] font-semibold"
-                  style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}
-                >
-                  Lihat status sekarang
+
+            <div className="flex flex-wrap items-end gap-2.5">
+              <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
+                Check-in
+                <input type="date" value={rangeStart} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeStart(e.target.value)}
+                  className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
+              </label>
+              <label className="text-[12px] font-semibold" style={{ color: C.brownSoft }}>
+                Check-out
+                <input type="date" value={rangeEnd} min={rangeStart || new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeEnd(e.target.value)}
+                  className="block mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
+              </label>
+              {(rangeStart || rangeEnd) && (
+                <button onClick={() => { setRangeStart(''); setRangeEnd(''); }} className="rounded-full px-4 py-2.5 text-[13px] font-semibold" style={{ background: 'transparent', color: C.brown, border: `1.5px solid ${C.gold}` }}>
+                  Reset
                 </button>
               )}
             </div>
-            <p className="text-[12px] mt-2.5 leading-relaxed" style={{ color: C.brownSoft }}>
-              Pilih satu tanggal untuk melihat kamar yang <b>ready</b> di tanggal itu. Mau menginap
-              beberapa malam? Cek tiap tanggal yang diinginkan satu per satu, atau tanya admin via
-              WhatsApp dengan menyebutkan <b>tanggal-tanggal menginap</b> yang dimau ya. 🌸
+
+            <p className="text-[12px] mt-3 leading-relaxed" style={{ color: C.brownSoft }}>
+              Isi tanggal <b>check-in</b> &amp; <b>check-out</b> untuk cek kamar yang bebas sepanjang masa
+              menginapmu — lengkap dengan tanggal yang sudah terisi per kamar. 🌸
             </p>
-            {checkDate && !hasRangeData && (
+
+            {/* Peringatan bila backend belum kirim data rentang */}
+            {(rangeActive && !hasRangeData) && (
               <p className="text-[12px] mt-2 rounded-[10px] px-3 py-2" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
-                ⚠️ Ketersediaan per tanggal belum bisa ditampilkan otomatis. Untuk tanggal{' '}
-                <b>{checkDateLabel}</b>, mohon konfirmasi langsung via WhatsApp ya.
+                ⚠️ Ketersediaan per tanggal belum bisa ditampilkan otomatis. Mohon konfirmasi langsung via WhatsApp ya.
               </p>
+            )}
+
+            {/* Rincian rentang per kamar */}
+            {rangeActive && hasRangeData && (
+              <div className="mt-4">
+                <div className="text-[13px] font-semibold mb-2" style={{ color: C.brown }}>
+                  Ketersediaan <b>{rangeLabel}</b> — {totalKosong} kamar bebas penuh
+                  {rangeDetail.length > 0 ? `, ${rangeDetail.length} kamar ada tanggal terisi:` : '. 🎉'}
+                </div>
+                {rangeDetail.length > 0 && (
+                  <div className="space-y-2">
+                    {rangeDetail.slice(0, 12).map((row) => (
+                      <div key={row.nama} className="rounded-[12px] px-3 py-2.5" style={{ background: C.card, border: `1px solid ${C.border}` }}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13.5px] font-bold" style={{ color: C.brown }}>
+                            {row.nama}{row.tipe ? ` · ${row.tipe}` : ''}
+                          </span>
+                          <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={row.status === 'dp' ? { background: '#FEF3C7', color: '#B45309' } : { background: '#E2E8F0', color: '#334155' }}>
+                            {row.status === 'dp' ? 'sebagian terisi' : 'penuh terisi'}
+                          </span>
+                        </div>
+                        {row.free.length > 0 && (
+                          <div className="text-[12px] mt-1" style={{ color: '#15803D' }}>
+                            ✅ Tersedia: {row.free.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
+                          </div>
+                        )}
+                        {row.booked.length > 0 && (
+                          <div className="text-[12px] mt-0.5" style={{ color: '#B45309' }}>
+                            ⛔ Terisi: {row.booked.map((iv) => `${fmtShort(iv.start)}–${fmtShort(iv.end)}`).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {rangeDetail.length > 12 && (
+                      <p className="text-[12px]" style={{ color: C.brownSoft }}>…dan {rangeDetail.length - 12} kamar lain. Persempit dengan filter di denah, atau tanya admin via WhatsApp.</p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </Card>
 
           {rooms && rooms.length > 0 ? (
             <div className="text-center mb-5 text-[15px]" style={{ color: C.brownSoft }}>
               <b style={{ color: '#1F7A4D' }}>{totalKosong} kamar</b>{' '}
-              {checkDate && hasRangeData ? <>ready pada <b style={{ color: C.brown }}>{checkDateLabel}</b>.</> : 'siap dihuni saat ini.'}
+              {rangeActive && hasRangeData ? (
+                <>bebas penuh sepanjang <b style={{ color: C.brown }}>{rangeLabel}</b>.</>
+              ) : (
+                'siap dihuni saat ini.'
+              )}
             </div>
           ) : (
             <div className="text-center mb-5 text-[14px]" style={{ color: C.brownSoft }}>

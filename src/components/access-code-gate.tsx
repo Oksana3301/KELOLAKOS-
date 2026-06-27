@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { api, getStoredAccessCode, setStoredAccessCode, clearStoredAccessCode, LicenseError } from '@/lib/api';
 import { RoleProvider, roleFromTier } from '@/components/kk/role';
@@ -21,15 +21,22 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
 
   const supportWa = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
 
-  // On mount, check stored code
+  // Verifikasi akses MAKS sekali (pakai ref). Halaman publik /info dilewati
+  // supaya tidak ada panggilan jaringan (Apps Script) → /info muat lebih cepat.
+  // Saat user pindah dari /info ke halaman dashboard, verifikasi baru jalan.
+  const didCheck = useRef(false);
   useEffect(() => {
+    if (pathname && pathname.startsWith('/info')) return;
+    if (didCheck.current) return;
+    didCheck.current = true;
     const stored = getStoredAccessCode();
     if (!stored) {
       setStatus('need_code');
       return;
     }
     verifyExistingCode(stored);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   async function verifyExistingCode(code: string) {
     try {
