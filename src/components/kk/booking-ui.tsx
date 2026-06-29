@@ -514,6 +514,12 @@ export function BookingFlow({
     setStep(1);
   }, [open, editBooking]);
 
+  // Reset langkah & id saat sheet DITUTUP → mencegah layar "Booking Tersimpan"
+  // sempat berkedip saat sheet dibuka lagi untuk Ubah/Tambah (kesan popup 2×).
+  useEffect(() => {
+    if (!open) { setStep(1); setNewBookingId(''); }
+  }, [open]);
+
   // Booking dari /info sering TANPA RoomID → cocokkan kamar via NAMA (+gedung)
   // supaya kamar yang sudah dibooking tetap ter-select saat edit. Hanya saat
   // roomId masih kosong (tidak menimpa pilihan owner) & data kamar sudah termuat.
