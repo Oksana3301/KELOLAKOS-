@@ -467,7 +467,7 @@ export const api = {
   // invoice & laporan akurat. tglPelunasan untuk kost (jadi check-in saat Lunas).
   confirmBooking: (
     bookingId: string,
-    status: 'DP' | 'Lunas',
+    status: 'DP' | 'Lunas' | 'Belum Bayar',
     opts?: { total?: number; dibayar?: number; tglPelunasan?: string; tglBayar?: string },
   ) =>
     callApi<{ ok: boolean; bookingId: string }>('confirmBooking', {

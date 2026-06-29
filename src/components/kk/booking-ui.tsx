@@ -795,7 +795,7 @@ export function BookingFlow({
           });
         }
         // 2) Harga (IKUT tipe kamar + paket terpilih) + total + tanggal + fasilitas.
-        return api.submitBookingEdit({
+        const editRes = await api.submitBookingEdit({
           bookingId: editBooking.BookingID,
           customerName: nama.trim(),
           whatsapp: hp ? waPhone(hp) : '',
@@ -810,6 +810,21 @@ export function BookingFlow({
           isEkstra: editBooking.Is_Ekstra === 'YA',
           fasilitasIds: Array.from(selFas),
         });
+        // 3) OTORITATIF: tulis kolom uang (Total, Dibayar, SISA) lewat confirmBooking
+        //    supaya SISA = total − dibayar selalu benar (submitBookingEdit lama bisa
+        //    me-reset sisa jadi 0). Lewati bila booking masih MENUNGGU (alur pending).
+        const pending = String(editBooking.Status_Booking || '').toUpperCase().includes('MENUNGGU');
+        const payStatus = bayar === 'Lunas' || bayar === 'DP' || bayar === 'Belum Bayar' ? bayar : null;
+        if (!pending && total > 0 && payStatus) {
+          // Pertahankan tanggal kost yang sudah ada (jangan ter-reset ke hari ini).
+          const keepDate = editBooking.CheckIn
+            ? new Date(editBooking.CheckIn).toISOString().split('T')[0]
+            : (effCheckIn || undefined);
+          await api.confirmBooking(editBooking.BookingID, payStatus, {
+            total, dibayar, tglPelunasan: keepDate, tglBayar: new Date().toISOString(),
+          });
+        }
+        return editRes;
       }
       if (!chosen) throw new Error('Kamar belum dipilih');
       return api.submitBooking({
@@ -1521,11 +1536,11 @@ export function BookingFlow({
             </div>
 
             {isEdit && (
-              <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-card p-4 mb-5 flex items-start gap-3">
-                <KkIcon name="info" size={24} className="text-kk-orange flex-shrink-0 mt-0.5" />
+              <div className="bg-kk-mint-soft border-2 border-kk-mint rounded-kk-card p-4 mb-5 flex items-start gap-3">
+                <KkIcon name="info" size={24} className="text-kk-mint flex-shrink-0 mt-0.5" />
                 <p className="text-body text-kk-navy m-0 leading-snug">
-                  Mengubah status di sini <b>tidak mencatat uang masuk</b>. Untuk mencatat pembayaran,
-                  tutup lalu tekan <b>&quot;Catat Pembayaran&quot;</b> di detail booking.
+                  Status &amp; nominal di sini <b>tersimpan</b> — Total, Dibayar, &amp; <b>Sisa</b> ikut diperbarui otomatis.
+                  Untuk mencatat pembayaran <b>cicilan tambahan</b>, pakai <b>&quot;Catat Pembayaran&quot;</b> di detail booking.
                 </p>
               </div>
             )}
@@ -1593,8 +1608,6 @@ export function BookingFlow({
               </BookingField>
             )}
 
-            <FileUpload value={bukti} onChange={setBukti} label="Bukti booking / pembayaran" />
-
             <KkCard tone="mauve">
               <InfoRow label="Penyewa" value={nama || '—'} />
               <InfoRow label="Kamar" value={chosen ? chosen.room.Nama_Kamar : '—'} />
@@ -1606,6 +1619,11 @@ export function BookingFlow({
               <InfoRow label="Dibayar sekarang" value={rupiah(dibayar)} accent="green" />
               {sisa > 0 && <InfoRow label="Sisa tagihan" value={rupiah(sisa)} accent="orange" />}
             </KkCard>
+
+            {/* Upload bukti — paling bawah, di luar input nominal supaya rapi & tak error */}
+            <div className="mt-4">
+              <FileUpload value={bukti} onChange={setBukti} label="Bukti booking / pembayaran (opsional)" />
+            </div>
           </div>
         )}
 
