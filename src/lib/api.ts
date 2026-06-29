@@ -468,7 +468,7 @@ export const api = {
   confirmBooking: (
     bookingId: string,
     status: 'DP' | 'Lunas',
-    opts?: { total?: number; dibayar?: number; tglPelunasan?: string },
+    opts?: { total?: number; dibayar?: number; tglPelunasan?: string; tglBayar?: string },
   ) =>
     callApi<{ ok: boolean; bookingId: string }>('confirmBooking', {
       bookingId,
@@ -476,6 +476,8 @@ export const api = {
       total: opts?.total,
       dibayar: opts?.dibayar,
       tglPelunasan: opts?.tglPelunasan,
+      // Waktu konfirmasi (saat owner Terima) → disimpan agar akurat di invoice.
+      tglBayar: opts?.tglBayar,
     }),
   rejectBooking: (bookingId: string) =>
     callApi<{ ok: boolean; bookingId: string }>('rejectBooking', { bookingId }),
