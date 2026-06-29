@@ -9,12 +9,23 @@ import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { mapPayStatus } from '@/components/kk/status';
-import { downloadAsPNG, copyAsPNGToClipboard, captureToPngBlob } from '@/lib/image-export';
+import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 import { InvoiceDocument } from '@/components/invoice/InvoiceDocument';
+import { ALL_ROOMS, roomKey } from '@/lib/building-layout';
 import {
   bookingToInvoice, digitsOnly, deriveInvoice, rp, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
   type Invoice, type InvoiceIdentity, type Layanan,
 } from '@/lib/invoice';
+
+// Format tanggal + jam pembayaran (WIB) untuk pesan WhatsApp.
+function fmtDateTimeWIB(s?: string): string {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return String(s);
+  return d.toLocaleString('id-ID', {
+    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
+  }) + ' WIB';
+}
 
 /** Pilih rekening & QR sesuai jenis (kost / penginapan), fallback ke field lama. */
 function resolveIdentity(s: KwitansiSettings | undefined, layanan: Layanan): InvoiceIdentity {
@@ -123,6 +134,13 @@ export default function InvoicePage() {
 
   const selectedBooking = tenants.find((b) => b.BookingID === selectedId) || null;
 
+  // Gedung & lantai akurat dari denah resmi (untuk pesan WhatsApp).
+  const layoutByKey = useMemo(() => {
+    const m = new Map<string, { gedung: string; lantai: number }>();
+    ALL_ROOMS.forEach((r) => m.set(roomKey(r.nama), { gedung: r.gedung, lantai: r.lantai }));
+    return m;
+  }, []);
+
   // Payment breakdown for the selected booking (for per-payment rows).
   const { data: detail } = useQuery({
     queryKey: ['booking-detail', selectedId],
@@ -163,72 +181,68 @@ export default function InvoicePage() {
     toast.success('Tersalin: ' + text);
   }
 
-  // Teks rincian yang BISA di-copy penyewa di WhatsApp (gambar PNG tidak bisa).
+  // Pesan WhatsApp lengkap & ramah untuk penyewa yang dipilih.
   function buildWaText(): string {
+    const bk = selectedBooking || (detail?.booking as unknown as BookingItem | undefined);
+    const nama = invoice.customer.name || 'Kak';
+    const namaKamar = bk?.Nama_Kamar || '';
+    const gedung = bk?.Gedung || '';
+    const lo = namaKamar ? layoutByKey.get(roomKey(namaKamar)) : undefined;
+    const lantai = lo?.lantai || 0;
+    const isKost = layanan === 'kost';
+    const tipe = bk?.Tipe_Kamar || '';
+    const periode = invoice.booking.period || bk?.Paket || '';
+    const jenisBayar = fullyPaid ? 'Pelunasan' : 'DP';
+
+    // Tanggal & jam pembayaran terakhir (dari rincian; fallback hari ini).
+    const pays = detail?.payments || [];
+    const lastPay = pays.length ? pays[pays.length - 1] : null;
+    const bayarSaat = fmtDateTimeWIB(lastPay?.Tanggal_Bayar || new Date().toISOString());
+    const dibayarAmt = Number(bk?.Net_Diterima || 0) || (fullyPaid ? subtotal : 0);
+    const sisa = balance;
+
+    const lokasi = [`Kamar ${namaKamar}`, gedung, lantai ? `Lantai ${lantai}` : ''].filter(Boolean).join(' · ');
+
     return [
-      `Halo ${invoice.customer.name}, berikut rincian pembayaran Top Hills:`,
+      `Halo Kak ${nama} 🌸`,
       ``,
-      `No. Invoice: ${invoice.id}`,
-      `Kamar: ${invoice.booking.room}`,
-      fullyPaid ? `Total (LUNAS): ${rp(subtotal)}` : `Sisa Tagihan: ${rp(payNominal)}`,
+      `Berikut konfirmasi pembayaran Top Hills:`,
       ``,
-      `Pembayaran — Transfer:`,
-      `Bank: ${identity.bankName}`,
-      `No. Rekening: ${digitsOnly(identity.accountNo)}`,
-      `Atas Nama: ${identity.accountName}`,
+      `🏠 ${lokasi}`,
+      `🛏️ Tipe: ${isKost ? 'Kost' : 'Penginapan'}${tipe ? ` · ${tipe}` : ''}`,
+      periode ? `📅 Periode sewa: ${periode}` : '',
+      `✅ Telah melakukan ${jenisBayar}${dibayarAmt ? `: ${rp(dibayarAmt)}` : ''} pada ${bayarSaat}`,
+      sisa > 0 ? `💰 Sisa tagihan: ${rp(sisa)}` : `💰 Status: LUNAS ✓`,
       ``,
-      `Mohon transfer & kirim bukti ke WhatsApp ${identity.waResmi}. Terima kasih 🌸`,
-    ].join('\n');
+      `Berikut bukti/invoice yang dapat kami kirimkan, mohon dicek kembali ya. 🙏`,
+      `Terima kasih 🌸`,
+    ].filter((l) => l !== '').join('\n');
   }
 
-  function sendWaText() {
+  // Buka WhatsApp penyewa yang dipilih (wa.me) dengan pesan lengkap — SINKRON
+  // di dalam gesture klik supaya TIDAK diblok popup. Gambar invoice disalin ke
+  // clipboard di latar (untuk ditempel), atau pakai "Unduh PNG" lalu lampirkan.
+  function sendToWa() {
     const raw = digitsOnly(invoice.customer.phone || '');
     const norm = raw.startsWith('0') ? '62' + raw.slice(1) : raw;
     const text = encodeURIComponent(buildWaText());
     const url = norm ? `https://wa.me/${norm}?text=${text}` : `https://wa.me/?text=${text}`;
     window.open(url, '_blank');
+    void copyInvoiceImageBg();
   }
 
-  // Kirim sekalian (gambar + teks). Di HP: pakai Web Share API → pilih WhatsApp,
-  // gambar & teks terkirim BERSAMA. Di desktop: salin gambar + buka WhatsApp teks.
-  async function sendBoth() {
+  async function copyInvoiceImageBg() {
     if (!exportRef.current) return;
-    const toastId = toast.loading('Menyiapkan invoice…');
     try {
       if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
-      await new Promise((r) => setTimeout(r, 120));
-      const nm = (invoice.customer.name || 'invoice').replace(/\s+/g, '_');
-      const blob = await captureToPngBlob({ element: exportRef.current, scale: 2, backgroundColor: null });
-      const file = new File([blob], `invoice-${nm}.png`, { type: 'image/png' });
-      const text = buildWaText();
-
-      const nav = navigator as Navigator & { canShare?: (d: { files?: File[] }) => boolean };
-      if (nav.canShare && nav.canShare({ files: [file] })) {
-        try {
-          await nav.share({ files: [file], text });
-          toast.success('Pilih WhatsApp di menu berbagi — gambar & teks terkirim bersama 🌸', { id: toastId });
-          return;
-        } catch (e) {
-          if ((e as Error).name === 'AbortError') { toast.dismiss(toastId); return; }
-          // selain dibatalkan → lanjut ke cara desktop di bawah
-        }
+      const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: null });
+      if (res.method === 'clipboard') {
+        toast.success('WhatsApp terbuka. Gambar invoice tersalin — tempel (paste) di chat 🌸');
+      } else {
+        toast('WhatsApp terbuka. Untuk gambar, pakai "Unduh PNG" lalu lampirkan.', { icon: 'ℹ️' });
       }
-
-      // Desktop / browser tanpa Web Share: salin gambar ke clipboard + buka WhatsApp teks.
-      let imgCopied = false;
-      try {
-        const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: null });
-        imgCopied = res.method === 'clipboard';
-      } catch { /* abaikan */ }
-      sendWaText();
-      toast.success(
-        imgCopied
-          ? 'WhatsApp terbuka (teks). Tempel (paste) gambar invoice di chat 🌸'
-          : 'WhatsApp terbuka (teks). Untuk gambar, pakai “Unduh PNG” lalu lampirkan.',
-        { id: toastId },
-      );
-    } catch (e) {
-      toast.error('Gagal: ' + (e as Error).message, { id: toastId });
+    } catch {
+      toast('WhatsApp terbuka. Untuk gambar, pakai "Unduh PNG" lalu lampirkan.', { icon: 'ℹ️' });
     }
   }
 
@@ -323,12 +337,13 @@ export default function InvoicePage() {
         </div>
       </div>
 
-      {/* Aksi utama — kirim teks (rekening & total) + gambar sekalian */}
-      <KkButton variant="primary" size="lg" block className="mt-5" onClick={sendBoth}>
-        <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim ke WhatsApp (teks + gambar)
+      {/* Aksi utama — buka WhatsApp penyewa (wa.me) berisi pesan konfirmasi lengkap */}
+      <KkButton variant="primary" size="lg" block className="mt-5" onClick={sendToWa}>
+        <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim ke WhatsApp Penyewa
       </KkButton>
       <p className="mt-2 text-caption text-kk-ink text-center">
-        Di HP: muncul menu berbagi → pilih <b className="text-kk-navy">WhatsApp</b>, gambar &amp; teks terkirim bersama. Di komputer: WhatsApp Web terbuka berisi teks, gambar tersalin untuk ditempel.
+        Langsung membuka chat WhatsApp <b className="text-kk-navy">{invoice.customer.name || 'penyewa'}</b> berisi pesan konfirmasi (nama, kamar, periode, DP/Lunas).
+        Gambar invoice ikut <b className="text-kk-navy">tersalin</b> — tinggal tempel (paste) di chat, atau pakai <b className="text-kk-navy">Unduh PNG</b> lalu lampirkan.
       </p>
 
       {/* Aksi tambahan */}
