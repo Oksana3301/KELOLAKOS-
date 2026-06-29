@@ -172,7 +172,85 @@ function submitBookingRequest(data) {
   var row = headers.map(function (h) { return Object.prototype.hasOwnProperty.call(vals, h) ? vals[h] : ''; });
   sh.appendRow(row);
   _notifyAdminNewBooking_(vals, buktiUrl); // email otomatis ke admin (gagal-aman)
+  _notifyMeziNewBooking_(vals, buktiUrl);  // WhatsApp ke Mezi via Fonnte (gagal-aman)
   return { bookingId: id, buktiUrl: buktiUrl, message: 'Permintaan booking tersimpan (PENDING).' };
+}
+
+// ── Notifikasi WHATSAPP ke Mezi via Fonnte ──────────────────────────────────
+// Setup token SEKALI: isi setFonnteToken() lalu Run (token disimpan di Script
+// Properties, TIDAK di kode). Nomor Mezi diambil dari Halaman Info (waMezi)
+// atau Script Property MEZI_WA.
+function _fonnteToken_() {
+  return PropertiesService.getScriptProperties().getProperty('FONNTE_TOKEN') || '';
+}
+
+function setFonnteToken() {
+  var TOKEN = 'PASTE-TOKEN-FONNTE-DISINI'; // ← isi token Fonnte-mu, Run sekali, lalu kosongkan lagi
+  if (!TOKEN || TOKEN.indexOf('PASTE') === 0) throw new Error('Isi TOKEN Fonnte dulu di setFonnteToken().');
+  PropertiesService.getScriptProperties().setProperty('FONNTE_TOKEN', TOKEN);
+  Logger.log('✓ FONNTE_TOKEN tersimpan.');
+  return { ok: true };
+}
+
+function _meziWa_() {
+  var p = PropertiesService.getScriptProperties().getProperty('MEZI_WA');
+  if (p) return _perpanjangNormWa_(p);
+  try { var hi = v2_getHalamanInfo(); if (hi && hi.waMezi) return _perpanjangNormWa_(hi.waMezi); } catch (e) {}
+  return '';
+}
+
+// Kirim WA via Fonnte. target = nomor 62xxx.
+function _sendWa_(target, message) {
+  var token = _fonnteToken_();
+  if (!token || !target) return { ok: false, error: 'token/target kosong' };
+  try {
+    var res = UrlFetchApp.fetch('https://api.fonnte.com/send', {
+      method: 'post',
+      headers: { Authorization: token },
+      payload: { target: String(target), message: String(message) },
+      muteHttpExceptions: true,
+    });
+    return { ok: res.getResponseCode() === 200, code: res.getResponseCode(), body: res.getContentText() };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+function _notifyMeziNewBooking_(v, buktiUrl) {
+  try {
+    var to = _meziWa_();
+    if (!to) return;
+    var tz = Session.getScriptTimeZone() || 'GMT+7';
+    var waktu = Utilities.formatDate(new Date(), tz, 'dd MMM yyyy, HH:mm') + ' WIB';
+    var layanan = String(v.Layanan || '').toUpperCase().indexOf('KOS') >= 0 ? 'Kost' : 'Penginapan';
+    var wa = String(v.WhatsApp || '');
+    var msg = [
+      '🔔 *Booking baru Top Hills*',
+      '',
+      'Nama: ' + (v.Nama_Customer || '-'),
+      'WhatsApp: ' + (wa || '-'),
+      'Layanan: ' + layanan,
+      'Kamar: ' + (v.Nama_Kamar || '-') + (v.Gedung ? (' · ' + v.Gedung) : ''),
+      'Paket: ' + (v.Paket || v.Durasi || '-'),
+      'Jumlah orang: ' + (v.Jumlah_Orang || 1),
+      'Catatan: ' + (v.Catatan || '-'),
+      'Bukti: ' + (buktiUrl || '(tidak ada)'),
+      'ID: ' + (v.BookingID || '-'),
+      'Masuk: ' + waktu,
+      '',
+      (wa ? ('Chat customer: https://wa.me/' + wa) : ''),
+      'Buka dashboard /booking → "Butuh Konfirmasi" untuk Terima / Tolak.',
+    ].filter(function (x) { return x !== null && x !== undefined && x !== ''; }).join('\n');
+    _sendWa_(to, msg);
+  } catch (e) {}
+}
+
+// Tes kirim WA ke Mezi (jalankan dari editor setelah setFonnteToken).
+function testFonnte() {
+  var to = _meziWa_();
+  var r = _sendWa_(to, 'Tes notifikasi Top Hills 🌸 — Fonnte aktif. (' + new Date() + ')');
+  Logger.log('Mezi: ' + to + ' · ' + JSON.stringify(r));
+  return r;
 }
 
 // ── Notifikasi EMAIL ke admin tiap ada booking baru dari /info ──────────────
