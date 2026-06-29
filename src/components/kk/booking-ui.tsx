@@ -553,9 +553,23 @@ export function BookingFlow({
     headRef.current?.scrollIntoView({ block: 'start' });
   }, [step, open]);
 
+  // RoomID kamar yang sedang diedit (untuk ditaruh paling ATAS daftar). Booking
+  // /info tanpa RoomID → cocokkan via NAMA kamar (+gedung).
+  const editRoomId = useMemo(() => {
+    if (!editBooking) return undefined;
+    if (editBooking.RoomID) return editBooking.RoomID;
+    const nk = String(editBooking.Nama_Kamar || '').trim().toLowerCase();
+    if (!nk) return undefined;
+    const gd = String(editBooking.Gedung || '').trim().toLowerCase();
+    const m =
+      rooms.find((r) => String(r.Nama_Kamar || '').trim().toLowerCase() === nk && (!gd || String(r.Gedung || '').trim().toLowerCase() === gd)) ||
+      rooms.find((r) => String(r.Nama_Kamar || '').trim().toLowerCase() === nk);
+    return m?.RoomID;
+  }, [editBooking, rooms]);
+
   const options = useMemo(
-    () => buildRoomOptions(rooms, prices, editBooking?.RoomID, roomPriceRules, info),
-    [rooms, prices, editBooking, roomPriceRules, info],
+    () => buildRoomOptions(rooms, prices, editRoomId, roomPriceRules, info),
+    [rooms, prices, editRoomId, roomPriceRules, info],
   );
   // Kamar terpilih. Untuk EDIT: kalau RoomID tak cocok (booking /info sering
   // TANPA RoomID) → cocokkan via NAMA kamar (+gedung) langsung di sini, jadi
@@ -1835,6 +1849,24 @@ export function BookingDetail({
             <InfoRow label="Sisa tagihan" value={rupiah(sisa)} accent="orange" />
           )}
         </KkCard>
+
+        {/* Bukti pembayaran — link Google Drive yang bisa diklik/dibuka */}
+        {booking.Bukti_Bayar ? (
+          <a
+            href={booking.Bukti_Bayar}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between gap-3 bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5 no-underline"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="w-10 h-10 rounded-[11px] bg-kk-mauve-soft text-kk-navy grid place-items-center flex-shrink-0">📎</span>
+              <span className="text-kk-navy font-semibold text-body truncate">Lihat bukti pembayaran (Google Drive)</span>
+            </span>
+            <KkIcon name="chevron" size={18} strokeWidth={2.4} className="text-kk-ink flex-shrink-0" />
+          </a>
+        ) : (
+          <div className="text-caption text-kk-ink mb-5 px-1">Belum ada bukti pembayaran. Tambahkan lewat <b>Ubah</b>.</div>
+        )}
 
         {/* Riwayat pembayaran — bisa dihapus untuk koreksi status (mis. Lunas → ada sisa) */}
         {payments.length > 0 && (
