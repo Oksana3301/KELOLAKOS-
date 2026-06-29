@@ -508,6 +508,7 @@ function dispatchV2_(action, payload) {
     case 'rejectBooking':        return rejectBooking(payload);
     // Edit booking PENDING (internal — implementasi di BACKEND_PATCH_EDIT_PENDING.gs)
     case 'editPendingBooking':   return editPendingBooking(payload);
+    case 'getBookingRaw':        return { ok: true, data: getBookingRaw(payload) };
     default:                     return null; // Not a V2 action
   }
 }

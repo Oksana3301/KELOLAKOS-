@@ -352,6 +352,14 @@ function _bookingFindById_(id) {
   return null;
 }
 
+// Baris booking mentah (semua kolom, termasuk Bukti_Bayar & Tgl_Pembayaran) —
+// dipakai dashboard utk pastikan preview bukti selalu tampil.
+function getBookingRaw(data) {
+  data = data || {};
+  var b = _bookingFindById_(data.bookingId || data.booking_id || '');
+  return b || null;
+}
+
 function confirmBooking(data) {
   data = data || {};
   // Status bayar: Lunas / DP / Belum Bayar (dipakai juga oleh edit di /booking).
