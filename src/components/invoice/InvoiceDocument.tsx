@@ -200,8 +200,26 @@ export function InvoiceDocument({
             </div>
           )}
 
+          {/* STEMPEL status — IN-FLOW & terpusat (tidak menumpuk teks, aman di
+              preview & PNG). LUNAS bila lunas, BELUM LUNAS bila masih DP. */}
+          {showStamp && (
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '30px 0 4px' }}>
+              {fullyPaid && subtotal > 0 ? (
+                <div style={{ transform: 'rotate(-6deg)', border: '3px double #9C7A2E', borderRadius: 14, padding: '12px 30px 10px', textAlign: 'center', background: 'rgba(156,122,46,.06)' }}>
+                  <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 46, letterSpacing: 6, lineHeight: .9, color: '#9C7A2E' }}>LUNAS</div>
+                  <div style={{ fontSize: 12.5, letterSpacing: 5, color: '#9C7A2E', marginTop: 5, opacity: .85 }}>PAID IN FULL · {inv.date}</div>
+                </div>
+              ) : (
+                <div style={{ transform: 'rotate(-6deg)', border: '3px double #B05C3B', borderRadius: 14, padding: '12px 28px 10px', textAlign: 'center', background: 'rgba(176,92,59,.06)' }}>
+                  <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 32, letterSpacing: 4, lineHeight: .92, color: '#B05C3B' }}>BELUM LUNAS</div>
+                  <div style={{ fontSize: 12, letterSpacing: 2.5, color: '#B05C3B', marginTop: 6, opacity: .9 }}>{totalPaid > 0 ? `DP ${rp(totalPaid)} DITERIMA · ${inv.date}` : `TAGIHAN BELUM DIBAYAR · ${inv.date}`}</div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* PAYMENT + QR */}
-          <div style={{ display: 'flex', gap: 22, marginTop: 34, alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', gap: 22, marginTop: 30, alignItems: 'stretch' }}>
             <div style={{ flex: 1, border: '1px solid rgba(156,122,46,.26)', borderRadius: 16, padding: '22px 24px', background: 'rgba(156,122,46,.05)' }}>
               <div style={{ fontSize: 13, letterSpacing: 2.2, color: GOLD, fontWeight: 700, marginBottom: 14 }}>PEMBAYARAN · TRANSFER</div>
               <PayRow label="Bank" value={<span style={{ fontSize: 16.5, color: '#2C2620', fontWeight: 600 }}>{identity.bankName}</span>} />
@@ -257,26 +275,6 @@ export function InvoiceDocument({
               <div style={{ fontSize: 14, color: '#7A7164', letterSpacing: .5, marginTop: 2 }}>{identity.ownerTitle}</div>
             </div>
           </div>
-
-          {/* STAMP */}
-          {showStamp && fullyPaid && (
-            <div style={{ position: 'absolute', bottom: 120, left: '51%', transform: 'translateX(-50%) rotate(-13deg)', pointerEvents: 'none' }}>
-              <div style={{ border: '3px double #9C7A2E', borderRadius: 14, padding: '12px 28px 10px', textAlign: 'center', boxShadow: '0 0 26px rgba(156,122,46,.16)', background: 'rgba(156,122,46,.05)' }}>
-                <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 52, letterSpacing: 6, lineHeight: .9, color: '#9C7A2E' }}>LUNAS</div>
-                <div style={{ fontSize: 13, letterSpacing: 5, color: '#9C7A2E', marginTop: 5, opacity: .85 }}>PAID IN FULL</div>
-                <div style={{ fontSize: 11.5, letterSpacing: 1.5, color: '#A6802F', marginTop: 5, opacity: .7 }}>{inv.date}</div>
-              </div>
-            </div>
-          )}
-          {showStamp && !fullyPaid && (
-            <div style={{ position: 'absolute', bottom: 120, left: '51%', transform: 'translateX(-50%) rotate(-13deg)', pointerEvents: 'none' }}>
-              <div style={{ border: '3px double #B05C3B', borderRadius: 14, padding: '13px 26px 11px', textAlign: 'center', boxShadow: '0 0 26px rgba(176,92,59,.16)', background: 'rgba(176,92,59,.05)' }}>
-                <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 35, letterSpacing: 4, lineHeight: .92, color: '#B05C3B' }}>BELUM LUNAS</div>
-                <div style={{ fontSize: 12.5, letterSpacing: 3, color: '#B05C3B', marginTop: 6, opacity: .9 }}>{totalPaid > 0 ? `DP ${rp(totalPaid)} DITERIMA` : 'TAGIHAN BELUM DIBAYAR'}</div>
-                <div style={{ fontSize: 11, letterSpacing: 1.5, color: '#B05C3B', marginTop: 4, opacity: .65 }}>{inv.date}</div>
-              </div>
-            </div>
-          )}
 
         </div>
       </div>
