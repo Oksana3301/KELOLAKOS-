@@ -171,7 +171,55 @@ function submitBookingRequest(data) {
 
   var row = headers.map(function (h) { return Object.prototype.hasOwnProperty.call(vals, h) ? vals[h] : ''; });
   sh.appendRow(row);
+  _notifyAdminNewBooking_(vals, buktiUrl); // email otomatis ke admin (gagal-aman)
   return { bookingId: id, buktiUrl: buktiUrl, message: 'Permintaan booking tersimpan (PENDING).' };
+}
+
+// ── Notifikasi EMAIL ke admin tiap ada booking baru dari /info ──────────────
+// Set email tujuan: jalankan setAdminEmail() sekali (atau isi Script Property
+// ADMIN_EMAIL). Bila kosong → fallback ke email pemilik script.
+function _adminEmail_() {
+  var p = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL');
+  if (p) return p;
+  try { return Session.getEffectiveUser().getEmail() || ''; } catch (e) { return ''; }
+}
+
+function setAdminEmail() {
+  var EMAIL = 'dewiatika4295@gmail.com'; // ← GANTI ke email admin / Mezi
+  PropertiesService.getScriptProperties().setProperty('ADMIN_EMAIL', EMAIL);
+  Logger.log('ADMIN_EMAIL di-set: ' + EMAIL);
+  return { ok: true, email: EMAIL };
+}
+
+function _notifyAdminNewBooking_(v, buktiUrl) {
+  try {
+    var to = _adminEmail_();
+    if (!to) return;
+    var tz = Session.getScriptTimeZone() || 'GMT+7';
+    var waktu = Utilities.formatDate(new Date(), tz, 'dd MMM yyyy, HH:mm') + ' WIB';
+    var layanan = String(v.Layanan || '').toUpperCase().indexOf('KOS') >= 0 ? 'Kost' : 'Penginapan';
+    var wa = String(v.WhatsApp || '');
+    var subject = '🔔 Booking baru Top Hills — ' + (v.Nama_Customer || '(tanpa nama)') + ' · ' + (v.Nama_Kamar || '');
+    var lines = [
+      'Ada booking baru masuk dari halaman /info:',
+      '',
+      'Nama       : ' + (v.Nama_Customer || '-'),
+      'WhatsApp   : ' + (wa || '-'),
+      'Layanan    : ' + layanan,
+      'Kamar      : ' + (v.Nama_Kamar || '-') + (v.Gedung ? (' · ' + v.Gedung) : ''),
+      'Paket/durasi: ' + (v.Paket || v.Durasi || '-'),
+      'Jumlah orang: ' + (v.Jumlah_Orang || 1),
+      'Catatan    : ' + (v.Catatan || '-'),
+      'Bukti bayar: ' + (buktiUrl || '(tidak ada)'),
+      'Booking ID : ' + (v.BookingID || '-'),
+      'Masuk      : ' + waktu,
+      '',
+      (wa ? ('Chat customer: https://wa.me/' + wa) : ''),
+      '',
+      'Buka dashboard /booking → "Butuh Konfirmasi" untuk Terima / Tolak.',
+    ].filter(function (x) { return x !== null && x !== undefined; });
+    MailApp.sendEmail(to, subject, lines.join('\n'));
+  } catch (e) { /* jangan pernah ganggu proses booking */ }
 }
 
 // ── Konfirmasi booking online (internal /booking) ──────────────────────────
