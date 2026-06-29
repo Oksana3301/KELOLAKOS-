@@ -14,6 +14,7 @@ import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, isAcFacility, kostBasePrice } from '@/lib/booking-pricing';
 import { hasRangeData, rangeStatusOf, statusTodayOf, addDaysISO } from '@/lib/availability';
+import { JAM_NOTE_LONG } from '@/lib/booking-rules';
 import type { RoomStatus3 } from '@/lib/building-layout';
 
 const numOf = (s?: string) => { const m = String(s || '').match(/\d+/); return m ? Number(m[0]) : 9999; };
@@ -291,6 +292,13 @@ export default function BookingBaruPage() {
           <div className="rounded-[12px] px-3.5 py-2.5 text-[12.5px] leading-snug" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
             📅 Untuk <b>kost</b>, tanggal check-in &amp; check-out di-set <b>otomatis</b> = tanggal pelunasan + periode ({durasi}) saat admin konfirmasi. Daftar kamar = yang <b>kosong saat ini</b>.
           </div>
+        )}
+
+        {/* Aturan jam check-in / check-out penginapan */}
+        {!isKost && (
+          <p className="text-[12px] leading-relaxed rounded-[12px] px-3 py-2.5" style={{ background: '#EAF1FB', border: '1px solid #B9D0EE', color: '#1E4E8C' }}>
+            ⏰ {JAM_NOTE_LONG}
+          </p>
         )}
 
         {/* 4) Pilih kamar — tap yang Tersedia. Status lain (DP/Terisi) ditampilkan juga. */}
