@@ -354,13 +354,15 @@ function _bookingFindById_(id) {
 
 function confirmBooking(data) {
   data = data || {};
-  var status = (data.status === 'Lunas') ? 'Lunas' : 'DP';
+  // Status bayar: Lunas / DP / Belum Bayar (dipakai juga oleh edit di /booking).
+  var status = (data.status === 'Lunas') ? 'Lunas' : (data.status === 'Belum Bayar') ? 'Belum Bayar' : 'DP';
   var updates = { Status_Booking: 'AKTIF', Status_Bayar: status };
 
-  // ── Isi kolom UANG dari estimasi/DP yang dikirim frontend (booking /info tadinya
-  //    cuma punya teks di Catatan). Supaya total, dibayar, & SISA benar di invoice.
+  // ── Isi kolom UANG dari total/dibayar yang dikirim frontend. SISA = total −
+  //    dibayar SELALU benar (dipakai invoice & detail booking).
   var total = Number(data.total) || 0;
   var dibayar = (data.dibayar === undefined || data.dibayar === null) ? 0 : Number(data.dibayar) || 0;
+  if (status === 'Belum Bayar') dibayar = 0;                              // belum bayar → 0
   if (status === 'Lunas' && total > 0 && dibayar <= 0) dibayar = total;   // lunas → bayar penuh
   if (total > 0) {
     updates.Harga_Total_Net = total;
