@@ -70,7 +70,6 @@ function BookingPageInner() {
   // Filter rentang tanggal — basis Tgl Masuk (check-in) atau Tgl Bayar.
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [dateBasis, setDateBasis] = useState<'checkin' | 'bayar'>('checkin');
 
   // Add / edit flow
   const [showFlow, setShowFlow] = useState(false);
@@ -167,13 +166,10 @@ function BookingPageInner() {
     if (tab !== 'semua') {
       list = list.filter((b) => mapPayStatus(b) === (tab as PayStatus));
     }
-    // 3) Filter RENTANG TANGGAL (berdasarkan Tgl Masuk / Tgl Bayar).
+    // 3) Filter RENTANG TANGGAL (berdasarkan tanggal masuk / check-in).
     if (dateFrom || dateTo) {
       list = list.filter((b) => {
-        const raw = dateBasis === 'bayar'
-          ? (b as BookingItem & { Tgl_Pembayaran?: string }).Tgl_Pembayaran
-          : b.CheckIn;
-        const d = isoDay(raw);
+        const d = isoDay(b.CheckIn);
         if (!d) return false;
         if (dateFrom && d < dateFrom) return false;
         if (dateTo && d > dateTo) return false;
@@ -189,7 +185,7 @@ function BookingPageInner() {
       );
     }
     return list;
-  }, [allBookings, layanan, tab, cari, dateFrom, dateTo, dateBasis]);
+  }, [allBookings, layanan, tab, cari, dateFrom, dateTo]);
 
   // Ringkasan untuk laporan penjaga (mengikuti filter aktif).
   const summary = useMemo(() => {
@@ -447,23 +443,6 @@ function BookingPageInner() {
           </button>
         )}
       </div>
-      {/* Basis: berdasarkan tanggal masuk atau tanggal bayar */}
-      <div className="flex gap-2 mb-2.5">
-        {([
-          { id: 'checkin', label: '📅 Tgl Masuk' },
-          { id: 'bayar', label: '💰 Tgl Bayar' },
-        ] as { id: 'checkin' | 'bayar'; label: string }[]).map((o) => (
-          <button
-            key={o.id}
-            onClick={() => setDateBasis(o.id)}
-            className={`flex-1 min-h-[44px] rounded-kk-pill font-body font-semibold text-[15px] border-2 ${
-              dateBasis === o.id ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
       <div className="grid grid-cols-2 gap-2.5 mb-4">
         <label className="text-caption font-semibold text-kk-ink">
           Dari
@@ -482,7 +461,7 @@ function BookingPageInner() {
             <span className="font-heading font-bold text-[18px]">{summary.count} penyewa</span>
             {(dateFrom || dateTo) && (
               <span className="text-caption text-white/85">
-                {dateBasis === 'bayar' ? 'Tgl Bayar' : 'Tgl Masuk'} {dateFrom ? tglPendek(dateFrom) : '…'} – {dateTo ? tglPendek(dateTo) : '…'}
+                {dateFrom ? tglPendek(dateFrom) : '…'} – {dateTo ? tglPendek(dateTo) : '…'}
               </span>
             )}
           </div>
@@ -640,6 +619,18 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
           <span className="text-caption font-semibold text-kk-green">Dibayar {rupiah(dibayar)}</span>
           <span className="text-caption font-semibold text-kk-orange">Sisa {rupiah(sisa)}</span>
         </div>
+      )}
+      {/* Link bukti (kalau ada) — klik buka Drive, tidak ikut buka detail */}
+      {b.Bukti_Bayar && (
+        <a
+          href={b.Bukti_Bayar}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1.5 mt-2.5 text-caption font-semibold text-kk-navy underline"
+        >
+          📎 Lihat bukti bayar
+        </a>
       )}
       <div className="flex items-center justify-end gap-1 mt-2.5 text-caption font-semibold text-kk-orange">
         Ketuk untuk detail &amp; ubah

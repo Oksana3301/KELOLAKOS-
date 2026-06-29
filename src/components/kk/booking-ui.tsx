@@ -20,7 +20,7 @@ import {
   type PaymentRecord,
 } from '@/lib/api';
 import { type Fasilitas, halamanInfoApi } from '@/lib/api-v2';
-import { DEFAULT_INFO, mergeInfo, type HalamanInfo } from '@/lib/halaman-info';
+import { DEFAULT_INFO, mergeInfo, driveImageUrl, type HalamanInfo } from '@/lib/halaman-info';
 import { kostBasePrice, parseRupiah, isAcFacility } from '@/lib/booking-pricing';
 import { Sheet, SheetHead, KkButton, KkCard, BayarBadge, InfoRow, Dialog } from './ui';
 import { FileUpload } from './file-upload';
@@ -1684,13 +1684,28 @@ export function BookingFlow({
                 bisa di-Hapus (ada Batal), dan bisa diganti dgn upload baru. */}
             <div className="mt-4 space-y-2">
               {isEdit && editBooking?.Bukti_Bayar && !hapusBukti && bukti.length === 0 && (
-                <div className="flex items-center justify-between gap-3 rounded-kk-card border-2 border-kk-mauve p-3.5">
-                  <a href={editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-body truncate">
-                    📎 Lihat bukti tersimpan (Google Drive)
+                <div className="rounded-kk-card border-2 border-kk-mauve p-3.5">
+                  <div className="flex items-center justify-between gap-3 mb-2.5">
+                    <span className="font-heading font-bold text-[16px] text-kk-navy">Bukti tersimpan</span>
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <a href={editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption">
+                        Buka
+                      </a>
+                      <button type="button" onClick={() => setHapusBukti(true)} className="text-kk-orange font-semibold text-caption">
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                  {/* Preview gambar bukti */}
+                  <a href={editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={driveImageUrl(editBooking.Bukti_Bayar)}
+                      alt="Bukti pembayaran"
+                      className="w-full rounded-kk-card border border-kk-mauve"
+                      style={{ maxHeight: 300, objectFit: 'contain', background: '#faf7f2' }}
+                    />
                   </a>
-                  <button type="button" onClick={() => setHapusBukti(true)} className="text-kk-orange font-semibold text-caption flex-shrink-0">
-                    Hapus
-                  </button>
                 </div>
               )}
               {isEdit && hapusBukti && (
@@ -1856,20 +1871,25 @@ export function BookingDetail({
           )}
         </KkCard>
 
-        {/* Bukti pembayaran — link Google Drive yang bisa diklik/dibuka */}
+        {/* Bukti pembayaran — preview gambar + link Google Drive */}
         {booking.Bukti_Bayar ? (
-          <a
-            href={booking.Bukti_Bayar}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between gap-3 bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5 no-underline"
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              <span className="w-10 h-10 rounded-[11px] bg-kk-mauve-soft text-kk-navy grid place-items-center flex-shrink-0">📎</span>
-              <span className="text-kk-navy font-semibold text-body truncate">Lihat bukti pembayaran (Google Drive)</span>
-            </span>
-            <KkIcon name="chevron" size={18} strokeWidth={2.4} className="text-kk-ink flex-shrink-0" />
-          </a>
+          <div className="bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5">
+            <div className="flex items-center justify-between gap-3 mb-2.5">
+              <span className="font-heading font-bold text-[16px] text-kk-navy">Bukti pembayaran</span>
+              <a href={booking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption flex-shrink-0">
+                Buka di Drive
+              </a>
+            </div>
+            <a href={booking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={driveImageUrl(booking.Bukti_Bayar)}
+                alt="Bukti pembayaran"
+                className="w-full rounded-kk-card border border-kk-mauve"
+                style={{ maxHeight: 320, objectFit: 'contain', background: '#faf7f2' }}
+              />
+            </a>
+          </div>
         ) : (
           <div className="text-caption text-kk-ink mb-5 px-1">Belum ada bukti pembayaran. Tambahkan lewat <b>Ubah</b>.</div>
         )}
