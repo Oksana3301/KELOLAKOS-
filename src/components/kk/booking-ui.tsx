@@ -460,6 +460,7 @@ export function BookingFlow({
   // Tanggal pembayaran (opsional). Untuk DP → tanggal DP · untuk Lunas → tanggal pelunasan.
   const [tglBayar, setTglBayar] = useState('');
   const [bukti, setBukti] = useState<BuktiFile[]>([]);
+  const [hapusBukti, setHapusBukti] = useState(false);
   // Section aktif untuk highlight nav samping (scroll-spy).
   const [activeSec, setActiveSec] = useState('bk-penyewa');
 
@@ -505,12 +506,27 @@ export function BookingFlow({
     }
     setSelFas(new Set(editBooking ? editFacilityIds || [] : []));
     setBukti([]);
+    setHapusBukti(false);
     setFLayanan('Semua');
     setFCari('');
     setFGedung('Semua');
     setFLantai('Semua');
     setStep(1);
   }, [open, editBooking]);
+
+  // Booking dari /info sering TANPA RoomID → cocokkan kamar via NAMA (+gedung)
+  // supaya kamar yang sudah dibooking tetap ter-select saat edit. Hanya saat
+  // roomId masih kosong (tidak menimpa pilihan owner) & data kamar sudah termuat.
+  useEffect(() => {
+    if (!open || !editBooking || roomId || !rooms.length) return;
+    const nk = String(editBooking.Nama_Kamar || '').trim().toLowerCase();
+    if (!nk) return;
+    const gd = String(editBooking.Gedung || '').trim().toLowerCase();
+    const match =
+      rooms.find((r) => String(r.Nama_Kamar || '').trim().toLowerCase() === nk && (!gd || String(r.Gedung || '').trim().toLowerCase() === gd)) ||
+      rooms.find((r) => String(r.Nama_Kamar || '').trim().toLowerCase() === nk);
+    if (match) setRoomId(match.RoomID);
+  }, [open, editBooking, roomId, rooms]);
 
   // Scroll-spy: tandai section yang sedang dilihat untuk highlight nav.
   useEffect(() => {
@@ -792,6 +808,9 @@ export function BookingFlow({
             durasi: PAKET_BACKEND[customDate ? 'harian' : paketKind],
             jumlahOrang,
             tglMulai: effCheckIn,
+            // Bukti: ganti (upload baru) / hapus tersimpan.
+            buktiFile: bukti[0] || undefined,
+            hapusBukti: hapusBukti || undefined,
           });
         }
         // 2) Harga (IKUT tipe kamar + paket terpilih) + total + tanggal + fasilitas.
@@ -1626,9 +1645,32 @@ export function BookingFlow({
               {sisa > 0 && <InfoRow label="Sisa tagihan" value={rupiah(sisa)} accent="orange" />}
             </KkCard>
 
-            {/* Upload bukti — paling bawah, di luar input nominal supaya rapi & tak error */}
-            <div className="mt-4">
-              <FileUpload value={bukti} onChange={setBukti} label="Bukti booking / pembayaran (opsional)" />
+            {/* Bukti — paling bawah. Tampilkan bukti tersimpan (link Drive) bila ada,
+                bisa di-Hapus (ada Batal), dan bisa diganti dgn upload baru. */}
+            <div className="mt-4 space-y-2">
+              {isEdit && editBooking?.Bukti_Bayar && !hapusBukti && bukti.length === 0 && (
+                <div className="flex items-center justify-between gap-3 rounded-kk-card border-2 border-kk-mauve p-3.5">
+                  <a href={editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-body truncate">
+                    📎 Lihat bukti tersimpan (Google Drive)
+                  </a>
+                  <button type="button" onClick={() => setHapusBukti(true)} className="text-kk-orange font-semibold text-caption flex-shrink-0">
+                    Hapus
+                  </button>
+                </div>
+              )}
+              {isEdit && hapusBukti && (
+                <div className="flex items-center justify-between gap-3 rounded-kk-card border-2 border-kk-orange bg-kk-orange-soft p-3.5">
+                  <span className="text-kk-navy text-body">Bukti akan dihapus saat disimpan.</span>
+                  <button type="button" onClick={() => setHapusBukti(false)} className="text-kk-navy font-semibold text-caption underline flex-shrink-0">
+                    Batal
+                  </button>
+                </div>
+              )}
+              <FileUpload
+                value={bukti}
+                onChange={(f) => { setBukti(f); if (f.length) setHapusBukti(false); }}
+                label={isEdit && editBooking?.Bukti_Bayar ? 'Ganti bukti (opsional)' : 'Bukti booking / pembayaran (opsional)'}
+              />
             </div>
           </div>
         )}

@@ -45,6 +45,20 @@ function editPendingBooking(data) {
   if (data.tglMulai !== undefined)    updates.CheckIn = data.tglMulai;
   if (data.catatan !== undefined)     updates.Catatan = data.catatan;
 
+  // Bukti bayar: HAPUS atau GANTI (upload baru → Drive). Pakai _buktiBookingFolder_
+  // dari patch Perpanjang. Gagal-aman: error upload tak menggagalkan edit lain.
+  if (data.hapusBukti) {
+    updates.Bukti_Bayar = '';
+  } else if (data.buktiFile && data.buktiFile.base64 && typeof _buktiBookingFolder_ === 'function') {
+    try {
+      var bf = data.buktiFile;
+      var blob = Utilities.newBlob(Utilities.base64Decode(bf.base64), bf.mimeType || 'image/jpeg', id + '-' + (bf.name || 'bukti'));
+      var file = _buktiBookingFolder_().createFile(blob);
+      try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+      updates.Bukti_Bayar = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+    } catch (e) {}
+  }
+
   if (typeof _setBookingStatus_ !== 'function') {
     throw new Error('_setBookingStatus_ belum ada — pastikan patch Perpanjang sudah terpasang.');
   }
