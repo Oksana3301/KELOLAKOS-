@@ -253,7 +253,6 @@ export function InvoiceDocument({
               </div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <Term>Pelunasan dilakukan di awal sebelum menempati kamar.</Term>
-                <Term>Air sudah termasuk · listrik token diisi sendiri (khusus kost).</Term>
               </div>
             </div>
           </div>
