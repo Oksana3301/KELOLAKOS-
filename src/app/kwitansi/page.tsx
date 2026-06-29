@@ -12,6 +12,7 @@ import { mapPayStatus } from '@/components/kk/status';
 import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 import { InvoiceDocument } from '@/components/invoice/InvoiceDocument';
 import { ALL_ROOMS, roomKey } from '@/lib/building-layout';
+import { JAM_NOTE } from '@/lib/booking-rules';
 import {
   bookingToInvoice, digitsOnly, deriveInvoice, rp, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
   type Invoice, type InvoiceIdentity, type Layanan,
@@ -217,6 +218,8 @@ export default function InvoicePage() {
       periode ? `📅 Periode sewa: ${periode}` : '',
       `✅ Telah melakukan ${jenisBayar}${dibayarAmt ? `: ${rp(dibayarAmt)}` : ''} pada ${bayarSaat}`,
       sisa > 0 ? `💰 Sisa tagihan: ${rp(sisa)}` : `💰 Status: LUNAS ✓`,
+      // Aturan jam khusus penginapan (kost jangka panjang tidak relevan).
+      !isKost ? `⏰ ${JAM_NOTE}` : '',
       ``,
       `Berikut bukti/invoice yang dapat kami kirimkan, mohon dicek kembali ya. 🙏`,
       `Terima kasih 🌸`,

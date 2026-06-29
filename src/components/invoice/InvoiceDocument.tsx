@@ -6,6 +6,7 @@
 // forExport: tanpa background halaman — full warna invoice (kartu solid).
 
 import { deriveInvoice, rp, type Invoice, type InvoiceIdentity } from '@/lib/invoice';
+import { CHECK_IN_TIME, CHECK_OUT_TIME } from '@/lib/booking-rules';
 
 const SERIF = "'Cormorant Garamond', serif";
 const SANS = "'Manrope', sans-serif";
@@ -138,7 +139,7 @@ export function InvoiceDocument({
               <div style={{ fontSize: 13, letterSpacing: 2.2, color: GOLD, fontWeight: 700, marginBottom: 11 }}>DETAIL PEMESANAN</div>
               <div style={{ fontSize: 18, color: '#2C2620', fontWeight: 700 }}>{inv.booking.room}</div>
               {inv.booking.period && <div style={{ fontSize: 16, color: '#7A7164', marginTop: 6 }}>{inv.booking.period}</div>}
-              <div style={{ fontSize: 16, color: '#7A7164', marginTop: 3 }}>Check-in 13.00 · Check-out 12.00</div>
+              <div style={{ fontSize: 16, color: '#7A7164', marginTop: 3 }}>Check-in {CHECK_IN_TIME} · Check-out {CHECK_OUT_TIME}</div>
             </div>
           </div>
 
