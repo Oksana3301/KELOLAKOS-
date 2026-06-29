@@ -223,6 +223,19 @@ function BookingPageInner() {
         setEditFacilityIds((d.facilities || []).map((f) => f.id));
       })
       .catch((e) => toast.error('Gagal memuat detail lengkap: ' + (e as Error).message));
+    // Ambil baris booking mentah → pastikan Bukti_Bayar & Tgl_Pembayaran terkini
+    // ikut tampil (getBookingDetail lama kadang tak mengembalikan kolom ini).
+    api
+      .getBookingRaw(bookingId)
+      .then((raw) => {
+        if (!raw) return;
+        setDetail((prev) =>
+          prev && prev.BookingID === bookingId
+            ? { ...prev, Bukti_Bayar: raw.Bukti_Bayar ?? prev.Bukti_Bayar, Tgl_Pembayaran: raw.Tgl_Pembayaran ?? prev.Tgl_Pembayaran }
+            : prev,
+        );
+      })
+      .catch(() => {});
   }
 
   async function handleDeletePayment(paymentId: string) {

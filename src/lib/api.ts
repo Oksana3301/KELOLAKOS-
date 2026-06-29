@@ -484,6 +484,9 @@ export const api = {
     }),
   rejectBooking: (bookingId: string) =>
     callApi<{ ok: boolean; bookingId: string }>('rejectBooking', { bookingId }),
+  // Baris booking mentah (untuk ambil Bukti_Bayar/Tgl_Pembayaran terkini).
+  getBookingRaw: (bookingId: string) =>
+    callApi<BookingFullData | null>('getBookingRaw', { bookingId }),
   // Ubah data booking PENDING (tanpa mengubah status bayar). Lihat
   // BACKEND_PATCH_EDIT_PENDING.gs.
   editPendingBooking: (data: EditPendingBookingPayload) =>
