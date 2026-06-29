@@ -557,7 +557,22 @@ export function BookingFlow({
     () => buildRoomOptions(rooms, prices, editBooking?.RoomID, roomPriceRules, info),
     [rooms, prices, editBooking, roomPriceRules, info],
   );
-  const chosen = options.find((o) => o.room.RoomID === roomId) || null;
+  // Kamar terpilih. Untuk EDIT: kalau RoomID tak cocok (booking /info sering
+  // TANPA RoomID) → cocokkan via NAMA kamar (+gedung) langsung di sini, jadi
+  // kamar yang sudah dibooking SELALU ter-select tanpa bergantung pada efek.
+  const chosen = useMemo(() => {
+    let c = options.find((o) => o.room.RoomID === roomId) || null;
+    if (!c && isEdit && editBooking) {
+      const nk = String(editBooking.Nama_Kamar || '').trim().toLowerCase();
+      if (nk) {
+        const gd = String(editBooking.Gedung || '').trim().toLowerCase();
+        c = options.find((o) => String(o.room.Nama_Kamar || '').trim().toLowerCase() === nk && (!gd || String(o.room.Gedung || '').trim().toLowerCase() === gd))
+          || options.find((o) => String(o.room.Nama_Kamar || '').trim().toLowerCase() === nk)
+          || null;
+      }
+    }
+    return c;
+  }, [options, roomId, isEdit, editBooking]);
 
   // Opsi paket — DISAMAKAN PERSIS dengan form publik /info supaya harga & booking
   // konsisten (tidak ikut baris harga sheet yang bisa bikin opsi/harga ngaco):
