@@ -194,10 +194,14 @@ export default function InvoicePage() {
     const periode = invoice.booking.period || bk?.Paket || '';
     const jenisBayar = fullyPaid ? 'Pelunasan' : 'DP';
 
-    // Tanggal & jam pembayaran terakhir (dari rincian; fallback hari ini).
+    // Tanggal & jam pembayaran AKURAT: utamakan waktu konfirmasi yang disimpan
+    // saat owner Terima (Tgl_Pembayaran), lalu rincian pembayaran, lalu sekarang.
     const pays = detail?.payments || [];
     const lastPay = pays.length ? pays[pays.length - 1] : null;
-    const bayarSaat = fmtDateTimeWIB(lastPay?.Tanggal_Bayar || new Date().toISOString());
+    const savedTs = (bk as Record<string, unknown> | undefined)?.['Tgl_Pembayaran'];
+    const bayarSaat = fmtDateTimeWIB(
+      (typeof savedTs === 'string' && savedTs) || lastPay?.Tanggal_Bayar || new Date().toISOString(),
+    );
     const dibayarAmt = Number(bk?.Net_Diterima || 0) || (fullyPaid ? subtotal : 0);
     const sisa = balance;
 

@@ -46,7 +46,8 @@ export function PendingConfirmations() {
 
   const confirm = useMutation({
     mutationFn: (v: { id: string; status: 'DP' | 'Lunas'; total: number; dibayar: number }) =>
-      api.confirmBooking(v.id, v.status, { total: v.total, dibayar: v.dibayar }),
+      // Simpan WAKTU konfirmasi (saat ini) → dipakai akurat di pesan/invoice WhatsApp.
+      api.confirmBooking(v.id, v.status, { total: v.total, dibayar: v.dibayar, tglBayar: new Date().toISOString() }),
     onSuccess: () => {
       toast.success('✓ Booking diterima — total & sisa tercatat otomatis');
       setSel(null);

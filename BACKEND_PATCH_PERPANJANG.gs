@@ -243,6 +243,11 @@ function confirmBooking(data) {
     updates.Sisa_Bayar = Math.max(0, total - dibayar);
   }
 
+  // ── WAKTU KONFIRMASI (saat owner Terima) → disimpan untuk pesan/invoice WA
+  //    yang akurat ("telah melakukan DP/Pelunasan pada <tgl jam>"). Simpan ISO.
+  _ensureBookingCol_('Tgl_Pembayaran');
+  updates.Tgl_Pembayaran = data.tglBayar || new Date().toISOString();
+
   // ── KOST + kunci tanggal (default ON) + LUNAS → CheckIn = tanggal pelunasan
   //    (atau hari ini), CheckOut = +periode. DP → tanggal dibiarkan kosong.
   try {
@@ -262,6 +267,15 @@ function confirmBooking(data) {
   } catch (e) {}
 
   return _setBookingStatus_(data.bookingId, updates);
+}
+
+// Pastikan kolom ada di sheet BOOKINGS (untuk kolom baru spt Tgl_Pembayaran).
+function _ensureBookingCol_(name) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.BOOKINGS);
+  if (!sh) return;
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h); });
+  if (headers.indexOf(name) < 0) sh.getRange(1, lastCol + 1).setValue(name);
 }
 
 function rejectBooking(data) {
