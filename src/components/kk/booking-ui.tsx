@@ -820,9 +820,15 @@ export function BookingFlow({
           const keepDate = editBooking.CheckIn
             ? new Date(editBooking.CheckIn).toISOString().split('T')[0]
             : (effCheckIn || undefined);
-          await api.confirmBooking(editBooking.BookingID, payStatus, {
-            total, dibayar, tglPelunasan: keepDate, tglBayar: new Date().toISOString(),
-          });
+          // Non-fatal: bila confirmBooking gagal (mis. backend belum deploy),
+          // data & total tetap tersimpan — jangan gagalkan seluruh edit.
+          try {
+            await api.confirmBooking(editBooking.BookingID, payStatus, {
+              total, dibayar, tglPelunasan: keepDate, tglBayar: new Date().toISOString(),
+            });
+          } catch (e) {
+            console.warn('confirmBooking (perbaikan sisa) gagal:', e);
+          }
         }
         return editRes;
       }
