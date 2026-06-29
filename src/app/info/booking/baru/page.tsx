@@ -13,6 +13,13 @@ import { PaymentStep } from '@/components/info/payment-step';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, isAcFacility, kostBasePrice } from '@/lib/booking-pricing';
+import { hasRangeData, rangeStatusOf, statusTodayOf, addDaysISO } from '@/lib/availability';
+
+const numOf = (s?: string) => { const m = String(s || '').match(/\d+/); return m ? Number(m[0]) : 9999; };
+function fmtTgl(iso: string) {
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 export default function BookingBaruPage() {
   const [nama, setNama] = useState('');
@@ -38,58 +45,56 @@ export default function BookingBaruPage() {
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
   const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
-  // Kost paket 6 bulan = SELALU non-AC → sembunyikan fasilitas AC (sama dgn /booking).
-  const acDisabled = layanan === 'KOS' && durasi === '6 Bulan';
-  // Kost + kunci tanggal (default) → tamu tidak pilih tanggal; check-in/out di-set
-  // admin otomatis (= tanggal pelunasan + periode) saat konfirmasi pembayaran.
-  const kostLockTanggal = layanan === 'KOS' && info.kostKunciTanggal !== false;
+  const isKost = layanan === 'KOS';
+  const acDisabled = isKost && durasi === '6 Bulan';
+  const kostLockTanggal = isKost && info.kostKunciTanggal !== false;
   const allFasilitas = fasData?.list || [];
   const fasilitas = acDisabled ? allFasilitas.filter((f) => !isAcFacility(f)) : allFasilitas;
-  // Pastikan AC tak ikut terpilih/terhitung saat dinonaktifkan.
   useEffect(() => {
     if (!acDisabled) return;
     setSelFac((prev) => prev.filter((id) => { const f = allFasilitas.find((x) => x.id === id); return !(f && isAcFacility(f)); }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acDisabled]);
 
-  const kamarOptions = useMemo(() => {
+  const durasiOpts = isKost ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Mingguan', 'Bulanan'];
+
+  // ── Tanggal & rentang menginap (penginapan) untuk cek ketersediaan ──
+  const nights = !isKost ? (durasi === 'Per Malam' ? Math.max(1, malamQty) : durasi === 'Mingguan' ? 7 : 30) : 0;
+  const checkOut = !isKost && mulai && nights > 0 ? addDaysISO(mulai, nights) : '';
+  const rangeReady = !isKost && !!mulai && !!checkOut && mulai < checkOut;
+
+  // ── Klasifikasi ketersediaan kamar untuk tanggal yang diminta ──
+  const isPenginapan = (r: PublicRoom) => {
+    const g = String(r.gedung || '').toUpperCase();
+    const lay = String(r.layanan || '').toUpperCase();
+    if (lay.includes('PENGINAP') || lay.includes('INAP')) return true;
+    if (lay.includes('KOS')) return false;
+    return g.includes('C') || g.includes('PENGINAPAN') || /\bD0?\d+/i.test(String(r.nama || ''));
+  };
+
+  const { kosongRooms, dpRooms } = useMemo(() => {
     const arr = Array.isArray(rooms) ? rooms : [];
-    const isKost = layanan === 'KOS';
-    // Klasifikasi penginapan SAMA dgn cek ketersediaan di /info: berdasarkan
-    // GEDUNG (Gedung C = penginapan) / kode D / field layanan. Lebih andal
-    // daripada hanya field layanan yang sering kosong.
-    const isPenginapan = (r: PublicRoom) => {
-      const g = String(r.gedung || '').toUpperCase();
-      const lay = String(r.layanan || '').toUpperCase();
-      if (lay.includes('PENGINAP') || lay.includes('INAP')) return true;
-      if (lay.includes('KOS')) return false;
-      return g.includes('C') || g.includes('PENGINAPAN') || /\bD0?\d+/i.test(String(r.nama || ''));
-    };
+    const rangeOk = hasRangeData(arr);
     const matched = arr.filter((r) => (isKost ? !isPenginapan(r) : isPenginapan(r)));
-    // HANYA tampilkan kamar yang TERSEDIA (kosong) — kamar terisi/DP/perbaikan
-    // tidak bisa dipilih (konsisten dgn cek ketersediaan di /info).
-    const kosong = matched.filter((r) => r.status === 'kosong');
-    // Urutkan: nomor kecil → besar (sama dgn tampilan ketersediaan /info).
-    const numOf = (s?: string) => { const m = String(s || '').match(/\d+/); return m ? Number(m[0]) : 9999; };
-    kosong.sort((a, b) => {
-      const na = numOf(a.nama), nb = numOf(b.nama);
-      if (na !== nb) return na - nb;
-      return String(a.nama || '').localeCompare(String(b.nama || ''));
-    });
-    return arr.length === 0 ? [] : kosong;
-  }, [rooms, layanan]);
-  // Kamar yang dipilih tapi jadi tidak tersedia → kosongkan pilihan.
-  useEffect(() => {
-    if (kamar && !kamarOptions.some((r) => `${r.nama} — ${r.gedung}` === kamar)) setKamar('');
+    const stOf = (r: PublicRoom) =>
+      isKost ? statusTodayOf(r) : (rangeReady && rangeOk ? rangeStatusOf(r, mulai, checkOut) : statusTodayOf(r));
+    const sorter = (a: PublicRoom, b: PublicRoom) => (numOf(a.nama) - numOf(b.nama)) || String(a.nama).localeCompare(String(b.nama));
+    const kosongRooms = matched.filter((r) => stOf(r) === 'kosong').sort(sorter);
+    const dpRooms = matched.filter((r) => stOf(r) === 'dp').sort(sorter);
+    return { kosongRooms, dpRooms };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kamarOptions]);
+  }, [rooms, isKost, mulai, checkOut, rangeReady]);
 
-  const durasiOpts = layanan === 'KOS' ? ['6 Bulan', '1 Tahun'] : ['Per Malam', 'Mingguan', 'Bulanan'];
-  const selRoom = kamarOptions.find((r) => `${r.nama} — ${r.gedung}` === kamar);
+  // Kamar terpilih jadi tak tersedia → kosongkan.
+  useEffect(() => {
+    if (kamar && !kosongRooms.some((r) => `${r.nama} — ${r.gedung}` === kamar)) setKamar('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kosongRooms]);
 
-  // Harga dasar (estimasi) dari data publik.
+  const selRoom = kosongRooms.find((r) => `${r.nama} — ${r.gedung}` === kamar);
+
   const base = useMemo(() => {
-    if (layanan === 'KOS') return kostBasePrice(info, durasi, selRoom);
+    if (isKost) return kostBasePrice(info, durasi, selRoom);
     const tipe = info.penginapan.find((p) => {
       const pn = p.nama.toLowerCase();
       const rt = (selRoom?.tipe || '').toLowerCase();
@@ -107,7 +112,7 @@ export default function BookingBaruPage() {
     }
     const bulan = tipe ? parseRupiah(tipe.bulan) : selRoom?.harga || 0;
     return { price: bulan, label: 'Per bulan' };
-  }, [layanan, selRoom, durasi, malamQty, info]);
+  }, [isKost, selRoom, durasi, malamQty, info]);
 
   const addonTotal = useMemo(() => {
     const eb = fasilitas.find(isExtraBed);
@@ -115,26 +120,30 @@ export default function BookingBaruPage() {
       + (eb ? extraBedQty * (Number(eb.price_adjust) || 0) : 0);
   }, [selFac, extraBedQty, fasilitas]);
 
-  const maxOrang = layanan === 'KOS' ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
-  const dpMin = layanan === 'KOS' ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
+  const maxOrang = isKost ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
+  const dpMin = isKost ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
   useEffect(() => { if (bayar === 'DP' && dpAmount === 0 && dpMin > 0) setDpAmount(dpMin); }, [dpMin, bayar]); // eslint-disable-line react-hooks/exhaustive-deps
   const extraOrang = useMemo(() => {
-    if (layanan === 'KOS') return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
+    if (isKost) return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
     const baseOrang = info.penginapanBaseOrang || 1;
     const extra = Math.max(0, orang - baseOrang);
     if (!extra) return 0;
     const tipe = info.penginapan.find((p) => { const pn = p.nama.toLowerCase(); const rt = (selRoom?.tipe || '').toLowerCase(); const rn = (selRoom?.nama || '').toLowerCase(); return (rt && (rt.includes(pn) || pn.includes(rt))) || rn.includes(pn); });
-    const nights = durasi === 'Per Malam' ? Math.max(1, malamQty) : durasi === 'Mingguan' ? 7 : 30;
-    return extra * (tipe?.extraPerOrang || 0) * nights;
-  }, [layanan, orang, info, selRoom, durasi, malamQty]);
+    const n = durasi === 'Per Malam' ? Math.max(1, malamQty) : durasi === 'Mingguan' ? 7 : 30;
+    return extra * (tipe?.extraPerOrang || 0) * n;
+  }, [isKost, orang, info, selRoom, durasi, malamQty]);
 
   function toggleFac(id: string) { setSelFac((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
+
+  // WhatsApp Penjaga Mezi (untuk kamar yang masih DP).
+  const meziNo = info.waMezi || DEFAULT_INFO.waMezi;
+  const meziLink = `https://wa.me/${normWa(meziNo)}?text=${encodeURIComponent('Halo Penjaga Mezi 🌸, saya mau tanya ketersediaan kamar yang masih DP di Top Hills.')}`;
 
   function lanjut() {
     setWaErr('');
     if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
     if (!isValidWa(wa)) { setWaErr('Format WA belum benar. Contoh: 6281234567890'); return; }
-    if (!kamar) { toast.error('Pilih kamar dulu'); return; }
+    if (!kamar) { toast.error('Pilih kamar yang tersedia dulu'); return; }
     if (bayar === 'DP') {
       if (dpAmount < dpMin) { toast.error(`DP minimal ${formatRupiah(dpMin)}`); return; }
       if (base.price > 0 && dpAmount > base.price + addonTotal + extraOrang) { toast.error('DP tidak boleh melebihi total'); return; }
@@ -144,9 +153,7 @@ export default function BookingBaruPage() {
 
   async function doSubmit(bukti: BuktiFile | null) {
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
-    // Rincian harga untuk INVOICE: harga satuan kamar (unit) × jumlah periode (qty)
-    // + biaya tambahan (addon). base.price = unit×qty (harian) / harga paket (lainnya).
-    const rincQty = layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? Math.max(1, malamQty) : 1;
+    const rincQty = !isKost && durasi === 'Per Malam' ? Math.max(1, malamQty) : 1;
     const rincUnit = rincQty > 0 ? Math.round(base.price / rincQty) : base.price;
     const rincAddon = addonTotal + extraOrang;
     const catat = [
@@ -161,7 +168,7 @@ export default function BookingBaruPage() {
     setSubmitting(true);
     const res = await submitBookingRequest({
       jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar,
-      durasi: layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? `${Math.max(1, malamQty)} malam` : durasi,
+      durasi: !isKost && durasi === 'Per Malam' ? `${Math.max(1, malamQty)} malam` : durasi,
       // Kost dgn kunci tanggal → jangan kirim tanggal; di-set admin saat konfirmasi (lunas).
       tglMulai: kostLockTanggal ? '' : mulai, bayar, catatan: catat, jumlahOrang: orang, bukti: bukti || undefined,
       dpAmount: bayar === 'DP' ? dpAmount : undefined,
@@ -193,9 +200,17 @@ export default function BookingBaruPage() {
     );
   }
 
+  const kamarHint = !rooms
+    ? 'Memuat data kamar…'
+    : (!isKost && !rangeReady)
+      ? '⬆️ Isi tanggal check-in dulu untuk melihat kamar yang tersedia di tanggal itu.'
+      : kosongRooms.length === 0
+        ? `Tidak ada kamar ${isKost ? 'kost' : 'penginapan'} yang tersedia ${!isKost ? 'untuk tanggal ini' : 'saat ini'}.${dpRooms.length ? ' Cek info kamar DP di bawah 👇' : ''}`
+        : `Menampilkan kamar yang tersedia${!isKost ? ' untuk tanggalmu' : ''}.`;
+
   return (
     <BookingShell back={{ href: '/info/booking', label: 'Pilihan' }}>
-      <SectionTitle sub="Pertama kali booking di Top Hills? Isi data di bawah ya.">Booking Kamar Baru</SectionTitle>
+      <SectionTitle sub="Isi data & tanggal dulu, lalu pilih kamar yang tersedia. 🌸">Booking Kamar Baru</SectionTitle>
 
       <THCard className="space-y-4">
         <THField label="Nama lengkap">
@@ -205,7 +220,8 @@ export default function BookingBaruPage() {
           <THInput inputMode="numeric" placeholder="Contoh: 6281234567890" value={wa} onChange={(e) => setWa(e.target.value)} />
         </THField>
 
-        <THField label="Layanan">
+        {/* 1) Layanan */}
+        <THField label="1. Pilih layanan">
           <div className="grid grid-cols-2 gap-2">
             {(['KOS', 'PENGINAPAN'] as const).map((l) => (
               <button key={l} onClick={() => { setLayanan(l); setKamar(''); setDurasi(l === 'KOS' ? '6 Bulan' : 'Per Malam'); }}
@@ -217,10 +233,47 @@ export default function BookingBaruPage() {
           </div>
         </THField>
 
-        <THField label="Pilih kamar (hanya yang tersedia)" hint={!rooms ? 'Memuat data kamar…' : kamarOptions.length === 0 ? `Saat ini tidak ada kamar ${layanan === 'KOS' ? 'kost' : 'penginapan'} yang tersedia — chat Helpdesk di bawah ya 🌸` : 'Hanya menampilkan kamar yang masih kosong.'}>
-          <THSelect value={kamar} onChange={(e) => setKamar(e.target.value)}>
+        {/* 2) Durasi + tanggal — DULUKAN sebelum pilih kamar agar ketersediaan akurat */}
+        <THField label="2. Durasi / paket">
+          <THSelect value={durasi} onChange={(e) => { setDurasi(e.target.value); setKamar(''); }}>
+            {durasiOpts.map((d) => <option key={d} value={d}>{d}</option>)}
+          </THSelect>
+        </THField>
+
+        {!isKost ? (
+          <div className="grid grid-cols-2 gap-3">
+            <THField label="3. Tanggal check-in">
+              <THInput type="date" value={mulai} min={new Date().toISOString().slice(0, 10)} onChange={(e) => { setMulai(e.target.value); setKamar(''); }} />
+            </THField>
+            {durasi === 'Per Malam' ? (
+              <THField label="Jumlah malam">
+                <THInput type="number" min={1} value={malamQty} onChange={(e) => { setMalamQty(Math.max(1, Number(e.target.value) || 1)); setKamar(''); }} />
+              </THField>
+            ) : (
+              <THField label="Lama sewa">
+                <div className="rounded-[12px] px-3.5 py-2.5 text-[13px]" style={{ background: TH.cream, border: `1.5px solid ${TH.border}`, color: TH.brownSoft }}>
+                  {durasi === 'Mingguan' ? '7 malam' : '30 malam'}
+                </div>
+              </THField>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-[12px] px-3.5 py-2.5 text-[12.5px] leading-snug" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
+            📅 Untuk <b>kost</b>, tanggal check-in &amp; check-out di-set <b>otomatis</b> = tanggal pelunasan + periode ({durasi}) saat admin konfirmasi. Daftar kamar di bawah = yang <b>kosong saat ini</b>.
+          </div>
+        )}
+
+        {!isKost && rangeReady && (
+          <p className="text-[12px] -mt-1" style={{ color: TH.brownSoft }}>
+            🗓️ Menginap <b>{fmtTgl(mulai)}</b> → <b>{fmtTgl(checkOut)}</b> · {nights} malam
+          </p>
+        )}
+
+        {/* 3) Pilih kamar — hanya yang TERSEDIA di tanggal itu */}
+        <THField label={`${isKost ? '3' : '4'}. Pilih kamar yang tersedia`} hint={kamarHint}>
+          <THSelect value={kamar} onChange={(e) => setKamar(e.target.value)} >
             <option value="">— pilih kamar —</option>
-            {kamarOptions.map((r) => (
+            {kosongRooms.map((r) => (
               <option key={`${r.nama}-${r.gedung}`} value={`${r.nama} — ${r.gedung}`}>
                 {r.nama} — {r.gedung}{r.tipe ? ` (${r.tipe})` : ''}
               </option>
@@ -228,48 +281,29 @@ export default function BookingBaruPage() {
           </THSelect>
         </THField>
 
-        <div className="grid grid-cols-2 gap-3">
-          <THField label="Durasi / paket">
-            <THSelect value={durasi} onChange={(e) => setDurasi(e.target.value)}>
-              {durasiOpts.map((d) => <option key={d} value={d}>{d}</option>)}
-            </THSelect>
-          </THField>
-          {layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? (
-            <THField label="Jumlah malam">
-              <THInput type="number" min={1} value={malamQty} onChange={(e) => setMalamQty(Math.max(1, Number(e.target.value) || 1))} />
-            </THField>
-          ) : kostLockTanggal ? (
-            <THField label="Tanggal mulai">
-              <div className="rounded-[12px] px-3.5 py-2.5 text-[13px]" style={{ background: TH.cream, border: `1.5px solid ${TH.border}`, color: TH.brownSoft }}>
-                Otomatis (saat lunas)
-              </div>
-            </THField>
-          ) : (
-            <THField label="Tanggal mulai">
-              <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
-            </THField>
-          )}
-        </div>
-        {kostLockTanggal && (
-          <p className="text-[12px] leading-snug -mt-1 rounded-[12px] px-3 py-2.5" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
-            📅 Untuk <b>kost</b>, tanggal check-in &amp; check-out ditetapkan <b>otomatis</b> = tanggal pelunasan + periode ({durasi}), saat admin mengonfirmasi pembayaranmu. Jadi kamu tidak perlu pilih tanggal di sini ya. 🌸
-          </p>
+        {/* Kamar yang masih DP → arahkan ke Penjaga Mezi */}
+        {dpRooms.length > 0 && (
+          <div className="rounded-[12px] p-3.5 text-[12.5px] leading-relaxed" style={{ background: '#FEF3C7', border: '1px solid #E7D3A0', color: TH.brown }}>
+            🟡 <b>Ada kamar yang masih DP</b> (dipesan, belum lunas){!isKost ? ' untuk tanggal ini' : ''}:{' '}
+            <b>{dpRooms.map((r) => r.nama).join(', ')}</b>. Masih ada kemungkinan tersedia — untuk info lebih lanjut hubungi{' '}
+            <b>Penjaga Mezi</b>:{' '}
+            <a href={meziLink} target="_blank" rel="noopener noreferrer" style={{ color: TH.gold, fontWeight: 700 }}>
+              {meziNo} (chat WA)
+            </a>
+          </div>
         )}
-        {layanan === 'PENGINAPAN' && durasi === 'Per Malam' && (
-          <THField label="Tanggal mulai">
-            <THInput type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} />
-          </THField>
-        )}
-        {layanan === 'PENGINAPAN' && durasi !== 'Per Malam' && (
+
+        {/* 4) Jumlah orang */}
+        <THField label="Jumlah orang" hint={isKost ? `Maks ${maxOrang} orang. Orang ke-2 +${formatRupiah(info.kostExtraPerOrang || 0)}` : `Maks ${maxOrang} per kamar. Lebih dari ${info.penginapanBaseOrang || 1} kena +rate/orang/malam`}>
+          <THInput type="number" min={1} max={maxOrang} value={orang}
+            onChange={(e) => setOrang(Math.max(1, Math.min(maxOrang, Number(e.target.value) || 1)))} />
+        </THField>
+
+        {!isKost && durasi !== 'Per Malam' && (
           <p className="text-[12px] leading-snug -mt-1" style={{ color: TH.brownSoft }}>
             ⚡ Untuk sewa lebih dari 1 hari, token listrik ditanggung tamu.
           </p>
         )}
-
-        <THField label="Jumlah orang" hint={layanan === 'KOS' ? `Maks ${maxOrang} orang (6bln/1thn). Orang ke-2 +${formatRupiah(info.kostExtraPerOrang || 0)}` : `Maks ${maxOrang} per kamar. Lebih dari ${info.penginapanBaseOrang || 1} kena +rate/orang/malam`}>
-          <THInput type="number" min={1} max={maxOrang} value={orang}
-            onChange={(e) => setOrang(Math.max(1, Math.min(maxOrang, Number(e.target.value) || 1)))} />
-        </THField>
 
         {acDisabled && (
           <p className="text-[12px] leading-snug rounded-[12px] px-3 py-2.5" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
