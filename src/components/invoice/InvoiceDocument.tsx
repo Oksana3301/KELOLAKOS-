@@ -49,9 +49,11 @@ export function InvoiceDocument({
   const balanceLabel = fullyPaid ? 'TOTAL' : 'SISA TAGIHAN';
   const balanceVal = fullyPaid ? subtotal : balance;
   const paidLines = inv.payments.map((p) => ({ label: p.label, text: '− ' + rp(p.amount) }));
+  // LUNAS → dokumen jadi KWITANSI (tanda terima); DP/belum → INVOICE (tagihan).
+  const docType = fullyPaid && subtotal > 0 ? 'KWITANSI' : 'INVOICE';
 
   const metaRows: [string, string][] = [
-    ['NO. INVOICE', inv.id],
+    [`NO. ${docType}`, inv.id],
     ['TANGGAL', inv.date],
     ['JATUH TEMPO', inv.due],
   ];
@@ -94,7 +96,7 @@ export function InvoiceDocument({
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 58, letterSpacing: 8, lineHeight: .9, color: '#F6EFDF' }}>INVOICE</div>
+              <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 58, letterSpacing: 8, lineHeight: .9, color: '#F6EFDF' }}>{docType}</div>
               {inv.tag && <div style={{ display: 'inline-block', marginTop: 10, padding: '6px 15px', border: '1px solid rgba(246,239,223,.55)', borderRadius: 20, fontSize: 12, letterSpacing: 2.5, color: '#F6EFDF', fontWeight: 700 }}>{inv.tag}</div>}
               <MetaBlock rows={metaRows} kColor="rgba(243,236,221,.62)" vColor="#F6EFDF" />
             </div>
@@ -113,7 +115,7 @@ export function InvoiceDocument({
                   <div style={{ fontSize: 14, color: '#8A8170', marginTop: 6, letterSpacing: .3 }}>Limau Manis, Pauh — Padang</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 62, letterSpacing: 8, lineHeight: .9, ...goldText }}>INVOICE</div>
+                  <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 62, letterSpacing: 8, lineHeight: .9, ...goldText }}>{docType}</div>
                   {inv.tag && <div style={{ display: 'inline-block', marginTop: 11, padding: '6px 15px', border: '1px solid rgba(156,122,46,.5)', borderRadius: 20, fontSize: 12, letterSpacing: 2.5, color: GOLD, fontWeight: 700 }}>{inv.tag}</div>}
                   <MetaBlock rows={metaRows} kColor="#9C8A6A" vColor="#3A332A" />
                 </div>
