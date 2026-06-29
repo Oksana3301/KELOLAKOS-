@@ -42,6 +42,34 @@ function isoDay(v?: string): string {
   const d = new Date(v);
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
+// Jumlah bulan dari label paket ("1 Tahun"→12, "6 Bulan"→6, "3 Bulan"→3).
+function periodeBulan(s?: string): number {
+  const t = String(s || '').toUpperCase();
+  if (/TAHUN|SETAHUN/.test(t)) return 12;
+  const m = t.match(/(\d+)\s*BULAN/);
+  if (m) return Number(m[1]);
+  if (/6\s*BULAN|ENAM\s*BULAN/.test(t)) return 6;
+  return 0;
+}
+function addMonthsISO(iso: string, n: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d.getTime())) return iso;
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + n);
+  if (d.getDate() < day) d.setDate(0);
+  return d.toISOString().slice(0, 10);
+}
+// Check-out untuk DITAMPILKAN. Bila tersimpan kosong / ≤ check-in (data lama
+// salah), hitung dari check-in + periode paket (khusus kost bulanan/tahunan).
+function displayCheckOut(b: BookingItem): string {
+  const ci = isoDay(b.CheckIn);
+  const co = isoDay(b.CheckOut);
+  if (ci && (!co || co <= ci)) {
+    const bln = periodeBulan(b.Paket || (b as BookingItem & { Durasi?: string }).Durasi);
+    if (bln > 0) return addMonthsISO(ci, bln);
+  }
+  return b.CheckOut;
+}
 // Tentukan jenis layanan sebuah booking dari kolom Layanan.
 function bookingLayanan(b: BookingItem): 'kost' | 'penginapan' | 'lain' {
   const l = String(b.Layanan || '').toUpperCase();
@@ -619,7 +647,7 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-kk-pill px-3 py-1.5 text-[14px] font-bold"
             style={{ background: '#FBEEE6', color: '#9A4A1E', border: '1.5px solid #F0C9AE' }}>
-            🏁 Keluar: {tglPanjang(b.CheckOut) || '—'}
+            🏁 Keluar: {tglPanjang(displayCheckOut(b)) || '—'}
           </span>
         </div>
       )}
