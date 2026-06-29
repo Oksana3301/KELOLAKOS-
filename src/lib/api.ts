@@ -145,12 +145,13 @@ export interface BookingItem {
   Diskon: number; Harga_Total_Net: number; Total_Bayar: number;
   Refund_Total: number; Net_Diterima: number; Sisa_Bayar: number;
   Kelebihan_Bayar: number; DP_Hangus: number; Is_Closed: string; Label: string;
+  Bukti_Bayar?: string; Tgl_Pembayaran?: string;
 }
 
 export interface BookingFullData extends BookingItem {
   Timestamp?: string; Durasi?: string; Jumlah_Orang?: number;
   Extra_Bed_Qty?: number; Extra_Person_Qty?: number; Extra_Request?: string;
-  Is_Ekstra?: 'YA' | 'TIDAK'; Updated_At?: string; Bukti_Bayar?: string; tag_perpanjangan?: string;
+  Is_Ekstra?: 'YA' | 'TIDAK'; Updated_At?: string; tag_perpanjangan?: string;
 }
 
 export interface DashboardStats {
