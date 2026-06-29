@@ -10,7 +10,7 @@ import { ScreenHead, KkButton, KkCard, BayarBadge, StickyCTA } from '@/component
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { PaymentConfirm, DeleteConfirm } from '@/components/kk/confirm';
-import { mapPayStatus, rupiah, tglPendek, type PayStatus } from '@/components/kk/status';
+import { mapPayStatus, rupiah, tglPendek, tglPanjang, type PayStatus } from '@/components/kk/status';
 import { BookingFlow, BookingDetail, CancelConfirm, RefundForm, TagihWa } from '@/components/kk/booking-ui';
 import { PendingConfirmations } from '@/components/kk/pending-confirmations';
 
@@ -618,10 +618,21 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
         </div>
         <BayarBadge status={status} />
       </div>
-      <div className="flex justify-between items-baseline border-t border-kk-mauve-soft pt-2.5">
-        <span className="text-caption text-kk-ink">
-          {tglPendek(b.CheckIn)} → {tglPendek(b.CheckOut)}
-        </span>
+      {/* Tanggal — pill terang & jelas (lengkap dgn TAHUN) biar mudah dibaca */}
+      {(b.CheckIn || b.CheckOut) && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-kk-mauve-soft pt-2.5 mb-2">
+          <span className="inline-flex items-center gap-1.5 rounded-kk-pill px-3 py-1.5 text-[14px] font-bold"
+            style={{ background: '#EAF1FB', color: '#1E4E8C', border: '1.5px solid #B9D0EE' }}>
+            📅 Masuk: {tglPanjang(b.CheckIn) || '—'}
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-kk-pill px-3 py-1.5 text-[14px] font-bold"
+            style={{ background: '#FBEEE6', color: '#9A4A1E', border: '1.5px solid #F0C9AE' }}>
+            🏁 Keluar: {tglPanjang(b.CheckOut) || '—'}
+          </span>
+        </div>
+      )}
+      <div className="flex justify-between items-baseline">
+        <span className="text-caption text-kk-ink">Total</span>
         <span className="font-heading font-bold text-[19px] text-kk-navy">{rupiah(total)}</span>
       </div>
       {showSplit && (
