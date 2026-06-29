@@ -134,8 +134,17 @@ type BookingLike = {
   CheckIn?: string; CheckOut?: string;
   Harga_Kamar?: number; Extra_Charge?: number; Diskon?: number;
   Harga_Total_Net?: number; Net_Diterima?: number; Sisa_Bayar?: number;
+  Catatan?: string;
 };
 type PaymentRecordLike = { Jenis_Bayar?: string; Nominal?: number; Tanggal_Bayar?: string };
+
+// Rincian harga satuan booking /info, disimpan di catatan: "[RINC u=.. q=.. a=..]"
+// u = harga satuan kamar/periode · q = jumlah periode · a = total biaya tambahan.
+export function parseRincian(catatan?: string): { unit: number; qty: number; addon: number } | null {
+  const m = String(catatan || '').match(/\[RINC\s+u=(\d+)\s+q=(\d+)\s+a=(\d+)\]/i);
+  if (!m) return null;
+  return { unit: Number(m[1]), qty: Math.max(1, Number(m[2])), addon: Number(m[3]) };
+}
 
 /** Bangun Invoice dari sebuah booking (+ rincian pembayaran bila ada). */
 export function bookingToInvoice(
@@ -147,27 +156,34 @@ export function bookingToInvoice(
   const idTail = String(b.BookingID || '').replace(/[^0-9]/g, '').slice(-4) || '0000';
   const id = `TH/${pfx}/${new Date().getFullYear()}-${idTail}`;
 
-  const qty = Math.max(Number(b.Jumlah_Periode || 1), 1);
-  const price = Number(b.Harga_Kamar || 0);
+  // Harga satuan kamar & jumlah periode. Booking /booking mengisi kolom
+  // Harga_Kamar/Jumlah_Periode; booking /info menyimpannya di catatan ([RINC]).
+  const rinc = parseRincian(b.Catatan);
+  const colUnit = Number(b.Harga_Kamar || 0);
+  const unit = colUnit > 0 ? colUnit : (rinc?.unit || 0);
+  const qty = colUnit > 0 ? Math.max(Number(b.Jumlah_Periode || 1), 1) : Math.max(rinc?.qty || 1, 1);
   const extra = Number(b.Extra_Charge || 0);
   const diskon = Number(b.Diskon || 0);
-  // SUMBER KEBENARAN total = Harga_Total_Net (dipakai juga oleh dashboard & sisa DP).
-  // Booking dari /info hanya mengisi Harga_Total_Net (bukan Harga_Kamar/periode),
-  // jadi bila rincian per-unit tidak cocok dgn total resmi → pakai total resmi
-  // sebagai SATU baris supaya invoice ⇄ data booking SELALU sinkron.
+  // SUMBER KEBENARAN total = Harga_Total_Net (dipakai juga dashboard & sisa DP).
   const officialTotal = Number(b.Harga_Total_Net || 0);
-  const computed = qty * price + extra - diskon;
   const roomDesc = `Sewa ${b.Nama_Kamar || (isKost ? 'Kost Putri' : 'Kamar')}`;
   const roomNote = [b.Paket, b.Gedung].filter(Boolean).join(' · ');
+  const roomSub = unit * qty;
 
   let items: LineItem[];
-  if (officialTotal > 0 && (price <= 0 || Math.abs(computed - officialTotal) > 1)) {
-    // Per-unit tidak lengkap/tidak cocok → satu baris memakai total resmi.
+  if (unit > 0) {
+    // Baris kamar: QTY × HARGA = subtotal kamar (selalu tampil).
+    items = [{ desc: roomDesc, note: roomNote, qty, price: unit }];
+    // Sisanya (fasilitas, biaya/orang tambahan, diskon) sebagai baris terpisah,
+    // dipatok ke total resmi supaya Subtotal invoice = total booking persis.
+    const addon = officialTotal > 0 ? officialTotal - roomSub : (rinc?.addon ?? 0) + extra - diskon;
+    if (addon > 1) items.push({ desc: 'Fasilitas & biaya tambahan', note: '', qty: 1, price: addon });
+    else if (addon < -1) items.push({ desc: 'Diskon / penyesuaian', note: '', qty: 1, price: addon });
+  } else if (officialTotal > 0) {
+    // Tak ada harga satuan di mana pun → satu baris memakai total resmi.
     items = [{ desc: roomDesc, note: roomNote, qty: 1, price: officialTotal }];
   } else {
-    items = [{ desc: roomDesc, note: roomNote, qty, price }];
-    if (extra > 0) items.push({ desc: 'Biaya tambahan', note: 'Extra charge', qty: 1, price: extra });
-    if (diskon > 0) items.push({ desc: 'Diskon', note: 'Potongan harga', qty: 1, price: -diskon });
+    items = [{ desc: roomDesc, note: roomNote, qty: 1, price: 0 }];
   }
 
   // Payments: dari rincian bila ada, kalau tidak pakai Net_Diterima.

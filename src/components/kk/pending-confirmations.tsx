@@ -226,7 +226,7 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
           <Row label="Sisa (belum lunas)" value={rupiah(sisa)} />
         </div>
 
-        {b.Catatan ? <p className="text-[12px] text-kk-ink/80 leading-snug mb-5 whitespace-pre-line">📝 {b.Catatan}</p> : null}
+        {b.Catatan ? <p className="text-[12px] text-kk-ink/80 leading-snug mb-5 whitespace-pre-line">📝 {b.Catatan.replace(/\s*—?\s*\[RINC[^\]]*\]/i, '').trim()}</p> : null}
 
         {/* Ubah data dulu (mis. ganti kamar / betulkan nama) tanpa harus konfirmasi */}
         <KkButton variant="secondary" block onClick={onEdit} disabled={busy} className="mb-3">
