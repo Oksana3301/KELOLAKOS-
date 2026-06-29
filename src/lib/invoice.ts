@@ -149,18 +149,26 @@ export function bookingToInvoice(
 
   const qty = Math.max(Number(b.Jumlah_Periode || 1), 1);
   const price = Number(b.Harga_Kamar || 0);
-  const items: LineItem[] = [
-    {
-      desc: `Sewa ${b.Nama_Kamar || (isKost ? 'Kost Putri' : 'Kamar')}`,
-      note: [b.Paket, b.Gedung].filter(Boolean).join(' · '),
-      qty,
-      price,
-    },
-  ];
   const extra = Number(b.Extra_Charge || 0);
-  if (extra > 0) items.push({ desc: 'Biaya tambahan', note: 'Extra charge', qty: 1, price: extra });
   const diskon = Number(b.Diskon || 0);
-  if (diskon > 0) items.push({ desc: 'Diskon', note: 'Potongan harga', qty: 1, price: -diskon });
+  // SUMBER KEBENARAN total = Harga_Total_Net (dipakai juga oleh dashboard & sisa DP).
+  // Booking dari /info hanya mengisi Harga_Total_Net (bukan Harga_Kamar/periode),
+  // jadi bila rincian per-unit tidak cocok dgn total resmi → pakai total resmi
+  // sebagai SATU baris supaya invoice ⇄ data booking SELALU sinkron.
+  const officialTotal = Number(b.Harga_Total_Net || 0);
+  const computed = qty * price + extra - diskon;
+  const roomDesc = `Sewa ${b.Nama_Kamar || (isKost ? 'Kost Putri' : 'Kamar')}`;
+  const roomNote = [b.Paket, b.Gedung].filter(Boolean).join(' · ');
+
+  let items: LineItem[];
+  if (officialTotal > 0 && (price <= 0 || Math.abs(computed - officialTotal) > 1)) {
+    // Per-unit tidak lengkap/tidak cocok → satu baris memakai total resmi.
+    items = [{ desc: roomDesc, note: roomNote, qty: 1, price: officialTotal }];
+  } else {
+    items = [{ desc: roomDesc, note: roomNote, qty, price }];
+    if (extra > 0) items.push({ desc: 'Biaya tambahan', note: 'Extra charge', qty: 1, price: extra });
+    if (diskon > 0) items.push({ desc: 'Diskon', note: 'Potongan harga', qty: 1, price: -diskon });
+  }
 
   // Payments: dari rincian bila ada, kalau tidak pakai Net_Diterima.
   let pays: Payment[] = [];

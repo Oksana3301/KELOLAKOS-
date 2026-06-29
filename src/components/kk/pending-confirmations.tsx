@@ -125,10 +125,7 @@ export function PendingConfirmations() {
           busy={busy}
           onClose={() => setSel(null)}
           onEdit={() => { setEdit(sel); setSel(null); }}
-          onConfirm={(s) => {
-            const p = parseCatatan(sel.Catatan);
-            const total = toNum(p.estimasi);
-            const dibayar = s === 'Lunas' ? total : toNum(p.dp);
+          onConfirm={(s, total, dibayar) => {
             confirm.mutate({ id: sel.BookingID, status: s, total, dibayar });
           }}
           onReject={() => { if (window.confirm(`Tolak booking ${sel.Nama_Customer}?`)) reject.mutate(sel.BookingID); }}
@@ -159,12 +156,22 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
-  b: BookingFullData; busy: boolean; onClose: () => void; onEdit: () => void; onConfirm: (s: 'DP' | 'Lunas') => void; onReject: () => void;
+  b: BookingFullData; busy: boolean; onClose: () => void; onEdit: () => void;
+  onConfirm: (s: 'DP' | 'Lunas', total: number, dibayar: number) => void; onReject: () => void;
 }) {
   const p = parseCatatan(b.Catatan);
   const orang = safeOrang(b, p);
   const layanan = String(b.Layanan).toUpperCase() === 'KOS' ? 'Kost' : 'Penginapan';
-  const sisa = p.estimasi && p.dp ? Math.max(0, toNum(p.estimasi) - toNum(p.dp)) : 0;
+
+  // Nominal BISA dikoreksi sebelum Terima — inilah yang tercatat (Harga_Total_Net,
+  // Net_Diterima, Sisa_Bayar) & muncul persis di invoice. Default dari catatan /info.
+  const [totalStr, setTotalStr] = useState(String(toNum(p.estimasi) || ''));
+  const [dpStr, setDpStr] = useState(String(toNum(p.dp) || ''));
+  const totalNum = toNum(totalStr);
+  const dpNum = toNum(dpStr);
+  const sisa = Math.max(0, totalNum - dpNum);
+  const fmtRp = (s: string) => { const n = toNum(s); return n ? n.toLocaleString('id-ID') : ''; };
+  const onlyDigits = (s: string) => s.replace(/[^0-9]/g, '');
 
   return (
     <Sheet open onClose={onClose}>
@@ -200,11 +207,23 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
           {b.tag_perpanjangan ? <Row label="Perpanjangan dari" value={b.tag_perpanjangan} /> : null}
         </div>
 
-        {/* Biaya */}
+        {/* Biaya — BISA dikoreksi sebelum Terima (inilah yang masuk ke invoice) */}
         <div className="rounded-kk-card border-2 border-kk-mint p-4 mb-5" style={{ background: '#EEF6F0' }}>
-          <Row label="Estimasi total" value={p.estimasi ? `Rp ${p.estimasi}` : '—'} />
-          <Row label="DP dibayar" value={p.dp ? `Rp ${p.dp}` : '—'} />
-          {p.estimasi && p.dp ? <Row label="Sisa (belum lunas)" value={rupiah(sisa)} /> : null}
+          <p className="text-[12px] text-kk-ink mt-0 mb-3">
+            Periksa &amp; koreksi nominal sebelum Terima. Angka ini yang tercatat &amp; muncul di invoice. 🌸
+          </p>
+          <label className="block mb-3">
+            <span className="block text-[13px] font-semibold text-kk-navy mb-1.5">Total tagihan (Rp)</span>
+            <input className="kk-input" inputMode="numeric" placeholder="0"
+              value={fmtRp(totalStr)} onChange={(e) => setTotalStr(onlyDigits(e.target.value))} />
+          </label>
+          <label className="block mb-3">
+            <span className="block text-[13px] font-semibold text-kk-navy mb-1.5">DP diterima (Rp)</span>
+            <input className="kk-input" inputMode="numeric" placeholder="0"
+              value={fmtRp(dpStr)} onChange={(e) => setDpStr(onlyDigits(e.target.value))} />
+            <span className="block text-[12px] text-kk-ink mt-1">Kosongkan / 0 bila langsung Lunas.</span>
+          </label>
+          <Row label="Sisa (belum lunas)" value={rupiah(sisa)} />
         </div>
 
         {b.Catatan ? <p className="text-[12px] text-kk-ink/80 leading-snug mb-5 whitespace-pre-line">📝 {b.Catatan}</p> : null}
@@ -214,10 +233,14 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
           ✏️ Ubah Data Booking
         </KkButton>
 
-        {/* Aksi */}
+        {/* Aksi — DP pakai nominal DP diterima; Lunas = dibayar penuh */}
         <div className="grid grid-cols-2 gap-2">
-          <KkButton variant="success" onClick={() => onConfirm('DP')} disabled={busy}>Terima · DP</KkButton>
-          <KkButton variant="success" onClick={() => onConfirm('Lunas')} disabled={busy}>Terima · Lunas</KkButton>
+          <KkButton variant="success" onClick={() => onConfirm('DP', totalNum, dpNum)} disabled={busy || totalNum <= 0 || dpNum <= 0}>
+            Terima · DP
+          </KkButton>
+          <KkButton variant="success" onClick={() => onConfirm('Lunas', totalNum, totalNum)} disabled={busy || totalNum <= 0}>
+            Terima · Lunas
+          </KkButton>
         </div>
         <KkButton variant="ghost" block onClick={onReject} disabled={busy} className="mt-2">Tolak booking</KkButton>
         <KkButton variant="secondary" block onClick={onClose} disabled={busy} className="mt-2">Tutup</KkButton>
