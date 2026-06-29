@@ -144,6 +144,11 @@ export default function BookingBaruPage() {
 
   async function doSubmit(bukti: BuktiFile | null) {
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
+    // Rincian harga untuk INVOICE: harga satuan kamar (unit) × jumlah periode (qty)
+    // + biaya tambahan (addon). base.price = unit×qty (harian) / harga paket (lainnya).
+    const rincQty = layanan === 'PENGINAPAN' && durasi === 'Per Malam' ? Math.max(1, malamQty) : 1;
+    const rincUnit = rincQty > 0 ? Math.round(base.price / rincQty) : base.price;
+    const rincAddon = addonTotal + extraOrang;
     const catat = [
       catatan.trim(),
       orang > 1 ? `${orang} orang` : '',
@@ -151,6 +156,7 @@ export default function BookingBaruPage() {
       extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
       base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal + extraOrang)}` : '',
       bayar === 'DP' && dpAmount > 0 ? `DP: ${formatRupiah(dpAmount)}` : '',
+      base.price > 0 ? `[RINC u=${rincUnit} q=${rincQty} a=${rincAddon}]` : '',
     ].filter(Boolean).join(' — ');
     setSubmitting(true);
     const res = await submitBookingRequest({
