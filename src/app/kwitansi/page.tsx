@@ -231,6 +231,24 @@ export default function InvoicePage() {
     void copyInvoiceImageBg();
   }
 
+  // Salin invoice sebagai PNG ke clipboard — siap tempel (paste) ke WhatsApp.
+  async function copyInvoicePNG() {
+    if (!exportRef.current) return;
+    const toastId = toast.loading('Menyiapkan invoice…');
+    try {
+      if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
+      await new Promise((r) => setTimeout(r, 120));
+      const res = await copyAsPNGToClipboard({ element: exportRef.current, scale: 2, backgroundColor: null });
+      if (res.method === 'clipboard') {
+        toast.success('Invoice tersalin (PNG) — tinggal tempel (paste) ke chat WhatsApp 🌸', { id: toastId });
+      } else {
+        toast.success('Invoice terunduh (PNG) — lampirkan ke chat WhatsApp.', { id: toastId });
+      }
+    } catch (e) {
+      toast.error('Gagal: ' + (e as Error).message, { id: toastId });
+    }
+  }
+
   async function copyInvoiceImageBg() {
     if (!exportRef.current) return;
     try {
@@ -345,6 +363,11 @@ export default function InvoicePage() {
         Langsung membuka chat WhatsApp <b className="text-kk-navy">{invoice.customer.name || 'penyewa'}</b> berisi pesan konfirmasi (nama, kamar, periode, DP/Lunas).
         Gambar invoice ikut <b className="text-kk-navy">tersalin</b> — tinggal tempel (paste) di chat, atau pakai <b className="text-kk-navy">Unduh PNG</b> lalu lampirkan.
       </p>
+
+      {/* Salin invoice sebagai gambar — siap tempel ke WhatsApp */}
+      <KkButton variant="secondary" size="lg" block className="mt-3" onClick={copyInvoicePNG}>
+        <KkIcon name="cek" size={20} strokeWidth={2.2} /> Salin Invoice (PNG) — siap tempel ke WhatsApp
+      </KkButton>
 
       {/* Aksi tambahan */}
       <div className="mt-3 grid grid-cols-2 gap-3">
