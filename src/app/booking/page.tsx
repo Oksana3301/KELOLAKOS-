@@ -36,6 +36,12 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 type LayananId = 'semua' | 'kost' | 'penginapan';
+// Tanggal → 'yyyy-mm-dd' (aman untuk berbagai format), '' bila tak valid.
+function isoDay(v?: string): string {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
 // Tentukan jenis layanan sebuah booking dari kolom Layanan.
 function bookingLayanan(b: BookingItem): 'kost' | 'penginapan' | 'lain' {
   const l = String(b.Layanan || '').toUpperCase();
@@ -61,6 +67,10 @@ function BookingPageInner() {
   const [layanan, setLayanan] = useState<LayananId>('semua');
   const [cari, setCari] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
+  // Filter rentang tanggal — basis Tgl Masuk (check-in) atau Tgl Bayar.
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [dateBasis, setDateBasis] = useState<'checkin' | 'bayar'>('checkin');
 
   // Add / edit flow
   const [showFlow, setShowFlow] = useState(false);
@@ -157,7 +167,20 @@ function BookingPageInner() {
     if (tab !== 'semua') {
       list = list.filter((b) => mapPayStatus(b) === (tab as PayStatus));
     }
-    // 3) Lalu pencarian.
+    // 3) Filter RENTANG TANGGAL (berdasarkan Tgl Masuk / Tgl Bayar).
+    if (dateFrom || dateTo) {
+      list = list.filter((b) => {
+        const raw = dateBasis === 'bayar'
+          ? (b as BookingItem & { Tgl_Pembayaran?: string }).Tgl_Pembayaran
+          : b.CheckIn;
+        const d = isoDay(raw);
+        if (!d) return false;
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo && d > dateTo) return false;
+        return true;
+      });
+    }
+    // 4) Lalu pencarian.
     if (cari) {
       const q = cari.toLowerCase();
       list = list.filter(
@@ -166,7 +189,22 @@ function BookingPageInner() {
       );
     }
     return list;
-  }, [allBookings, layanan, tab, cari]);
+  }, [allBookings, layanan, tab, cari, dateFrom, dateTo, dateBasis]);
+
+  // Ringkasan untuk laporan penjaga (mengikuti filter aktif).
+  const summary = useMemo(() => {
+    let net = 0, dibayar = 0, sisa = 0;
+    filtered.forEach((b) => {
+      if (mapPayStatus(b) === 'Batal') return;
+      const t = Number(b.Harga_Total_Net) || 0;
+      const d = Number(b.Net_Diterima ?? b.Total_Bayar) || 0;
+      net += t; dibayar += d;
+      sisa += b.Sisa_Bayar != null ? Number(b.Sisa_Bayar) : Math.max(t - d, 0);
+    });
+    return { count: filtered.length, net, dibayar, sisa };
+  }, [filtered]);
+
+  const filterAktif = !!(dateFrom || dateTo || cari || tab !== 'semua' || layanan !== 'semua');
 
   // Open the detail sheet — fetch full data first so all fields are present.
   function openDetail(b: BookingItem) {
@@ -399,6 +437,62 @@ function BookingPageInner() {
           </button>
         ))}
       </div>
+
+      {/* Filter 3: Rentang tanggal (untuk laporan penjaga) */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-caption font-semibold text-kk-ink">Rentang tanggal</span>
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-caption font-semibold text-kk-orange">
+            Reset tanggal
+          </button>
+        )}
+      </div>
+      {/* Basis: berdasarkan tanggal masuk atau tanggal bayar */}
+      <div className="flex gap-2 mb-2.5">
+        {([
+          { id: 'checkin', label: '📅 Tgl Masuk' },
+          { id: 'bayar', label: '💰 Tgl Bayar' },
+        ] as { id: 'checkin' | 'bayar'; label: string }[]).map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setDateBasis(o.id)}
+            className={`flex-1 min-h-[44px] rounded-kk-pill font-body font-semibold text-[15px] border-2 ${
+              dateBasis === o.id ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 mb-4">
+        <label className="text-caption font-semibold text-kk-ink">
+          Dari
+          <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="kk-input mt-1" />
+        </label>
+        <label className="text-caption font-semibold text-kk-ink">
+          Sampai
+          <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="kk-input mt-1" />
+        </label>
+      </div>
+
+      {/* Ringkasan laporan (mengikuti filter aktif) */}
+      {filterAktif && (
+        <KkCard className="mb-4 !bg-kk-navy !border-kk-navy text-white">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-heading font-bold text-[18px]">{summary.count} penyewa</span>
+            {(dateFrom || dateTo) && (
+              <span className="text-caption text-white/85">
+                {dateBasis === 'bayar' ? 'Tgl Bayar' : 'Tgl Masuk'} {dateFrom ? tglPendek(dateFrom) : '…'} – {dateTo ? tglPendek(dateTo) : '…'}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[14px]">
+            <span>Total: <b className="font-heading">{rupiah(summary.net)}</b></span>
+            <span className="text-kk-mint">Dibayar: <b className="font-heading">{rupiah(summary.dibayar)}</b></span>
+            <span className="text-kk-orange-soft">Sisa: <b className="font-heading">{rupiah(summary.sisa)}</b></span>
+          </div>
+        </KkCard>
+      )}
 
       {/* List */}
       <div className="flex flex-col gap-3">
