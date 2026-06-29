@@ -259,6 +259,8 @@ export interface SubmitBookingEditPayload {
 export interface EditPendingBookingPayload {
   bookingId: string; nama?: string; whatsapp?: string; roomId?: string; kamar?: string; tipe?: string;
   layanan?: string; durasi?: string; jumlahOrang?: number; tglMulai?: string; catatan?: string;
+  /** Ganti bukti (upload baru) atau hapus bukti tersimpan. */
+  buktiFile?: BuktiFile; hapusBukti?: boolean;
 }
 
 export interface SubmitPaymentPayload {
