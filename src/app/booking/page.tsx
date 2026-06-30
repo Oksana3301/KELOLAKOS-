@@ -246,7 +246,16 @@ function BookingPageInner() {
     api
       .getBookingDetail(bookingId)
       .then((d) => {
-        setDetail(d.booking);
+        // MERGE — jangan timpa Bukti_Bayar/Tgl_Pembayaran yang mungkin sudah
+        // diisi getBookingRaw (cegah preview "muncul lalu hilang"/race).
+        setDetail((prev) => {
+          const keep = prev && prev.BookingID === bookingId ? prev : null;
+          return {
+            ...d.booking,
+            Bukti_Bayar: d.booking.Bukti_Bayar || keep?.Bukti_Bayar,
+            Tgl_Pembayaran: d.booking.Tgl_Pembayaran || keep?.Tgl_Pembayaran,
+          };
+        });
         setDetailPayments(d.payments || []);
         setEditFacilityIds((d.facilities || []).map((f) => f.id));
       })
@@ -259,7 +268,7 @@ function BookingPageInner() {
         if (!raw) return;
         setDetail((prev) =>
           prev && prev.BookingID === bookingId
-            ? { ...prev, Bukti_Bayar: raw.Bukti_Bayar ?? prev.Bukti_Bayar, Tgl_Pembayaran: raw.Tgl_Pembayaran ?? prev.Tgl_Pembayaran }
+            ? { ...prev, Bukti_Bayar: raw.Bukti_Bayar || prev.Bukti_Bayar, Tgl_Pembayaran: raw.Tgl_Pembayaran || prev.Tgl_Pembayaran }
             : prev,
         );
       })
