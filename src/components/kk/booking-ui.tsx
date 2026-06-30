@@ -1942,13 +1942,21 @@ export function BookingDetail({
                 Buka di Drive
               </a>
             </div>
-            <a href={booking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="block">
+            {/* Tinggi kotak dikunci → gambar yang termuat belakangan tidak
+                membuat layout meloncat (kesan sheet "naik lagi"). */}
+            <a
+              href={booking.Bukti_Bayar}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block h-[260px] rounded-kk-card border border-kk-mauve overflow-hidden"
+              style={{ background: '#faf7f2' }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={driveImageUrl(booking.Bukti_Bayar)}
                 alt="Bukti pembayaran"
-                className="w-full rounded-kk-card border border-kk-mauve"
-                style={{ maxHeight: 320, objectFit: 'contain', background: '#faf7f2' }}
+                className="w-full h-full"
+                style={{ objectFit: 'contain' }}
               />
             </a>
           </div>

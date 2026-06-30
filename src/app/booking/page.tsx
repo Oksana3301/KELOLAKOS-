@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -106,6 +106,11 @@ function BookingPageInner() {
 
   // Detail sheet + its derived dialogs
   const [detail, setDetail] = useState<BookingFullData | null>(null);
+  // BookingID detail yang SEDANG terbuka. Dipakai untuk mengabaikan respons
+  // async (getBookingDetail/getBookingRaw) yang datang TERLAMBAT setelah sheet
+  // ditutup / pindah booking — supaya sheet TIDAK terbuka lagi sendiri (kesan
+  // "kartu muncul 2× dari bawah") dan data tidak tertukar antar-booking.
+  const detailIdRef = useRef<string | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailPayments, setDetailPayments] = useState<PaymentRecord[]>([]);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
@@ -235,11 +240,19 @@ function BookingPageInner() {
   function openDetail(b: BookingItem) {
     // Open immediately with the list data so the tap feels instant, then
     // enrich with the full detail (payments + facilities) in the background.
+    detailIdRef.current = b.BookingID;
     setDetail(b as BookingFullData);
     setDetailPayments([]);
     setEditFacilityIds([]);
     setLoadingDetail(true);
     refreshDetail(b.BookingID);
+  }
+
+  // Tutup sheet detail + tandai tidak ada detail aktif (abaikan respons telat).
+  function closeDetail() {
+    detailIdRef.current = null;
+    setDetail(null);
+    setDetailPayments([]);
   }
 
   // (Re)load the open booking's full detail — used on open and after a payment
@@ -248,27 +261,34 @@ function BookingPageInner() {
     api
       .getBookingDetail(bookingId)
       .then((d) => {
+        // Abaikan respons TELAT: sheet sudah ditutup / pindah booking. Jangan
+        // pernah membuka sheet lagi sendiri (kesan "kartu muncul 2× dari bawah").
+        if (detailIdRef.current !== bookingId) return;
         // MERGE — jangan timpa Bukti_Bayar/Tgl_Pembayaran yang mungkin sudah
         // diisi getBookingRaw (cegah preview "muncul lalu hilang"/race).
         setDetail((prev) => {
-          const keep = prev && prev.BookingID === bookingId ? prev : null;
+          if (!prev || prev.BookingID !== bookingId) return prev;
           return {
             ...d.booking,
-            Bukti_Bayar: d.booking.Bukti_Bayar || keep?.Bukti_Bayar,
-            Tgl_Pembayaran: d.booking.Tgl_Pembayaran || keep?.Tgl_Pembayaran,
+            Bukti_Bayar: d.booking.Bukti_Bayar || prev.Bukti_Bayar,
+            Tgl_Pembayaran: d.booking.Tgl_Pembayaran || prev.Tgl_Pembayaran,
           };
         });
         setDetailPayments(d.payments || []);
         setEditFacilityIds((d.facilities || []).map((f) => f.id));
       })
-      .catch((e) => toast.error('Gagal memuat detail lengkap: ' + (e as Error).message))
-      .finally(() => setLoadingDetail(false));
+      .catch((e) => {
+        if (detailIdRef.current === bookingId) toast.error('Gagal memuat detail lengkap: ' + (e as Error).message);
+      })
+      .finally(() => {
+        if (detailIdRef.current === bookingId) setLoadingDetail(false);
+      });
     // Ambil baris booking mentah → pastikan Bukti_Bayar & Tgl_Pembayaran terkini
     // ikut tampil (getBookingDetail lama kadang tak mengembalikan kolom ini).
     api
       .getBookingRaw(bookingId)
       .then((raw) => {
-        if (!raw) return;
+        if (!raw || detailIdRef.current !== bookingId) return;
         setDetail((prev) =>
           prev && prev.BookingID === bookingId
             ? { ...prev, Bukti_Bayar: raw.Bukti_Bayar || prev.Bukti_Bayar, Tgl_Pembayaran: raw.Tgl_Pembayaran || prev.Tgl_Pembayaran }
@@ -294,6 +314,7 @@ function BookingPageInner() {
   }
 
   function openEdit(b: BookingFullData) {
+    detailIdRef.current = null;
     setDetail(null);
     setEditBooking(b);
     setShowFlow(true);
@@ -314,6 +335,9 @@ function BookingPageInner() {
       toast.success('✓ Pembayaran tercatat');
       invalidateAll(v.b.BookingID);
       setPayTarget(null);
+      // Sheet detail masih terbuka di belakang → segarkan supaya Sisa/Sudah
+      // dibayar & Riwayat Pembayaran ikut terupdate (jangan tampil data lama).
+      if (detailIdRef.current === v.b.BookingID) refreshDetail(v.b.BookingID);
     },
     onError: (e) => toast.error('Gagal mencatat: ' + (e as Error).message),
   });
@@ -357,6 +381,7 @@ function BookingPageInner() {
       toast.success('✓ Booking dibatalkan');
       invalidateAll(v.b.BookingID);
       setCancelTarget(null);
+      detailIdRef.current = null;
       setDetail(null);
     },
     onError: (e) => toast.error('Gagal membatalkan: ' + (e as Error).message),
@@ -389,6 +414,7 @@ function BookingPageInner() {
       toast.success(r.message || '✓ Booking dihapus');
       invalidateAll(b.BookingID);
       setDeleteTarget(null);
+      detailIdRef.current = null;
       setDetail(null);
     },
     onError: (e) => toast.error('Gagal menghapus: ' + (e as Error).message),
@@ -573,10 +599,7 @@ function BookingPageInner() {
           payments={detailPayments}
           loading={loadingDetail}
           deletingPaymentId={deletingPaymentId}
-          onClose={() => {
-            setDetail(null);
-            setDetailPayments([]);
-          }}
+          onClose={closeDetail}
           onPay={() => setPayTarget(detail)}
           onEdit={() => openEdit(detail)}
           onCancel={() => setCancelTarget(detail)}
