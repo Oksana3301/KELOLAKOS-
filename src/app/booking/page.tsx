@@ -141,6 +141,16 @@ function BookingPageInner() {
     queryFn: kwitansiApi.get,
   });
 
+  // Ringkasan fasilitas per booking → badge di kartu daftar. Graceful: bila
+  // backend (BACKEND_PATCH_BOOKING_FASILITAS_LIST.gs) belum di-deploy, query ini
+  // gagal diam-diam dan kartu tetap normal (tanpa badge fasilitas).
+  const { data: bookingFas } = useQuery({
+    queryKey: ['booking-fasilitas'],
+    queryFn: api.getBookingFasilitas,
+    retry: false,
+    staleTime: 60_000,
+  });
+
   useEffect(() => {
     if (isError) toast.error('Gagal memuat data: ' + (error as Error).message);
   }, [isError, error]);
@@ -626,7 +636,14 @@ function BookingPageInner() {
               : 'Belum ada booking. Tekan tombol Tambah Penyewa di atas untuk mencatat penyewa pertama Anda.'}
           </KkCard>
         ) : (
-          filtered.map((b) => <BookingCard key={b.BookingID} booking={b} onClick={() => openDetail(b)} />)
+          filtered.map((b) => (
+            <BookingCard
+              key={b.BookingID}
+              booking={b}
+              fas={bookingFas?.[b.BookingID]}
+              onClick={() => openDetail(b)}
+            />
+          ))
         )}
       </div>
 
@@ -717,7 +734,15 @@ function BookingPageInner() {
 }
 
 // ───────────────────────── Booking card ─────────────────────────
-function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: () => void }) {
+function BookingCard({
+  booking: b,
+  fas,
+  onClick,
+}: {
+  booking: BookingItem;
+  fas?: { count: number; names: string[]; ringkas: string };
+  onClick: () => void;
+}) {
   const status = mapPayStatus(b);
   const batal = status === 'Batal';
   const per = periodeInfo(b.Paket);
@@ -765,6 +790,13 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
             style={{ background: '#FBEEE6', color: '#9A4A1E', border: '1.5px solid #F0C9AE' }}>
             🏁 Keluar: {tglPanjang(displayCheckOut(b)) || '—'}
           </span>
+        </div>
+      )}
+      {/* Fasilitas yang dipilih penyewa (kalau backend mengirimnya). */}
+      {fas && fas.count > 0 && (
+        <div className="flex items-start gap-1.5 mb-2 text-[13.5px] text-kk-ink">
+          <span className="flex-shrink-0">🛋️</span>
+          <span className="font-semibold leading-snug">{fas.ringkas}</span>
         </div>
       )}
       <div className="flex justify-between items-baseline">
