@@ -56,7 +56,7 @@ export function FasilitasEstimasi({
       )}
 
       {extraBed && (
-        <THField label={`${extraBed.emoji} Extra bed (${formatRupiah(extraBed.price_adjust)}${extraBed.satuan === 'per_hari' ? '/malam' : ''})`}>
+        <THField label={`${extraBed.emoji} Extra bed (${formatRupiah(extraBed.price_adjust)} / unit)`}>
           <div className="flex items-center gap-4">
             <Stepper qty={extraBedQty} onChange={onExtraBed} />
             <span className="text-[13px]" style={{ color: TH.brownSoft }}>{extraBedQty > 0 ? `+${formatRupiah(extraBedQty * (Number(extraBed.price_adjust) || 0))}` : 'Tidak ambil'}</span>

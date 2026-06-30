@@ -122,9 +122,11 @@ export default function BerandaPage() {
     { terisi: 0, kosong: 0, perhatian: 0 },
   );
 
-  // Perlu Tindakan: bookings that still owe money (Belum Bayar / DP)
+  // Perlu Tindakan: bookings that still owe money (Belum Bayar / DP).
+  // Booking BATAL tidak ditagih meski Sisa_Bayar masih > 0 (mis. data sisa belum
+  // dinolkan) — kalau tidak, baris bisa berlabel "Batal" tapi menawarkan "Tagih".
   const perluTindakan = [...(data.paymentBookings || []), ...(data.statusActionBookings || [])]
-    .filter((b) => (b.Sisa_Bayar ?? 0) > 0)
+    .filter((b) => (b.Sisa_Bayar ?? 0) > 0 && mapPayStatus(b) !== 'Batal')
     .filter((b, i, arr) => arr.findIndex((x) => x.BookingID === b.BookingID) === i);
 
   return (

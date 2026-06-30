@@ -1079,11 +1079,12 @@ function FasilitasModal({
             <input type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="AC Split Standard / WiFi Cepat" className="input" required />
           </FormField>
 
-          <FormField label="Tambahan Harga" hint="Set 0 untuk fasilitas gratis. Otomatis dikalikan lama sewa saat booking.">
+          <FormField label="Tambahan Harga" hint="Set 0 untuk fasilitas gratis. Ditambahkan SEKALI ke estimasi saat booking (tidak dikali lama sewa).">
             <RupiahInput value={priceAdjust} onChange={setPriceAdjust} />
           </FormField>
 
-          <FormField label="Satuan Harga" hint="Per hari, per bulan, atau per tahun — dipakai untuk menghitung saat booking.">
+          <FormField label="Satuan Harga" hint="Label tarif (per hari/bulan/tahun) untuk acuan — nominalnya ditambahkan sekali ke estimasi.">
+
             <div className="flex gap-2">
               {(['per_hari', 'per_bulan', 'per_tahun'] as const).map((u) => (
                 <button

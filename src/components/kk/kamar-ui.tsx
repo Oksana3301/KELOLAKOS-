@@ -6,7 +6,6 @@
 
 import { useEffect, useState } from 'react';
 import { Sheet, SheetHead, KkButton, KkCard, InfoRow, RoomBadge } from './ui';
-import { MoneyInput } from './money-input';
 import { KkIcon } from './icons';
 import { DeleteConfirm } from './confirm';
 import { mapRoomStatus, rupiah, type RoomDisplayStatus } from './status';
@@ -117,11 +116,12 @@ export function KamarDetail({
 }
 
 // ───────────────────────── Add / Edit form ─────────────────────────
+// Harga TIDAK diatur di sini — pengaturan harga (multi-paket kost/penginapan)
+// ada di menu Pengaturan → Harga. Form ini fokus identitas kamar saja.
 export interface KamarFormValue {
   nomor: string;
   gedung: string;
   lantai: number;
-  harga: number;
 }
 
 export function KamarForm({
@@ -144,7 +144,6 @@ export function KamarForm({
   const [nomor, setNomor] = useState('');
   const [gedung, setGedung] = useState('');
   const [lantai, setLantai] = useState(1);
-  const [harga, setHarga] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -152,24 +151,21 @@ export function KamarForm({
       setNomor(initial.nomor);
       setGedung(initial.gedung);
       setLantai(initial.lantai || 1);
-      setHarga(initial.harga > 0 ? String(initial.harga) : '');
     } else {
       setNomor('');
       setGedung(buildings[0] || '');
       setLantai(1);
-      setHarga('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;
 
-  const hargaNum = Number(harga);
   const valid = nomor.trim().length > 0 && !!gedung;
 
   function simpan() {
     if (!valid || saving) return;
-    onSave({ nomor: nomor.trim().toUpperCase(), gedung, lantai: Number(lantai), harga: hargaNum });
+    onSave({ nomor: nomor.trim().toUpperCase(), gedung, lantai: Number(lantai) });
   }
 
   return (
@@ -235,25 +231,9 @@ export function KamarForm({
           </div>
         </div>
 
-        <KamarField
-          label="Harga Sewa per Bulan"
-          contoh="Contoh: 850.000"
-          hint="Titik ribuan otomatis."
-        >
-          <MoneyInput
-            value={harga}
-            onChange={(n) => setHarga(n ? String(n) : '')}
-            placeholder="850.000"
-            className={inputClass}
-          />
-        </KamarField>
-
-        {hargaNum > 0 && (
-          <div className="flex items-center justify-between bg-kk-mint-soft border-2 border-kk-mint rounded-kk-btn px-5 py-3.5 mb-6">
-            <span className="font-heading font-bold text-[18px] text-kk-navy">Harga sewa</span>
-            <span className="font-heading font-black text-[22px] text-kk-navy">{rupiah(hargaNum)}/bln</span>
-          </div>
-        )}
+        <div className="mb-6 rounded-kk-btn border-2 border-kk-mauve bg-kk-mauve-soft px-4 py-3 text-[14px] text-kk-navy leading-snug">
+          💡 Harga sewa diatur di menu <b>Pengaturan → Harga</b> (mendukung paket kost 6 bln/1 tahun &amp; penginapan per malam/tipe). Form ini untuk data kamar saja.
+        </div>
 
         <KkButton
           variant="success"

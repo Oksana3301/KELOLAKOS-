@@ -18,7 +18,7 @@ import {
 } from '@/components/kk/money';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { DeleteConfirm } from '@/components/kk/confirm';
-import { rupiah } from '@/components/kk/status';
+import { rupiah, tglPendek } from '@/components/kk/status';
 import {
   JENIS,
   JenisCard,
@@ -256,10 +256,7 @@ export default function KeuanganPage() {
             <RiwayatRow
               key={`${tx.type}-${tx.id || idx}`}
               tx={tx}
-              dateLabel={new Date(tx.date).toLocaleDateString('id-ID', {
-                day: 'numeric',
-                month: 'short',
-              })}
+              dateLabel={tglPendek(tx.date) || '—'}
               deleteDisabled={!tx.id}
               onDelete={() => setHapusTarget(tx)}
               onOpen={tx.bookingId ? () => router.push(`/booking?open=${tx.bookingId}`) : undefined}
