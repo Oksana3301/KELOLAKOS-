@@ -1,0 +1,32 @@
+name: Type Check & Lint
+
+# `next build` di repo ini menyetel typescript.ignoreBuildErrors:true &
+# eslint.ignoreDuringBuilds:true, jadi build TIDAK menangkap error tipe/lint.
+# Workflow ini menjalankan type-check (tsc) sebagai GATE sebelum merge supaya
+# error seperti "used before declaration" (TDZ) ketahuan sebelum naik production.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Batalkan run lama bila ada push baru di ref yang sama (hemat menit CI).
+concurrency:
+  group: typecheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: tsc --noEmit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Type check (wajib lulus)
+        run: npm run typecheck
+      - name: Lint (informasi saja, tidak menggagalkan)
+        run: npm run lint || true
