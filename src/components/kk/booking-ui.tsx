@@ -447,6 +447,9 @@ export function BookingFlow({
   const headRef = useRef<HTMLDivElement>(null);
   // Confirm dialog when booking a room that's already occupied.
   const [warnOccupied, setWarnOccupied] = useState(false);
+  // Saat EDIT: sembunyikan daftar kamar (cukup tampil kamar terpilih) sampai
+  // owner menekan "Ganti kamar" — biar tak kebanjiran list saat ubah periode dll.
+  const [gantiKamar, setGantiKamar] = useState(false);
 
   const [step, setStep] = useState<number | 'sukses'>(1);
   const [nama, setNama] = useState('');
@@ -507,6 +510,7 @@ export function BookingFlow({
     setSelFas(new Set(editBooking ? editFacilityIds || [] : []));
     setBukti([]);
     setHapusBukti(false);
+    setGantiKamar(false);
     setFLayanan('Semua');
     setFCari('');
     setFGedung('Semua');
@@ -1095,6 +1099,31 @@ export function BookingFlow({
               2. Pilih kamar
             </h3>
 
+            {isEdit && !gantiKamar ? (
+              <div>
+                <div className="bg-kk-mint-soft border-2 border-kk-mint rounded-kk-card p-4 mb-3 flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-[12px] bg-white text-kk-navy grid place-items-center flex-shrink-0">
+                    <KkIcon name="kamar" size={24} strokeWidth={2.2} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-caption text-kk-ink">Kamar saat ini</div>
+                    <div className="font-heading font-bold text-[19px] text-kk-navy truncate">
+                      {chosen ? `${chosen.room.Nama_Kamar} · ${chosen.room.Gedung}` : '(kamar tidak ditemukan)'}
+                    </div>
+                  </div>
+                  {chosen && (
+                    <RoomStatusBadge
+                      room={chosen.room}
+                      status3={dateConflict ? dateConflict.level : roomStatusNow.get(chosen.room.RoomID)}
+                      className="ml-auto flex-shrink-0"
+                    />
+                  )}
+                </div>
+                <KkButton variant="secondary" block onClick={() => setGantiKamar(true)}>🔄 Ganti kamar</KkButton>
+                <p className="text-caption text-kk-ink mt-2 mb-0">Mau ubah periode / pembayaran saja? Lewati — kamarnya tetap.</p>
+              </div>
+            ) : (
+            <>
             <div className="font-heading font-bold text-[18px] text-kk-navy mb-2.5">
               Daftar kamar
             </div>
@@ -1251,6 +1280,14 @@ export function BookingFlow({
                 );
               })}
             </div>
+
+            {isEdit && (
+              <KkButton variant="ghost" block onClick={() => setGantiKamar(false)} className="mb-2">
+                ‹ Batal ganti kamar
+              </KkButton>
+            )}
+            </>
+            )}
 
             <div ref={bottomRef} />
           </div>
@@ -1952,9 +1989,11 @@ export function BookingDetail({
             </KkButton>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-5">
+            {/* 💰 Pembayaran (hanya bila masih ada sisa) */}
             {sisa > 0 && (
-              <>
+              <div className="flex flex-col gap-2.5">
+                <div className="text-caption font-bold text-kk-ink uppercase tracking-wide">💰 Pembayaran</div>
                 <KkButton variant="success" size="lg" block onClick={onPay}>
                   <KkIcon name="cek" size={22} strokeWidth={2.4} /> Catat Pembayaran
                 </KkButton>
@@ -1963,38 +2002,44 @@ export function BookingDetail({
                     <KkIcon name="kirim" size={20} strokeWidth={2.2} /> Tagih lewat WhatsApp
                   </KkButton>
                 )}
-              </>
+              </div>
             )}
 
-            {/* Terima → kirim invoice ke penyewa + kabari Mezi (semi-auto WA) */}
-            <KkButton
-              variant="primary"
-              size="lg"
-              block
-              onClick={() => { onClose(); router.push(`/kwitansi?booking=${encodeURIComponent(booking.BookingID)}`); }}
-            >
-              <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Invoice ke penyewa
-            </KkButton>
-            <KkButton variant="secondary" block onClick={kabariMezi}>
-              <KkIcon name="kirim" size={20} strokeWidth={2.2} /> Kabari Mezi (penjaga)
-            </KkButton>
-
-            <div className="flex gap-3">
-              <KkButton variant="secondary" block onClick={onEdit}>
-                Ubah Booking
+            {/* 📤 Kirim ke penyewa / penjaga */}
+            <div className="flex flex-col gap-2.5">
+              <div className="text-caption font-bold text-kk-ink uppercase tracking-wide">📤 Kirim</div>
+              <KkButton
+                variant="primary"
+                size="lg"
+                block
+                onClick={() => { onClose(); router.push(`/kwitansi?booking=${encodeURIComponent(booking.BookingID)}`); }}
+              >
+                <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Invoice ke penyewa
               </KkButton>
-              {dibayar > 0 && onRefund && (
-                <KkButton variant="secondary" block onClick={onRefund}>
-                  Refund
-                </KkButton>
-              )}
+              <KkButton variant="secondary" block onClick={kabariMezi}>
+                <KkIcon name="kirim" size={20} strokeWidth={2.2} /> Kabari Mezi (penjaga)
+              </KkButton>
             </div>
-            <KkButton variant="ghost" block onClick={onCancel}>
-              <KkIcon name="refund" size={20} strokeWidth={2.2} /> Batalkan Booking
-            </KkButton>
-            <KkButton variant="ghost" block onClick={onDelete}>
-              <KkIcon name="hapus" size={20} strokeWidth={2.2} /> Hapus Booking
-            </KkButton>
+
+            {/* ✏️ Kelola data booking */}
+            <div className="flex flex-col gap-2.5">
+              <div className="text-caption font-bold text-kk-ink uppercase tracking-wide">✏️ Kelola</div>
+              <div className="flex gap-3">
+                <KkButton variant="secondary" block onClick={onEdit}>Ubah Booking</KkButton>
+                {dibayar > 0 && onRefund && (
+                  <KkButton variant="secondary" block onClick={onRefund}>Refund</KkButton>
+                )}
+              </div>
+            </div>
+
+            {/* ⚠️ Pembatalan — dipisah biar tidak tertekan tak sengaja */}
+            <div className="flex flex-col gap-2.5 pt-3 border-t border-kk-mauve-soft">
+              <div className="text-caption font-bold text-kk-ink uppercase tracking-wide">⚠️ Pembatalan</div>
+              <div className="flex gap-3">
+                <KkButton variant="ghost" block onClick={onCancel}>Batalkan</KkButton>
+                <KkButton variant="ghost" block onClick={onDelete}>Hapus</KkButton>
+              </div>
+            </div>
           </div>
         )}
       </div>
