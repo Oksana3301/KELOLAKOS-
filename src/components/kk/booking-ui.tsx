@@ -813,13 +813,14 @@ export function BookingFlow({
     ? (effCheckIn ? addPaket(effCheckIn, paketKind, lama) : '')
     : keluar;
 
-  // DP default mengikuti jumlah kamar (penginapan baru multi): naikkan ke dpMin
-  // saat menambah kamar. Tidak menyentuh mode EDIT (DP-nya dari data lama).
+  // DP default mengikuti jumlah kamar (PENGINAPAN baru multi): naikkan ke dpMin
+  // saat menambah kamar. KOST dikecualikan (DP kost sengaja fleksibel, lihat
+  // bisaLanjut) & mode EDIT tidak disentuh (DP-nya dari data lama).
   useEffect(() => {
-    if (isEdit || bayar !== 'DP') return;
+    if (isEdit || bayar !== 'DP' || isKostRoom) return;
     setDp((cur) => { const nVal = Number(cur) || 0; return nVal < dpMin ? String(dpMin) : cur; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dpMin, bayar, isEdit]);
+  }, [dpMin, bayar, isEdit, isKostRoom]);
 
   // Form utuh: semua syarat dicek sekaligus (bukan per-langkah lagi).
   // DP penginapan WAJIB ≥ minimal (100rb × jumlah kamar); kost tetap fleksibel (>0).
@@ -836,9 +837,12 @@ export function BookingFlow({
   const dateConflict = useMemo<{ level: 'terisi' | 'dp'; bookings: BookingItem[] } | null>(() => {
     // Pakai tanggal efektif (kost-kunci: hanya ada saat Lunas). Tanpa tanggal → skip.
     if (!chosen || !effCheckIn || !effCheckOut) return null;
+    // Cek bentrok untuk SEMUA kamar terpilih (multi penginapan), bukan hanya utama,
+    // supaya kamar tambahan yg sudah Lunas/DP tetap memunculkan peringatan.
+    const selIds = new Set(selectedOptions.map((o) => o.room.RoomID).filter(Boolean));
+    const selNames = new Set(selectedOptions.map((o) => (o.room.Nama_Kamar || '').trim().toLowerCase()).filter(Boolean));
     const sameRoom = (b: BookingItem) =>
-      (b.RoomID && chosen.room.RoomID && b.RoomID === chosen.room.RoomID) ||
-      (b.Nama_Kamar || '').trim().toLowerCase() === (chosen.room.Nama_Kamar || '').trim().toLowerCase();
+      (!!b.RoomID && selIds.has(b.RoomID)) || selNames.has((b.Nama_Kamar || '').trim().toLowerCase());
     const overlaps = (b: BookingItem) => {
       const bIn = b.CheckIn ? new Date(b.CheckIn).toISOString().split('T')[0] : '';
       const bOut = b.CheckOut ? new Date(b.CheckOut).toISOString().split('T')[0] : '';
@@ -861,7 +865,7 @@ export function BookingFlow({
     if (lunas) return { level: 'terisi', bookings: relevant.filter((b) => mapPayStatus(b) === 'Lunas') };
     if (hasDp) return { level: 'dp', bookings: relevant.filter((b) => mapPayStatus(b) === 'DP') };
     return null;
-  }, [chosen, effCheckIn, effCheckOut, bookings, editBooking]);
+  }, [chosen, selectedOptions, effCheckIn, effCheckOut, bookings, editBooking]);
 
   // Status SAAT INI per kamar (untuk badge di daftar kamar), selaras /info:
   // Lunas → terisi, DP → dp, Belum Bayar/tanpa → kosong, maintenance → perbaikan.
@@ -889,8 +893,9 @@ export function BookingFlow({
     return m;
   }, [rooms, bookings]);
 
-  // Booking an occupied / attention room is allowed, but warn first.
-  const roomOccupied = !!dateConflict || (!!chosen && chosen.room.Status_Code !== 'READY');
+  // Booking an occupied / attention room is allowed, but warn first. Cek SEMUA
+  // kamar terpilih (multi penginapan), bukan hanya kamar utama.
+  const roomOccupied = !!dateConflict || selectedOptions.some((o) => o.room.Status_Code !== 'READY');
 
   function handleSave() {
     if (!bisaLanjut || saveMutation.isPending) return;
