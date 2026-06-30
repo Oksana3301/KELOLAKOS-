@@ -94,10 +94,12 @@ export const PAKET_META: Record<PaketKind, PaketMeta> = {
   setahun: { label: 'Per Tahun', unitLong: 'tahun', unitShort: 'thn', months: 12, days: 0, order: 5 },
 };
 
-// Classify a backend Paket string ("HARIAN", "1_BULAN", "Setahun"…) into a kind.
+// Classify a backend Paket string ("HARIAN", "1_BULAN", "Setahun", "2 malam"…)
+// into a kind. "malam"/"hari" → harian (penginapan per-malam dari /info disimpan
+// sebagai "N malam" — tanpa ini ia salah jatuh ke 'bulanan').
 export function classifyPaket(p: string): PaketKind | null {
   const s = (p || '').toUpperCase();
-  if (/HARI/.test(s)) return 'harian';
+  if (/HARI|MALAM/.test(s)) return 'harian';
   if (/MINGGU|PEKAN/.test(s)) return 'mingguan';
   if (/TAHUN/.test(s)) return 'setahun';
   if (/6\s*BULAN|ENAM\s*BULAN/.test(s)) return '6bulan';
