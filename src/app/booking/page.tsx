@@ -11,7 +11,7 @@ import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { DeleteConfirm } from '@/components/kk/confirm';
 import { mapPayStatus, rupiah, tglPendek, tglPanjang, type PayStatus } from '@/components/kk/status';
-import { BookingFlow, BookingDetail, CancelConfirm, RefundForm, TagihWa, PaymentForm } from '@/components/kk/booking-ui';
+import { BookingFlow, BookingDetail, CancelConfirm, RefundForm, TagihWa, PaymentForm, periodeInfo } from '@/components/kk/booking-ui';
 import { PendingConfirmations } from '@/components/kk/pending-confirmations';
 
 const HELP = {
@@ -93,6 +93,7 @@ function BookingPageInner() {
 
   const [tab, setTab] = useState<TabId>('semua');
   const [layanan, setLayanan] = useState<LayananId>('semua');
+  const [periode, setPeriode] = useState<string>('semua');
   const [cari, setCari] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
   // Filter rentang tanggal — basis Tgl Masuk (check-in) atau Tgl Bayar.
@@ -103,6 +104,9 @@ function BookingPageInner() {
   const [showFlow, setShowFlow] = useState(false);
   const [editBooking, setEditBooking] = useState<BookingFullData | null>(null);
   const [editFacilityIds, setEditFacilityIds] = useState<string[]>([]);
+  // Fasilitas yang dipilih penyewa pada booking yang sedang dibuka (untuk DITAMPILKAN
+  // di detail — owner/penjaga bisa lihat "ada fasilitas apa" tanpa buka form edit).
+  const [detailFacilities, setDetailFacilities] = useState<{ id: string; nama: string; emoji: string }[]>([]);
 
   // Detail sheet + its derived dialogs
   const [detail, setDetail] = useState<BookingFullData | null>(null);
@@ -135,6 +139,16 @@ function BookingPageInner() {
   const { data: bizSettings } = useQuery({
     queryKey: ['kwitansi-settings'],
     queryFn: kwitansiApi.get,
+  });
+
+  // Ringkasan fasilitas per booking → badge di kartu daftar. Graceful: bila
+  // backend (BACKEND_PATCH_BOOKING_FASILITAS_LIST.gs) belum di-deploy, query ini
+  // gagal diam-diam dan kartu tetap normal (tanpa badge fasilitas).
+  const { data: bookingFas } = useQuery({
+    queryKey: ['booking-fasilitas'],
+    queryFn: api.getBookingFasilitas,
+    retry: false,
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -190,11 +204,32 @@ function BookingPageInner() {
     return { semua: allBookings.length, kost, penginapan };
   }, [allBookings]);
 
+  // Periode yang benar-benar ADA di data → pilihan filter adaptif (mis. 6 Bulan,
+  // 1 Tahun, Belum Tahu, Harian…). "Belum Tahu" ditaruh paling depan biar gampang
+  // dipantau owner/penjaga; sisanya urut jumlah terbanyak.
+  const periodeOptions = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; n: number; belumTahu: boolean }>();
+    allBookings.forEach((b) => {
+      const p = periodeInfo(b.Paket);
+      if (p.key === 'kosong') return;
+      const cur = map.get(p.key);
+      if (cur) cur.n++;
+      else map.set(p.key, { key: p.key, label: p.label, n: 1, belumTahu: p.belumTahu });
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => (b.belumTahu ? 1 : 0) - (a.belumTahu ? 1 : 0) || b.n - a.n,
+    );
+  }, [allBookings]);
+
   const filtered = useMemo(() => {
     let list = allBookings;
     // 1) Filter jenis layanan (kost / penginapan) lebih dulu.
     if (layanan !== 'semua') {
       list = list.filter((b) => bookingLayanan(b) === layanan);
+    }
+    // 1b) Filter periode (6 bulan / 1 tahun / belum tahu / …).
+    if (periode !== 'semua') {
+      list = list.filter((b) => periodeInfo(b.Paket).key === periode);
     }
     // 2) Lalu filter status pembayaran.
     if (tab !== 'semua') {
@@ -219,7 +254,7 @@ function BookingPageInner() {
       );
     }
     return list;
-  }, [allBookings, layanan, tab, cari, dateFrom, dateTo]);
+  }, [allBookings, layanan, periode, tab, cari, dateFrom, dateTo]);
 
   // Ringkasan untuk laporan penjaga (mengikuti filter aktif).
   const summary = useMemo(() => {
@@ -234,7 +269,7 @@ function BookingPageInner() {
     return { count: filtered.length, net, dibayar, sisa };
   }, [filtered]);
 
-  const filterAktif = !!(dateFrom || dateTo || cari || tab !== 'semua' || layanan !== 'semua');
+  const filterAktif = !!(dateFrom || dateTo || cari || tab !== 'semua' || layanan !== 'semua' || periode !== 'semua');
 
   // Open the detail sheet — fetch full data first so all fields are present.
   function openDetail(b: BookingItem) {
@@ -244,6 +279,7 @@ function BookingPageInner() {
     setDetail(b as BookingFullData);
     setDetailPayments([]);
     setEditFacilityIds([]);
+    setDetailFacilities([]);
     setLoadingDetail(true);
     refreshDetail(b.BookingID);
   }
@@ -253,6 +289,7 @@ function BookingPageInner() {
     detailIdRef.current = null;
     setDetail(null);
     setDetailPayments([]);
+    setDetailFacilities([]);
   }
 
   // (Re)load the open booking's full detail — used on open and after a payment
@@ -276,6 +313,7 @@ function BookingPageInner() {
         });
         setDetailPayments(d.payments || []);
         setEditFacilityIds((d.facilities || []).map((f) => f.id));
+        setDetailFacilities((d.facilities || []).map((f) => ({ id: f.id, nama: f.nama, emoji: f.emoji })));
       })
       .catch((e) => {
         if (detailIdRef.current === bookingId) toast.error('Gagal memuat detail lengkap: ' + (e as Error).message);
@@ -504,6 +542,34 @@ function BookingPageInner() {
         ))}
       </div>
 
+      {/* Filter 1b: Periode (lama sewa) — adaptif sesuai data yang ada */}
+      {periodeOptions.length > 1 && (
+        <>
+          <div className="text-caption font-semibold text-kk-ink mb-2">Periode</div>
+          <div className="flex gap-2.5 overflow-x-auto pb-1.5 mb-4 -mx-1 px-1">
+            {([{ key: 'semua', label: 'Semua', n: allBookings.length, belumTahu: false }, ...periodeOptions]).map((o) => {
+              const active = periode === o.key;
+              return (
+                <button
+                  key={o.key}
+                  onClick={() => setPeriode(o.key)}
+                  className={`flex-shrink-0 min-h-[48px] px-[18px] rounded-kk-pill font-body font-semibold text-[17px] border-2 ${
+                    active
+                      ? o.belumTahu ? 'border-kk-orange bg-kk-orange text-white' : 'border-kk-navy bg-kk-navy text-white'
+                      : o.belumTahu ? 'border-kk-orange bg-kk-orange-soft text-kk-navy' : 'border-kk-mauve bg-white text-kk-navy'
+                  }`}
+                >
+                  {o.belumTahu ? '🤔 ' : ''}{o.label}
+                  <span className={`ml-1.5 text-[13px] font-bold ${active ? 'text-white/80' : 'text-kk-ink'}`}>
+                    {o.n}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       {/* Filter 2: Status pembayaran */}
       <div className="text-caption font-semibold text-kk-ink mb-2">Status pembayaran</div>
       <div className="flex gap-2.5 overflow-x-auto pb-1.5 mb-5 -mx-1 px-1">
@@ -570,7 +636,14 @@ function BookingPageInner() {
               : 'Belum ada booking. Tekan tombol Tambah Penyewa di atas untuk mencatat penyewa pertama Anda.'}
           </KkCard>
         ) : (
-          filtered.map((b) => <BookingCard key={b.BookingID} booking={b} onClick={() => openDetail(b)} />)
+          filtered.map((b) => (
+            <BookingCard
+              key={b.BookingID}
+              booking={b}
+              fas={bookingFas?.[b.BookingID]}
+              onClick={() => openDetail(b)}
+            />
+          ))
         )}
       </div>
 
@@ -597,6 +670,7 @@ function BookingPageInner() {
         <BookingDetail
           booking={detail}
           payments={detailPayments}
+          facilities={detailFacilities}
           loading={loadingDetail}
           deletingPaymentId={deletingPaymentId}
           onClose={closeDetail}
@@ -660,9 +734,18 @@ function BookingPageInner() {
 }
 
 // ───────────────────────── Booking card ─────────────────────────
-function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: () => void }) {
+function BookingCard({
+  booking: b,
+  fas,
+  onClick,
+}: {
+  booking: BookingItem;
+  fas?: { count: number; names: string[]; ringkas: string };
+  onClick: () => void;
+}) {
   const status = mapPayStatus(b);
   const batal = status === 'Batal';
+  const per = periodeInfo(b.Paket);
   const total = Number(b.Harga_Total_Net) || 0;
   const dibayar = Number(b.Net_Diterima ?? b.Total_Bayar) || 0;
   const sisa = b.Sisa_Bayar != null ? Number(b.Sisa_Bayar) : Math.max(total - dibayar, 0);
@@ -680,6 +763,19 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
             {b.Nama_Customer || '(tanpa nama)'}
           </div>
           <div className="text-[17px] text-kk-ink mt-0.5 truncate">{b.Nama_Kamar}</div>
+          {/* Periode yang dipilih penyewa — biar owner/penjaga gampang cari & kelompokkan. */}
+          {per.label !== '—' && (
+            <span
+              className="inline-flex items-center gap-1 rounded-kk-pill px-2.5 py-1 mt-1.5 text-[13px] font-bold"
+              style={
+                per.belumTahu
+                  ? { background: '#FBEEE6', color: '#9A4A1E', border: '1.5px solid #F0C9AE' }
+                  : { background: '#EEF0F4', color: '#3A4256', border: '1.5px solid #D6DAE3' }
+              }
+            >
+              {per.belumTahu ? '🤔' : '🗓️'} {per.label}
+            </span>
+          )}
         </div>
         <BayarBadge status={status} />
       </div>
@@ -694,6 +790,13 @@ function BookingCard({ booking: b, onClick }: { booking: BookingItem; onClick: (
             style={{ background: '#FBEEE6', color: '#9A4A1E', border: '1.5px solid #F0C9AE' }}>
             🏁 Keluar: {tglPanjang(displayCheckOut(b)) || '—'}
           </span>
+        </div>
+      )}
+      {/* Fasilitas yang dipilih penyewa (kalau backend mengirimnya). */}
+      {fas && fas.count > 0 && (
+        <div className="flex items-start gap-1.5 mb-2 text-[13.5px] text-kk-ink">
+          <span className="flex-shrink-0">🛋️</span>
+          <span className="font-semibold leading-snug">{fas.ringkas}</span>
         </div>
       )}
       <div className="flex justify-between items-baseline">

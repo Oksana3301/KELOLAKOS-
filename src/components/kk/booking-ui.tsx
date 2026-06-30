@@ -110,6 +110,24 @@ const PAKET_BACKEND: Record<PaketKind, string> = {
   harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan', '6bulan': '6 Bulan', setahun: 'Setahun',
 };
 
+// Label periode untuk SEKALI tampil di kartu daftar & filter (dari string Paket
+// yang tersimpan di booking). "Belum Tahu" = kost yang periodenya belum dipastikan
+// (hanya boleh untuk DP / Belum Bayar). isBelumTahu dipakai untuk styling khusus.
+export const PERIODE_LABEL: Record<PaketKind, string> = {
+  harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan', '6bulan': '6 Bulan', setahun: '1 Tahun',
+};
+export const PERIODE_BELUM_TAHU = 'Belum Tahu';
+export function isBelumTahuPaket(paket?: string): boolean {
+  return /belum\s*tahu/i.test(String(paket || ''));
+}
+export function periodeInfo(paket?: string): { key: string; label: string; belumTahu: boolean } {
+  const raw = String(paket || '').trim();
+  if (isBelumTahuPaket(raw)) return { key: 'belumtahu', label: PERIODE_BELUM_TAHU, belumTahu: true };
+  const k = classifyPaket(raw);
+  if (k) return { key: k, label: PERIODE_LABEL[k], belumTahu: false };
+  return { key: raw ? 'lainnya' : 'kosong', label: raw || '—', belumTahu: false };
+}
+
 // Check-out date = check-in + count × paket duration.
 function addPaket(iso: string, kind: PaketKind, count: number): string {
   const m = PAKET_META[kind];
@@ -458,6 +476,14 @@ export function BookingFlow({
   // Selected rental paket (price unit). Options come from the chosen room's
   // configured prices so the count is always multiplied against the right paket.
   const [paketKind, setPaketKind] = useState<PaketKind>('bulanan');
+  // KOST: periode "Belum Tahu" — penyewa belum memastikan 6 bulan / 1 tahun.
+  // HANYA boleh saat DP / Belum Bayar. Saat Lunas WAJIB pilih periode pasti
+  // (popup di bawah). paketKind tetap dipakai sebagai basis hitung (default 6bulan).
+  const [belumTahu, setBelumTahu] = useState(false);
+  // Popup wajib pilih periode saat Lunas; pendingLunas = true → setelah pilih,
+  // status otomatis jadi Lunas (dipicu dari tombol status, bukan saat simpan).
+  const [periodePopup, setPeriodePopup] = useState(false);
+  const [pendingLunas, setPendingLunas] = useState(false);
   // "Atur tanggal sendiri" mode: pick check-in/check-out, bill per day.
   const [customDate, setCustomDate] = useState(false);
   const [keluarDate, setKeluarDate] = useState('');
@@ -509,6 +535,7 @@ export function BookingFlow({
       setHp(String(editBooking.WhatsApp || ''));
       setRoomId(editBooking.RoomID || '');
       setLama(editBooking.Jumlah_Periode || 1);
+      setBelumTahu(isBelumTahuPaket(editBooking.Paket));
       setPaketKind(classifyPaket(editBooking.Paket || '') || 'bulanan');
       setMasuk(
         editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : TODAY(),
@@ -526,6 +553,7 @@ export function BookingFlow({
       setHp('');
       setRoomId('');
       setLama(1);
+      setBelumTahu(false);
       setPaketKind('bulanan');
       setMasuk(TODAY());
       setCustomDate(false);
@@ -540,6 +568,8 @@ export function BookingFlow({
     setHapusBukti(false);
     setExtraIds([]);
     submittedRef.current = new Set();
+    setPeriodePopup(false);
+    setPendingLunas(false);
     setGantiKamar(false);
     setFLayanan('Semua');
     setFCari('');
@@ -684,6 +714,8 @@ export function BookingFlow({
   const isKostChosen = String(chosen?.room.Layanan_Default || '').toUpperCase().includes('KOS');
   useEffect(() => {
     if (isKostChosen && customDate) setCustomDate(false);
+    // "Belum Tahu" hanya untuk kost — kamar non-kost tak boleh menyandang status ini.
+    if (!isKostChosen && belumTahu) setBelumTahu(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isKostChosen]);
 
@@ -899,8 +931,37 @@ export function BookingFlow({
   // kamar terpilih (multi penginapan), bukan hanya kamar utama.
   const roomOccupied = !!dateConflict || selectedOptions.some((o) => o.room.Status_Code !== 'READY');
 
+  // Pilih status pembayaran. Khusus KOST yang masih "Belum Tahu": memilih Lunas
+  // WAJIB menentukan periode dulu (6 bulan / 1 tahun) — munculkan popup, jangan
+  // langsung set Lunas. Status lain (DP / Belum Bayar) normal.
+  function chooseBayar(s: PayStatus) {
+    if (s === 'Lunas' && belumTahu && isKostChosen) {
+      setPendingLunas(true);
+      setPeriodePopup(true);
+      return;
+    }
+    setBayar(s);
+    if (s === 'DP' && !dp && dpMin > 0 && !isEdit) setDp(String(dpMin));
+  }
+
+  // Resolusi popup: owner memilih periode pasti. Bila dipicu dari tombol Lunas
+  // (pendingLunas), status otomatis jadi Lunas setelah periode ditetapkan.
+  function resolvePeriode(kind: '6bulan' | 'setahun') {
+    setPaketKind(kind);
+    setBelumTahu(false);
+    setLama(1);
+    setPeriodePopup(false);
+    if (pendingLunas) { setBayar('Lunas'); setPendingLunas(false); }
+  }
+
   function handleSave() {
     if (!bisaLanjut || saveMutation.isPending) return;
+    // Pengaman terakhir: Lunas + periode belum dipastikan → wajib pilih dulu.
+    if (bayar === 'Lunas' && belumTahu) {
+      setPendingLunas(false);
+      setPeriodePopup(true);
+      return;
+    }
     if (roomOccupied && !isEdit) {
       setWarnOccupied(true);
       return;
@@ -923,7 +984,7 @@ export function BookingFlow({
             kamar: `${chosen.room.Nama_Kamar}${chosen.room.Gedung ? ' — ' + chosen.room.Gedung : ''}`,
             tipe: chosen.room.Tipe_Kamar,
             layanan: chosen.room.Layanan_Default,
-            durasi: PAKET_BACKEND[customDate ? 'harian' : paketKind],
+            durasi: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
             jumlahOrang,
             tglMulai: effCheckIn,
             // Bukti: ganti (upload baru) / hapus tersimpan.
@@ -997,7 +1058,7 @@ export function BookingFlow({
           whatsapp: hp ? waPhone(hp) : '',
           checkIn: effCheckIn,
           checkOut: effCheckOut,
-          paket: PAKET_BACKEND[customDate ? 'harian' : paketKind],
+          paket: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
           jumlahPeriode: lamaEff,
           jumlahOrang,
           hargaKamar: unit,
@@ -1480,10 +1541,11 @@ export function BookingFlow({
                         key={k}
                         onClick={() => {
                           setPaketKind(k);
+                          setBelumTahu(false);
                           setLama(1);
                         }}
                         className={`min-h-[48px] px-4 rounded-kk-pill font-body font-semibold text-body border-2 ${
-                          paketKind === k
+                          paketKind === k && !belumTahu
                             ? 'border-kk-navy bg-kk-navy text-white'
                             : 'border-kk-mauve bg-white text-kk-navy'
                         }`}
@@ -1491,11 +1553,38 @@ export function BookingFlow({
                         {PAKET_META[k].label}
                       </button>
                     ))}
+                    {/* KOST: opsi "Belum Tahu" — hanya boleh saat DP / Belum Bayar.
+                        Saat Lunas dimatikan (wajib pilih periode pasti). */}
+                    {isKostChosen && (
+                      <button
+                        type="button"
+                        disabled={bayar === 'Lunas'}
+                        onClick={() => { if (bayar !== 'Lunas') { setBelumTahu(true); setPaketKind('6bulan'); setLama(1); } }}
+                        title={bayar === 'Lunas' ? 'Sudah Lunas — periode wajib dipastikan' : undefined}
+                        className={`min-h-[48px] px-4 rounded-kk-pill font-body font-semibold text-body border-2 ${
+                          belumTahu
+                            ? 'border-kk-orange bg-kk-orange text-white'
+                            : bayar === 'Lunas'
+                              ? 'border-kk-mauve bg-kk-mauve-soft text-kk-ink opacity-60 cursor-not-allowed'
+                              : 'border-kk-mauve bg-white text-kk-navy'
+                        }`}
+                      >
+                        🤔 Belum Tahu
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-card p-3.5 mb-4 text-body text-kk-navy">
                     Harga kamar ini belum diatur. Set dulu di <b>Pengaturan → Harga</b> (Umum/Massal)
                     sesuai paket (harian / bulanan / …), lalu hitungannya otomatis benar.
+                  </div>
+                )}
+
+                {/* Catatan saat periode belum dipastikan (kost DP / Belum Bayar). */}
+                {belumTahu && (
+                  <div className="bg-kk-orange-soft border-2 border-kk-orange rounded-kk-card p-3.5 mb-4 text-body text-kk-navy leading-snug">
+                    🤔 Periode <b>belum dipastikan</b>. Total di bawah hanya <b>estimasi (6 bulan)</b>.
+                    Saat status jadi <b>Lunas</b>, kamu <b>wajib</b> pilih <b>6 Bulan</b> atau <b>1 Tahun</b> dulu.
                   </div>
                 )}
 
@@ -1781,7 +1870,7 @@ export function BookingFlow({
                 return (
                   <button
                     key={o.s}
-                    onClick={() => { setBayar(o.s); if (o.s === 'DP' && !dp && dpMin > 0 && !isEdit) setDp(String(dpMin)); }}
+                    onClick={() => chooseBayar(o.s)}
                     className={`text-left p-4 rounded-kk-card border-2 flex justify-between items-center gap-3 ${
                       sel ? 'border-kk-navy bg-kk-mint-soft' : 'border-kk-mauve bg-white'
                     }`}
@@ -1959,6 +2048,35 @@ export function BookingFlow({
           </KkButton>
         </div>
       </Dialog>
+
+      {/* WAJIB: tentukan periode kost saat Lunas (tak bisa "Belum Tahu" lagi). */}
+      <Dialog open={periodePopup}>
+        <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
+          <KkIcon name="kalender" size={30} />
+        </div>
+        <h3 className="font-heading font-bold text-subhead text-center m-0 mb-2">
+          Tentukan periode dulu ya 🗓️
+        </h3>
+        <p className="text-body text-kk-ink text-center mt-0 mb-6 leading-snug">
+          Karena status sudah <b className="text-kk-navy">Lunas</b>, periode kost{' '}
+          <b className="text-kk-navy">wajib</b> dipastikan. Pilih lama sewa penyewa{' '}
+          <b className="text-kk-navy">{nama ? nama.trim() : 'ini'}</b>:
+        </p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <KkButton variant="primary" onClick={() => resolvePeriode('6bulan')}>
+            6 Bulan
+          </KkButton>
+          <KkButton variant="primary" onClick={() => resolvePeriode('setahun')}>
+            1 Tahun
+          </KkButton>
+        </div>
+        <button
+          onClick={() => { setPeriodePopup(false); setPendingLunas(false); }}
+          className="w-full text-caption font-semibold text-kk-ink py-2"
+        >
+          Batal — tetap belum tahu (status bukan Lunas)
+        </button>
+      </Dialog>
     </>
   );
 }
@@ -1967,6 +2085,7 @@ export function BookingFlow({
 export function BookingDetail({
   booking,
   payments = [],
+  facilities = [],
   loading,
   onClose,
   onPay,
@@ -1980,6 +2099,7 @@ export function BookingDetail({
 }: {
   booking: BookingFullData;
   payments?: PaymentRecord[];
+  facilities?: { id: string; nama: string; emoji: string }[];
   loading?: boolean;
   onClose: () => void;
   onPay: () => void;
@@ -2025,6 +2145,13 @@ export function BookingDetail({
 
         <KkCard className="mb-5">
           {booking.WhatsApp && <InfoRow label="Nomor HP" value={booking.WhatsApp} />}
+          {periodeInfo(booking.Paket).label !== '—' && (
+            <InfoRow
+              label="Periode"
+              value={(periodeInfo(booking.Paket).belumTahu ? '🤔 ' : '') + periodeInfo(booking.Paket).label}
+              accent={periodeInfo(booking.Paket).belumTahu ? 'orange' : undefined}
+            />
+          )}
           <InfoRow label="Tanggal masuk" value={tglPanjang(booking.CheckIn)} />
           <InfoRow label="Tanggal keluar" value={tglPanjang(displayCheckOutOf(booking))} />
           <InfoRow label="Total sewa" value={rupiah(booking.Harga_Total_Net)} />
@@ -2033,6 +2160,25 @@ export function BookingDetail({
             <InfoRow label="Sisa tagihan" value={rupiah(sisa)} accent="orange" />
           )}
         </KkCard>
+
+        {/* Fasilitas yang dipilih penyewa (data dari detail booking). */}
+        {facilities.length > 0 && (
+          <KkCard className="mb-5">
+            <div className="font-heading font-bold text-[16px] text-kk-navy mb-2.5">
+              🛋️ Fasilitas penyewa ({facilities.length})
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {facilities.map((f) => (
+                <span
+                  key={f.id}
+                  className="inline-flex items-center gap-1.5 rounded-kk-pill px-3 py-1.5 text-[14px] font-semibold bg-kk-mauve-soft text-kk-navy border-2 border-kk-mauve"
+                >
+                  <span>{f.emoji}</span> {f.nama}
+                </span>
+              ))}
+            </div>
+          </KkCard>
+        )}
 
         {/* Bukti pembayaran — preview gambar + link Google Drive */}
         {booking.Bukti_Bayar ? (
