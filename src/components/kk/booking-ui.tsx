@@ -2080,9 +2080,11 @@ export function CancelConfirm({
   booking: BookingFullData;
   loading?: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (mode: 'hangus' | 'refund') => void;
 }) {
-  const dibayar = booking.Total_Bayar ?? 0;
+  const dibayar = Number(booking.Total_Bayar ?? 0);
+  // Default: DP hangus (sesuai aturan invoice "DP tidak dapat dikembalikan").
+  const [mode, setMode] = useState<'hangus' | 'refund'>('hangus');
   return (
     <Dialog open>
       <div className="w-14 h-14 rounded-kk-card bg-kk-mauve-soft grid place-items-center mb-4 text-kk-navy">
@@ -2091,21 +2093,42 @@ export function CancelConfirm({
       <h3 className="font-heading font-bold text-subhead text-kk-navy m-0 mb-2.5">
         Batalkan booking {booking.Nama_Customer}?
       </h3>
-      <p className="text-body text-kk-ink mt-0 mb-2 leading-snug">
+      <p className="text-body text-kk-ink mt-0 mb-3 leading-snug">
         Tenang, ini tidak menghapus data. Kamar <b className="text-kk-navy">{booking.Nama_Kamar}</b>{' '}
         akan kembali tersedia untuk disewakan.
       </p>
+
       {dibayar > 0 && (
-        <div className="bg-kk-mint-soft border-2 border-kk-mint rounded-kk-pill px-4 py-3 text-caption text-kk-navy mb-2">
-          Penyewa sudah membayar <b>{rupiah(dibayar)}</b>. Uang ini bisa Anda kembalikan (refund)
-          sebagai catatan.
+        <div className="mb-4">
+          <div className="text-caption font-semibold text-kk-ink mb-2">
+            Penyewa sudah membayar <b className="text-kk-navy">{rupiah(dibayar)}</b>. Uangnya:
+          </div>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setMode('hangus')}
+              className={`text-left p-3.5 rounded-kk-card border-2 ${mode === 'hangus' ? 'border-kk-navy bg-kk-mint-soft' : 'border-kk-mauve bg-white'}`}
+            >
+              <div className="font-heading font-bold text-[16px] text-kk-navy">DP hangus (tidak dikembalikan)</div>
+              <div className="text-caption text-kk-ink">Sesuai aturan — uang {rupiah(dibayar)} jadi milik usaha.</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('refund')}
+              className={`text-left p-3.5 rounded-kk-card border-2 ${mode === 'refund' ? 'border-kk-navy bg-kk-mint-soft' : 'border-kk-mauve bg-white'}`}
+            >
+              <div className="font-heading font-bold text-[16px] text-kk-navy">Refund penuh</div>
+              <div className="text-caption text-kk-ink">Kembalikan {rupiah(dibayar)} ke penyewa (tercatat).</div>
+            </button>
+          </div>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3 mt-4">
+
+      <div className="grid grid-cols-2 gap-3 mt-2">
         <KkButton variant="secondary" onClick={onClose} disabled={loading}>
           Tidak Jadi
         </KkButton>
-        <KkButton variant="primary" onClick={onConfirm} disabled={loading}>
+        <KkButton variant="primary" onClick={() => onConfirm(dibayar > 0 ? mode : 'hangus')} disabled={loading}>
           {loading ? 'Memproses…' : 'Ya, Batalkan'}
         </KkButton>
       </div>
@@ -2194,6 +2217,67 @@ export function RefundForm({
         </KkButton>
         <KkButton variant="primary" onClick={() => valid && onConfirm(n, metode, alasan)} disabled={!valid || loading}>
           {loading ? 'Memproses…' : 'Proses Refund'}
+        </KkButton>
+      </div>
+    </Dialog>
+  );
+}
+
+// ═════════════════════════ CATAT PEMBAYARAN (bisa BERTAHAP / cicilan) ═════════
+export function PaymentForm({
+  booking,
+  loading,
+  onClose,
+  onConfirm,
+}: {
+  booking: BookingFullData;
+  loading?: boolean;
+  onClose: () => void;
+  onConfirm: (nominal: number, jenis: string) => void;
+}) {
+  const sisa = Number(booking.Sisa_Bayar ?? 0);
+  const [nominal, setNominal] = useState(String(sisa));
+  const n = Number(nominal) || 0;
+  const valid = n > 0 && n <= sisa;
+  const lunas = n >= sisa && sisa > 0;
+  return (
+    <Dialog open>
+      <div className="w-14 h-14 rounded-full bg-kk-mint-soft text-kk-green grid place-items-center mx-auto mb-4">
+        <KkIcon name="pembayaran" size={30} strokeWidth={2.2} />
+      </div>
+      <h3 className="font-heading font-bold text-subhead text-kk-navy text-center m-0 mb-1.5">
+        Catat pembayaran — {booking.Nama_Customer}
+      </h3>
+      <p className="text-body text-kk-ink text-center mt-0 mb-4 leading-snug">
+        Sisa tagihan <b className="text-kk-navy">{rupiah(sisa)}</b>. Boleh dibayar <b>sebagian (cicilan)</b> atau langsung lunas.
+      </p>
+
+      <BookingField label="Jumlah dibayar sekarang" contoh={'Maksimal ' + rupiah(sisa)}>
+        <MoneyInput value={nominal} onChange={(v) => setNominal(v ? String(v) : '')} />
+      </BookingField>
+      <div className="flex gap-2 mb-3 -mt-2">
+        <button type="button" onClick={() => setNominal(String(Math.floor(sisa / 2)))}
+          className="flex-1 min-h-[44px] rounded-kk-pill border-2 border-kk-mauve bg-white text-kk-navy font-body font-semibold text-caption">
+          Setengah
+        </button>
+        <button type="button" onClick={() => setNominal(String(sisa))}
+          className="flex-1 min-h-[44px] rounded-kk-pill border-2 border-kk-mauve bg-white text-kk-navy font-body font-semibold text-caption">
+          Lunas
+        </button>
+      </div>
+
+      {valid && (
+        <div className="bg-kk-mint-soft border-2 border-kk-mint rounded-kk-pill px-4 py-2.5 text-caption text-kk-navy mb-3">
+          {lunas ? '✓ Akan ditandai LUNAS.' : `Cicilan — sisa setelah ini: ${rupiah(Math.max(0, sisa - n))}`}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <KkButton variant="secondary" onClick={onClose} disabled={loading}>
+          Batal
+        </KkButton>
+        <KkButton variant="success" onClick={() => valid && onConfirm(n, lunas ? 'PELUNASAN' : 'CICILAN')} disabled={!valid || loading}>
+          {loading ? 'Menyimpan…' : 'Catat Pembayaran'}
         </KkButton>
       </div>
     </Dialog>
