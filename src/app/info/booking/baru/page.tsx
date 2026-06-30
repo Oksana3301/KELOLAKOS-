@@ -195,6 +195,12 @@ export default function BookingBaruPage() {
       dpAmount: bayar === 'DP' ? dpAmount : undefined,
     });
     setSubmitting(false);
+    // GAGAL nyata → JANGAN tampilkan "Terkirim". Tetap di langkah pembayaran
+    // (bukti tetap tersimpan) supaya user bisa coba lagi / hubungi admin.
+    if (!res.ok) {
+      toast.error(res.error || 'Gagal mengirim booking. Periksa koneksi lalu coba lagi, atau hubungi admin.');
+      return;
+    }
     setDemo(res.demo);
     setDone(true);
   }
@@ -295,10 +301,17 @@ export default function BookingBaruPage() {
               </THField>
             </div>
           )
-        ) : (
+        ) : kostLockTanggal ? (
           <div className="rounded-[12px] px-3.5 py-2.5 text-[12.5px] leading-snug" style={{ background: '#FBF3E0', border: `1px solid ${TH.gold}`, color: TH.brown }}>
             📅 Untuk <b>kost</b>, tanggal check-in &amp; check-out di-set <b>otomatis</b> = tanggal pelunasan + periode ({durasi}) saat admin konfirmasi. Daftar kamar = yang <b>kosong saat ini</b>.
           </div>
+        ) : (
+          // Kunci tanggal kost DIMATIKAN owner → user memilih tanggal mulai sendiri
+          // (check-out otomatis = mulai + periode). Tanpa picker, dulu diam-diam
+          // terkirim "hari ini" padahal note bilang "otomatis" — tidak logis.
+          <THField label="3. Tanggal mulai (check-in)" hint={`Check-out otomatis = check-in + ${durasi}`}>
+            <THInput type="date" value={mulai} min={today} onChange={(e) => { setMulai(e.target.value); setKamar(''); }} />
+          </THField>
         )}
 
         {/* Aturan jam check-in / check-out penginapan */}

@@ -207,6 +207,11 @@ function PerpanjangForm() {
       dpAmount: bayar === 'DP' ? dpAmount : undefined,
     });
     setSubmitting(false);
+    // GAGAL nyata → jangan tampilkan "Terkirim"; biarkan user coba lagi.
+    if (!res.ok) {
+      toast.error(res.error || 'Gagal mengirim perpanjangan. Periksa koneksi lalu coba lagi, atau hubungi admin.');
+      return;
+    }
     setSubmitDemo(res.demo);
     setDone(true);
   }
