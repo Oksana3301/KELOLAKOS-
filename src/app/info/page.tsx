@@ -467,6 +467,8 @@ export default function InfoPage() {
   // ── Cek ketersediaan berdasarkan RENTANG tanggal (check-in → check-out) ────
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
+  // Kamar tersedia yang diklik → pilih "Booking" (auto-isi form) atau "Lihat dulu".
+  const [bookPick, setBookPick] = useState<RangeRow | null>(null);
   const roomList = useMemo<PublicRoom[]>(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
   // Apakah backend sudah mengirim rentang booking (untuk cek ketersediaan)?
   const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
@@ -1018,7 +1020,7 @@ export default function InfoPage() {
                 {availDetail.length > 0 && (
                   <div className="mb-4">
                     <div className="text-[14px] font-bold mb-2" style={{ color: '#15724A' }}>
-                      ✅ Kamar tersedia ({rangeLabel}):
+                      ✅ Kamar tersedia ({rangeLabel}): <span className="font-normal text-[12px]" style={{ color: C.brownSoft }}>— tap kamar untuk booking</span>
                     </div>
                     {([
                       { key: 'kost', label: '🏠 Kost', rows: availDetail.filter((r) => r.layanan === 'kost') },
@@ -1028,9 +1030,15 @@ export default function InfoPage() {
                         <div className="text-[13px] font-semibold mb-1" style={{ color: C.brown }}>{g.label} ({g.rows.length})</div>
                         <div className="flex flex-wrap gap-1.5">
                           {g.rows.slice(0, 30).map((row) => (
-                            <span key={row.nama} className="text-[12.5px] font-semibold rounded-full px-2.5 py-1" style={{ background: '#EAF5EE', color: '#15724A', border: '1px solid #9ED9B4' }}>
-                              {row.nama}{row.tipe ? ` · ${row.tipe}` : ''}
-                            </span>
+                            <button
+                              key={row.nama}
+                              type="button"
+                              onClick={() => setBookPick(row)}
+                              className="text-[12.5px] font-semibold rounded-full px-2.5 py-1 transition-transform active:scale-95"
+                              style={{ background: '#EAF5EE', color: '#15724A', border: '1px solid #9ED9B4', cursor: 'pointer' }}
+                            >
+                              {row.nama}{row.tipe ? ` · ${row.tipe}` : ''} ›
+                            </button>
                           ))}
                           {g.rows.length > 30 && <span className="text-[12px] self-center" style={{ color: C.brownSoft }}>…+{g.rows.length - 30} lagi</span>}
                         </div>
@@ -1193,6 +1201,46 @@ export default function InfoPage() {
               🆕 Booking Online
             </a>
           </div>
+
+          {/* Pilihan saat kamar tersedia diklik: Booking (auto-isi form) / Lihat dulu */}
+          {bookPick && (
+            <div onClick={() => setBookPick(null)} className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4" style={{ background: 'rgba(40,30,15,0.45)' }}>
+              <div onClick={(e) => e.stopPropagation()} className="w-full max-w-[420px] rounded-[20px] p-5 sm:p-6" style={{ background: C.card, border: `1.5px solid ${C.border}`, boxShadow: '0 20px 60px -20px rgba(40,30,15,0.5)' }}>
+                <div className="text-[34px] text-center">{bookPick.layanan === 'kost' ? '🏠' : '🛏️'}</div>
+                <h3 style={{ fontFamily: serif, color: C.brown }} className="text-[20px] font-bold text-center mt-1 mb-1">
+                  {bookPick.nama}{bookPick.tipe ? ` · ${bookPick.tipe}` : ''}
+                </h3>
+                <p className="text-[13px] text-center m-0" style={{ color: C.brownSoft }}>
+                  {bookPick.gedung}{bookPick.lantai ? ` · Lantai ${bookPick.lantai}` : ''}{rangeLabel ? ` · ${rangeLabel}` : ''}
+                </p>
+                <p className="text-[12.5px] text-center mt-2 mb-4" style={{ color: C.brownSoft }}>
+                  Kamar ini <b style={{ color: '#15724A' }}>tersedia</b>. Mau langsung booking atau lihat-lihat dulu?
+                </p>
+                <div className="grid gap-2">
+                  <a
+                    href={`/info/booking/baru?layanan=${bookPick.layanan === 'kost' ? 'KOS' : 'PENGINAPAN'}&nama=${encodeURIComponent(bookPick.nama)}&gedung=${encodeURIComponent(bookPick.gedung)}&checkin=${encodeURIComponent(rangeStart)}&checkout=${encodeURIComponent(rangeEnd)}`}
+                    className="flex items-center justify-center min-h-[50px] rounded-[14px] font-bold text-[15px] no-underline"
+                    style={{ background: C.gold, color: '#fff' }}
+                  >
+                    📝 Booking kamar ini ›
+                  </a>
+                  {bookPick.layanan !== 'kost' && (
+                    <a
+                      href={wa(info.waMezi, `Halo Bang Mezi 🌸, saya mau booking ${bookPick.nama} (penginapan)${rangeLabel ? ` untuk ${rangeLabel}` : ''}. Mohon dibantu cek & amankan kamarnya ya.`)}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center min-h-[46px] rounded-[14px] font-semibold text-[14px] no-underline"
+                      style={{ background: '#fff', color: C.brown, border: `1.5px solid ${C.gold}` }}
+                    >
+                      💬 Konfirmasi Bang Mezi dulu
+                    </a>
+                  )}
+                  <button onClick={() => setBookPick(null)} className="min-h-[44px] rounded-[14px] font-semibold text-[13px]" style={{ background: 'transparent', color: C.brownSoft, border: `1px solid ${C.border}` }}>
+                    👀 Lihat-lihat dulu
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Galeri + video */}
