@@ -768,7 +768,14 @@ export function BookingFlow({
   // +periode. Tanggal HANYA terisi saat LUNAS; DP/Belum Bayar → kosong dulu.
   // (Penginapan & kost-unlock pakai tanggal manual seperti biasa.)
   const kostLocked = isKostRoom && info.kostKunciTanggal !== false;
-  const effCheckIn = kostLocked ? (bayar === 'Lunas' ? (tglBayar || TODAY()) : '') : masuk;
+  // EDIT kost terkunci: PERTAHANKAN tanggal yang sudah tersimpan (jangan dihitung
+  // ulang dari tglBayar/hari ini) — supaya ubah nama/fasilitas/bukti tidak
+  // diam-diam menggeser check-in/out. Bila booking belum punya check-in (mis. DP
+  // belum dikonfirmasi), biarkan kosong. NEW: check-in = tanggal pelunasan.
+  const editHadCheckIn = isEdit && !!editBooking?.CheckIn;
+  const effCheckIn = kostLocked
+    ? (isEdit ? (editHadCheckIn ? masuk : '') : (bayar === 'Lunas' ? (tglBayar || TODAY()) : ''))
+    : masuk;
   const effCheckOut = kostLocked
     ? (effCheckIn ? addPaket(effCheckIn, paketKind, lama) : '')
     : keluar;

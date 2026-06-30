@@ -231,7 +231,15 @@ export default function InvoicePage() {
   // clipboard di latar (untuk ditempel), atau pakai "Unduh PNG" lalu lampirkan.
   function sendToWa() {
     const raw = digitsOnly(invoice.customer.phone || '');
-    const norm = raw.startsWith('0') ? '62' + raw.slice(1) : raw;
+    // Normalisasi ke format wa.me (62…): tangani 0…, 8… (tanpa kode negara),
+    // dan ketik "62" lalu masih ada "0…" (620…). Selaras dgn normWa /info.
+    const norm = raw.startsWith('620')
+      ? '62' + raw.slice(3)
+      : raw.startsWith('0')
+        ? '62' + raw.slice(1)
+        : raw.startsWith('8')
+          ? '62' + raw
+          : raw;
     const text = encodeURIComponent(buildWaText());
     const url = norm ? `https://wa.me/${norm}?text=${text}` : `https://wa.me/?text=${text}`;
     window.open(url, '_blank');
