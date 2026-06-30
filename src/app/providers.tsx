@@ -1,14 +1,28 @@
 'use client';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { useState } from 'react';
 import { AccessCodeGate } from '@/components/access-code-gate';
+import { LicenseError, clearStoredAccessCode } from '@/lib/api';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        // Lisensi kedaluwarsa/dicabut DI TENGAH SESI: query data akan melempar
+        // LicenseError. Bersihkan kode lalu beri sinyal ke AccessCodeGate agar
+        // minta kode ulang (user tidak mentok di toast/halaman kosong).
+        // Halaman publik /info dikecualikan (aksinya skipLicense).
+        queryCache: new QueryCache({
+          onError: (error) => {
+            if (!(error instanceof LicenseError)) return;
+            if (typeof window === 'undefined') return;
+            if (window.location.pathname.startsWith('/info')) return;
+            clearStoredAccessCode();
+            window.dispatchEvent(new Event('kk-license-error'));
+          },
+        }),
         defaultOptions: {
           queries: {
             // Performa: data dianggap "fresh" 5 menit → pindah-pindah halaman

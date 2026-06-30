@@ -38,6 +38,20 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // Lisensi kedaluwarsa/dicabut di tengah sesi (sinyal dari QueryCache.onError di
+  // providers): minta kode lagi alih-alih membiarkan user mentok di data kosong.
+  useEffect(() => {
+    function onLicenseError() {
+      if (pathname && pathname.startsWith('/info')) return; // publik tak terpengaruh
+      clearStoredAccessCode();
+      didCheck.current = false; // izinkan verifikasi ulang saat kode baru dimasukkan
+      setErrorMsg('Sesi akses berakhir atau dicabut. Masukkan kode lagi untuk lanjut.');
+      setStatus('need_code');
+    }
+    window.addEventListener('kk-license-error', onLicenseError);
+    return () => window.removeEventListener('kk-license-error', onLicenseError);
+  }, [pathname]);
+
   async function verifyExistingCode(code: string) {
     try {
       const result = await api.verifyAccessCode(code);
