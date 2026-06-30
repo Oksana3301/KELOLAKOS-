@@ -584,6 +584,31 @@ export default function InfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
+  // Rincian kamar yang BEBAS PENUH (kosong) untuk rentang — supaya user jelas
+  // kamar mana saja yang tersedia (bukan cuma yang terisi). Urut: kost → penginapan.
+  const availDetail = useMemo(() => {
+    if (!rangeActive || !hasRangeData) return [] as RangeRow[];
+    return roomList
+      .map((r): RangeRow => ({
+        nama: r.nama,
+        tipe: r.tipe || '',
+        gedung: r.gedung || '',
+        lantai: r.lantai || 0,
+        layanan: roomLayanan(r),
+        num: roomNum(r.nama),
+        status: rangeStatusOf(r, rangeStart, rangeEnd),
+        free: [],
+        booked: [],
+      }))
+      .filter((x) => x.status === 'kosong')
+      .sort((a, b) => {
+        if (a.layanan !== b.layanan) return a.layanan === 'kost' ? -1 : 1;
+        if (a.num !== b.num) return a.num - b.num;
+        return a.nama.localeCompare(b.nama, 'id', { numeric: true });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
+
   // Jumlah kamar bebas-penuh per layanan (untuk ringkasan).
   const availFull = useMemo(() => {
     if (!rangeActive || !hasRangeData) return { kost: 0, penginapan: 0 };
@@ -986,6 +1011,42 @@ export default function InfoPage() {
                   </div>
                   <div className="text-[13px] mt-0.5" style={{ color: C.brownSoft }}>
                     🏠 {availFull.kost} kost · 🏨 {availFull.penginapan} penginapan {rangeDetail.length === 0 ? '· semua bebas 🎉' : ''}
+                  </div>
+                </div>
+
+                {/* ✅ Kamar yang TERSEDIA (bebas penuh) — jelas mana saja yang bisa dibooking */}
+                {availDetail.length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-[14px] font-bold mb-2" style={{ color: '#15724A' }}>
+                      ✅ Kamar tersedia ({rangeLabel}):
+                    </div>
+                    {([
+                      { key: 'kost', label: '🏠 Kost', rows: availDetail.filter((r) => r.layanan === 'kost') },
+                      { key: 'penginapan', label: '🏨 Penginapan', rows: availDetail.filter((r) => r.layanan === 'penginapan') },
+                    ] as { key: string; label: string; rows: RangeRow[] }[]).filter((g) => g.rows.length > 0).map((g) => (
+                      <div key={g.key} className="mb-2.5">
+                        <div className="text-[13px] font-semibold mb-1" style={{ color: C.brown }}>{g.label} ({g.rows.length})</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {g.rows.slice(0, 30).map((row) => (
+                            <span key={row.nama} className="text-[12.5px] font-semibold rounded-full px-2.5 py-1" style={{ background: '#EAF5EE', color: '#15724A', border: '1px solid #9ED9B4' }}>
+                              {row.nama}{row.tipe ? ` · ${row.tipe}` : ''}
+                            </span>
+                          ))}
+                          {g.rows.length > 30 && <span className="text-[12px] self-center" style={{ color: C.brownSoft }}>…+{g.rows.length - 30} lagi</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 💬 Hint: konfirmasi penginapan ke Bang Mezi dulu biar kamar diamankan */}
+                <div className="rounded-[14px] p-3.5 mb-4 flex items-start gap-2.5" style={{ background: '#FBF3E0', border: `1px solid ${C.gold}` }}>
+                  <span className="text-[18px] leading-none">💬</span>
+                  <div className="text-[12.5px] leading-relaxed" style={{ color: C.brown }}>
+                    Mau booking <b>penginapan</b>? Sebaiknya konfirmasi dulu ke <b>Bang Mezi</b> via WhatsApp biar kamarnya langsung <b>diamankan</b> sebelum kamu bayar. 🌸{' '}
+                    <a href={wa(info.waMezi, `Halo Bang Mezi 🌸, saya mau booking PENGINAPAN${rangeLabel ? ` untuk tanggal ${rangeLabel}` : ''}. Mohon dibantu cek & amankan kamarnya ya.`)} target="_blank" rel="noopener noreferrer" className="font-bold no-underline whitespace-nowrap" style={{ color: C.gold }}>
+                      Chat Bang Mezi →
+                    </a>
                   </div>
                 </div>
 
