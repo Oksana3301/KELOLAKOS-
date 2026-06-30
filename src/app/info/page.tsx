@@ -1586,6 +1586,41 @@ export default function InfoPage() {
             ))}
           </Card>
         </section>
+
+        {/* Rumah Penghuni — pintu lembut buat penghuni yang sudah tinggal di sini */}
+        <section className="py-8">
+          <a
+            href="/rumah/login"
+            className="block rounded-[20px] p-6 no-underline transition-transform hover:-translate-y-0.5"
+            style={{ background: 'linear-gradient(135deg,#FCF8F0,#F3E8CF)', border: `1px solid ${C.border}` }}
+          >
+            <div className="flex items-start gap-4">
+              <span className="text-[34px] leading-none">🏡</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-semibold tracking-[0.16em] uppercase" style={{ color: C.gold }}>
+                  Khusus penghuni Top Hills
+                </div>
+                <h3 className="text-[21px] font-bold mt-0.5 mb-1.5" style={{ fontFamily: serif, color: C.brown }}>
+                  Masuk ke Rumah Penghuni 🌸
+                </h3>
+                <p className="text-[14px] leading-relaxed m-0" style={{ color: C.brownSoft }}>
+                  Sudah jadi keluarga Top Hills? Di sini kamu bisa lihat <b style={{ color: C.brown }}>status
+                  loyalitas</b> (makin lama tinggal, makin spesial), <b style={{ color: C.brown }}>lengkapi profil</b> buat
+                  dapat kejutan kecil dari kami, dan ambil <b style={{ color: C.brown }}>kode ajak teman</b>.
+                </p>
+                <span
+                  className="inline-flex items-center gap-2 mt-3.5 rounded-[12px] font-bold text-[14px] px-4 min-h-[44px]"
+                  style={{ background: C.gold, color: '#FBF7EC' }}
+                >
+                  Masuk pakai nomor WhatsApp →
+                </span>
+                <p className="text-[12px] mt-2.5 m-0" style={{ color: C.brownSoft }}>
+                  Belum tinggal di sini? Booking dulu lewat tombol di bawah ya — area ini otomatis aktif setelah kamu jadi penghuni.
+                </p>
+              </div>
+            </div>
+          </a>
+        </section>
       </main>
 
       {/* Footer */}

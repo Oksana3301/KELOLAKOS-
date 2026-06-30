@@ -141,6 +141,27 @@ export function BookingDone({ nama, demo }: { nama?: string; demo?: boolean }) {
           💬 Konfirmasi Pembayaran via WhatsApp
         </a>
         <p className="text-[12px]" style={{ color: TH.brownSoft }}>ke admin Top Hills · 0811-6646-615</p>
+
+        {/* Pintu lembut ke Rumah Penghuni — aktif setelah jadi penghuni Top Hills */}
+        <div className="rounded-[16px] p-4 text-left mt-1" style={{ background: 'linear-gradient(135deg,#FCF8F0,#F3E8CF)', border: `1px solid ${TH.border}` }}>
+          <div className="flex items-start gap-3">
+            <span className="text-[26px] leading-none">🏡</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-bold" style={{ fontFamily: TH_SERIF, color: TH.brown }}>
+                Setelah ini, kamu punya Rumah Penghuni 🌸
+              </div>
+              <p className="text-[13px] leading-relaxed mt-1 mb-2.5" style={{ color: TH.brownSoft }}>
+                Begitu booking-mu dikonfirmasi admin, kamu bisa masuk pakai nomor WhatsApp ini untuk lihat
+                <b style={{ color: TH.brown }}> status loyalitas</b>, lengkapi profil buat <b style={{ color: TH.brown }}>kejutan
+                selamat datang</b>, dan ambil <b style={{ color: TH.brown }}>kode ajak teman</b>.
+              </p>
+              <Link href="/rumah/login" className="inline-flex items-center gap-2 rounded-[12px] font-bold text-[13.5px] no-underline px-4 min-h-[42px]" style={{ background: '#fff', color: TH.brown, border: `1.5px solid ${TH.gold}` }}>
+                Buka Rumah Penghuni →
+              </Link>
+            </div>
+          </div>
+        </div>
+
         <THBtn variant="ghost" href="/info" block>Kembali ke beranda</THBtn>
       </div>
     </div>
