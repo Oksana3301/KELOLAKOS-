@@ -480,6 +480,9 @@ export function BookingFlow({
   const [roomId, setRoomId] = useState(''); // kamar utama (acuan paket/harga tampil)
   // Kamar PENGINAPAN tambahan (booking baru bisa pilih banyak kamar sekaligus).
   const [extraIds, setExtraIds] = useState<string[]>([]);
+  // RoomID yg sudah berhasil tersimpan pada attempt ini → cegah dobel saat coba
+  // lagi setelah gagal di tengah loop multi-kamar. Direset saat data kamar berubah.
+  const submittedRef = useRef<Set<string>>(new Set());
   const [lama, setLama] = useState(1);
   const [jumlahOrang, setJumlahOrang] = useState(1);
   const [masuk, setMasuk] = useState(TODAY());
@@ -536,6 +539,7 @@ export function BookingFlow({
     setBukti([]);
     setHapusBukti(false);
     setExtraIds([]);
+    submittedRef.current = new Set();
     setGantiKamar(false);
     setFLayanan('Semua');
     setFCari('');
@@ -638,6 +642,8 @@ export function BookingFlow({
     return [chosen, ...extra];
   }, [chosen, multiAllowed, extraIds, options]);
   const roomCount = selectedOptions.length;
+  // Data kamar/penyewa/tanggal berubah → mulai attempt submit baru (reset dedup).
+  useEffect(() => { submittedRef.current = new Set(); }, [roomId, extraIds.join('|'), nama, masuk, keluar, paketKind, lama, customDate]);
 
   // Opsi paket — DISAMAKAN PERSIS dengan form publik /info supaya harga & booking
   // konsisten (tidak ikut baris harga sheet yang bisa bikin opsi/harga ngaco):
@@ -807,13 +813,22 @@ export function BookingFlow({
     ? (effCheckIn ? addPaket(effCheckIn, paketKind, lama) : '')
     : keluar;
 
+  // DP default mengikuti jumlah kamar (penginapan baru multi): naikkan ke dpMin
+  // saat menambah kamar. Tidak menyentuh mode EDIT (DP-nya dari data lama).
+  useEffect(() => {
+    if (isEdit || bayar !== 'DP') return;
+    setDp((cur) => { const nVal = Number(cur) || 0; return nVal < dpMin ? String(dpMin) : cur; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dpMin, bayar, isEdit]);
+
   // Form utuh: semua syarat dicek sekaligus (bukan per-langkah lagi).
+  // DP penginapan WAJIB ≥ minimal (100rb × jumlah kamar); kost tetap fleksibel (>0).
   const bisaLanjut =
     nama.trim().length > 0 &&
     (isEdit || !!chosen) &&
     (kostLocked || !!masuk) &&
     (customDate ? customHari >= 1 : lama >= 1) &&
-    (bayar !== 'DP' || Number(dp) > 0);
+    (bayar !== 'DP' || (Number(dp) > 0 && (isKostRoom || Number(dp) >= dpMin)));
 
   // Bentrok tanggal: cek booking lain di kamar yang sama yang menutupi rentang
   // [masuk, keluar). Status mengikuti pembayaran (sama dengan /info & denah):
@@ -961,6 +976,7 @@ export function BookingFlow({
       let last: { bookingId?: string; message?: string; warning?: string } = {};
       for (let i = 0; i < n; i++) {
         const opt = targets[i];
+        if (submittedRef.current.has(opt.room.RoomID)) continue; // sudah tersimpan (retry) → jangan dobel
         const unit = unitPriceOf(opt) || (i === 0 ? hargaKamarEff : 0);
         const roomTotal = unit * lamaEff + (i === 0 ? fasTotal + extraOrang : 0);
         const dpRoom = bayar === 'Lunas'
@@ -984,6 +1000,7 @@ export function BookingFlow({
           fasilitasIds: i === 0 ? Array.from(selFas) : [],
           buktiFiles: i === 0 ? bukti : [],
         });
+        submittedRef.current.add(opt.room.RoomID);
       }
       return last;
     },
