@@ -2225,7 +2225,7 @@ export function TagihWa({
 }) {
   const nama = booking.Nama_Customer || 'Bapak/Ibu';
   const kamar = booking.Nama_Kamar || '';
-  const periode = `${tglPanjang(booking.CheckIn)} – ${tglPanjang(booking.CheckOut)}`;
+  const periode = `${tglPanjang(booking.CheckIn)} – ${tglPanjang(displayCheckOutOf(booking))}`;
   const total = rupiah(booking.Harga_Total_Net);
   const dibayar = rupiah(booking.Net_Diterima ?? booking.Total_Bayar ?? 0);
   const sisa = rupiah(booking.Sisa_Bayar ?? 0);
