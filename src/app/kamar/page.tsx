@@ -23,17 +23,19 @@ const HELP = {
   title: 'Kelola Kamar',
   tips: [
     'Di sini Anda menambah, mengubah, atau menghapus kamar di properti Anda.',
-    'Tekan tombol "Tambah Kamar" di atas untuk membuat kamar baru. Harga sewa otomatis pakai titik ribuan.',
+    'Tekan tombol "Tambah Kamar" di atas untuk membuat kamar baru (nama, gedung, lantai).',
     'Gunakan filter Status (Terisi / Kosong / Perlu Perhatian) dan pencarian — bisa cari juga lewat nama penghuni.',
-    'Harga yang Anda set di sini langsung dipakai saat booking untuk kamar tersebut.',
+    'Harga sewa diatur di menu Pengaturan → Harga (mendukung paket kost 6 bln/1 tahun & penginapan per malam/tipe). Detail kamar tetap menampilkan harga yang berlaku.',
     'Tekan satu kartu kamar untuk membuka detailnya, lalu pilih Ubah atau Hapus.',
   ],
 };
 
 // Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
+// HANYA pola eksplisit "Lantai N" — jangan ambil sembarang angka (mis. tipe
+// "Deluxe D04" jangan terbaca Lantai 4, atau catatan "renov 2023" → Lantai 2023).
 function floorForRoom(room: RoomStatus): number {
-  const src = `${room.Tipe_Kamar} ${room.Catatan}`;
-  const m = src.match(/lantai\s*(\d+)/i) || src.match(/\b(\d+)\b/);
+  const src = `${room.Tipe_Kamar || ''} ${room.Catatan || ''}`;
+  const m = src.match(/lantai\s*(\d+)/i);
   return m ? Number(m[1]) : 1;
 }
 
@@ -229,15 +231,27 @@ export default function KamarPage() {
 
   function handleSave(value: KamarFormValue) {
     const existing = form?.view?.room;
+    // Lantai disimpan di Catatan sbg "Lantai N" (sumber baca floorForRoom).
+    // Pertahankan catatan lain milik kamar (jangan terhapus saat ubah lantai).
+    const restNote = String(existing?.Catatan || '')
+      .replace(/lantai\s*\d+/gi, '')
+      .replace(/^[\s·,-]+|[\s·,-]+$/g, '')
+      .trim();
+    const catatan = restNote ? `Lantai ${value.lantai} · ${restNote}` : `Lantai ${value.lantai}`;
+    // Tipe kamar TIDAK boleh berisi "Lantai N" (itu bukan tipe — merusak
+    // pencocokan harga). Bersihkan bila terlanjur begitu; kamar baru → kosong
+    // (harga diatur di Pengaturan, tipe bisa diisi belakangan di sana).
+    const existingTipe = String(existing?.Tipe_Kamar || '').trim();
+    const tipeKamar = /^lantai\s*\d+$/i.test(existingTipe) ? '' : existingTipe;
     upsert.mutate({
       roomId: existing?.RoomID,
       namaKamar: value.nomor,
       layananDefault: existing?.Layanan_Default || 'KOS',
       gedung: value.gedung,
-      tipeKamar: existing?.Tipe_Kamar || `Lantai ${value.lantai}`,
+      tipeKamar,
       kapasitasNormal: existing?.Kapasitas_Normal || 1,
       statusKamar: existing?.Status_Kamar || 'TERSEDIA',
-      catatan: existing?.Catatan || `Lantai ${value.lantai}`,
+      catatan,
     });
   }
 
@@ -247,7 +261,6 @@ export default function KamarPage() {
           nomor: form.view.room.Nama_Kamar,
           gedung: form.view.room.Gedung,
           lantai: form.view.lantai,
-          harga: form.view.harga,
         }
       : null;
 
