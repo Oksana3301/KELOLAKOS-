@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type PublicRoom, type BuktiFile } from '@/lib/api';
@@ -198,6 +198,12 @@ export default function BookingBaruPage() {
     setPayStep(true);
   }
 
+  // Kamar yang SUDAH berhasil terkirim pada attempt ini → saat coba lagi setelah
+  // gagal di tengah, jangan kirim ulang (cegah booking dobel). Direset bila data
+  // kamar/penyewa/tanggal berubah (lihat effect di bawah).
+  const submittedRef = useRef<Set<string>>(new Set());
+  useEffect(() => { submittedRef.current = new Set(); }, [selectedKeys.join('|'), nama, mulai, checkOut, durasi, layanan]);
+
   async function doSubmit(bukti: BuktiFile | null) {
     const targets = selRooms;
     if (!targets.length) { toast.error('Pilih kamar dulu'); return; }
@@ -213,6 +219,7 @@ export default function BookingBaruPage() {
     let failMsg = '';
     for (let i = 0; i < n; i++) {
       const r = targets[i];
+      if (submittedRef.current.has(roomKeyOf(r))) { demoFlag = demoFlag || false; continue; } // sudah terkirim (retry)
       const roomBase = perRoomBasePrice(r);
       // Fasilitas + extra bed + tambahan orang dibebankan SEKALI di kamar pertama.
       const addonForRoom = i === 0 ? addonTotal + extraOrang : 0;
@@ -238,6 +245,7 @@ export default function BookingBaruPage() {
         bukti: bukti || undefined, dpAmount: bayar === 'DP' ? dpRoom : undefined,
       });
       if (!res.ok) { failMsg = res.error || 'Gagal mengirim booking.'; break; }
+      submittedRef.current.add(roomKeyOf(r));
       demoFlag = res.demo;
     }
     setSubmitting(false);
