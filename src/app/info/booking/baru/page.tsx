@@ -109,6 +109,38 @@ export default function BookingBaruPage() {
 
   const roomKeyOf = (r: PublicRoom) => `${r.nama} — ${r.gedung}`;
 
+  // ── Auto-isi dari /info "Cek Ketersediaan" → tombol "Booking kamar ini" ──
+  // URL: ?layanan=KOS|PENGINAPAN&nama=..&gedung=..&checkin=..&checkout=..
+  // Set layanan/durasi/tanggal saat mount; kamar dipilih setelah daftar termuat.
+  const prefillRef = useRef<{ key: string; kost: boolean } | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const lay = sp.get('layanan');
+    const nm = sp.get('nama'); const gd = sp.get('gedung');
+    const ci = sp.get('checkin'); const co = sp.get('checkout');
+    if (lay === 'PENGINAPAN' || lay === 'KOS') {
+      setLayanan(lay);
+      if (lay === 'PENGINAPAN') {
+        setDurasi('Per Malam');
+        if (ci) setMulai(ci);
+        if (co && (!ci || co > ci)) setKeluar(co);
+      }
+    }
+    if (nm) prefillRef.current = { key: gd ? `${nm} — ${gd}` : nm, kost: lay === 'KOS' };
+  }, []);
+  // Setelah daftar kamar termuat & cocok tanggal → pilih kamar otomatis (sekali).
+  useEffect(() => {
+    const pf = prefillRef.current;
+    if (!pf || kosongRooms.length === 0) return;
+    if (kosongRooms.some((r) => roomKeyOf(r) === pf.key)) {
+      if (pf.kost) setKamar(pf.key);
+      else setPickedPng((prev) => (prev.includes(pf.key) ? prev : [...prev, pf.key]));
+    }
+    prefillRef.current = null; // cukup sekali (hindari pilih ulang tak terduga)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kosongRooms]);
+
   // Kamar terpilih jadi tak tersedia → buang dari pilihan (single & multi).
   useEffect(() => {
     const avail = new Set(kosongRooms.map(roomKeyOf));
