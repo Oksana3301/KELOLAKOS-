@@ -469,6 +469,8 @@ export default function InfoPage() {
   const [rangeEnd, setRangeEnd] = useState('');
   // Kamar tersedia yang diklik → pilih "Booking" (auto-isi form) atau "Lihat dulu".
   const [bookPick, setBookPick] = useState<RangeRow | null>(null);
+  // Grup daftar "Kamar tersedia" yang sedang di-expand (lihat semua kamar).
+  const [availExpand, setAvailExpand] = useState<Record<string, boolean>>({});
   const roomList = useMemo<PublicRoom[]>(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
   // Apakah backend sudah mengirim rentang booking (untuk cek ketersediaan)?
   const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
@@ -1097,11 +1099,15 @@ export default function InfoPage() {
                     {([
                       { key: 'kost', label: '🏠 Kost', rows: availDetail.filter((r) => r.layanan === 'kost') },
                       { key: 'penginapan', label: '🏨 Penginapan', rows: availDetail.filter((r) => r.layanan === 'penginapan') },
-                    ] as { key: string; label: string; rows: RangeRow[] }[]).filter((g) => g.rows.length > 0).map((g) => (
+                    ] as { key: string; label: string; rows: RangeRow[] }[]).filter((g) => g.rows.length > 0).map((g) => {
+                      const COLLAPSED = 24;
+                      const expanded = !!availExpand[g.key];
+                      const shown = expanded ? g.rows : g.rows.slice(0, COLLAPSED);
+                      return (
                       <div key={g.key} className="mb-2.5">
                         <div className="text-[13px] font-semibold mb-1" style={{ color: C.brown }}>{g.label} ({g.rows.length})</div>
                         <div className="flex flex-wrap gap-1.5">
-                          {g.rows.slice(0, 30).map((row) => (
+                          {shown.map((row) => (
                             <button
                               key={row.nama}
                               type="button"
@@ -1112,10 +1118,20 @@ export default function InfoPage() {
                               {row.nama}{row.tipe ? ` · ${row.tipe}` : ''} ›
                             </button>
                           ))}
-                          {g.rows.length > 30 && <span className="text-[12px] self-center" style={{ color: C.brownSoft }}>…+{g.rows.length - 30} lagi</span>}
+                          {g.rows.length > COLLAPSED && (
+                            <button
+                              type="button"
+                              onClick={() => setAvailExpand((p) => ({ ...p, [g.key]: !expanded }))}
+                              className="text-[12.5px] font-bold rounded-full px-3 py-1 transition-transform active:scale-95"
+                              style={{ background: '#fff', color: C.gold, border: `1.5px solid ${C.gold}`, cursor: 'pointer' }}
+                            >
+                              {expanded ? 'Tutup ▴' : `Lihat semua ${g.rows.length} ▾`}
+                            </button>
+                          )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
