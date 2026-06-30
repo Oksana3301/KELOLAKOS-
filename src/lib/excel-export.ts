@@ -92,7 +92,7 @@ export async function exportGeneralLedgerExcel({
     detailRows.push([
       idx + 1,
       formatDate(tx.date),
-      tx.title.match(/^[A-Z]+-[\w-]+/)?.[0] || `${tx.type}-${idx + 1}`,
+      tx.bookingId || `${tx.type}-${idx + 1}`,
       accountForType(tx.type),
       `${tx.title}${tx.subtitle ? ' (' + tx.subtitle + ')' : ''}${tx.diterimaOleh ? ' [' + tx.diterimaOleh + ']' : ''}`,
       isDebit ? tx.nominal : null,
