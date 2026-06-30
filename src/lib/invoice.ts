@@ -208,10 +208,27 @@ export function bookingToInvoice(
   const balance = Math.max(0, subtotal - totalPaid);
   const tag = balance > 0 ? 'TAGIHAN DP' : pays.length > 1 ? 'PELUNASAN' : undefined;
 
-  const period =
-    b.CheckIn && b.CheckOut
-      ? `${tglShort(b.CheckIn)} – ${tglShort(b.CheckOut)}`
-      : b.Paket || '';
+  // Check-out: bila tersimpan kosong / ≤ check-in (data kost lama salah), hitung
+  // dari check-in + periode paket → period invoice tak tampil "22 Jul – 22 Jul".
+  const co = (() => {
+    const ci = b.CheckIn ? new Date(b.CheckIn) : null;
+    const out = b.CheckOut ? new Date(b.CheckOut) : null;
+    const ciOk = ci && !isNaN(ci.getTime());
+    const outOk = out && !isNaN(out.getTime());
+    if (ciOk && (!outOk || (out as Date).getTime() <= (ci as Date).getTime())) {
+      const t = String(b.Paket || '').toUpperCase();
+      const bln = /TAHUN|SETAHUN/.test(t) ? 12 : (t.match(/(\d+)\s*BULAN/) ? Number(t.match(/(\d+)\s*BULAN/)![1]) : (/6\s*BULAN/.test(t) ? 6 : 0));
+      if (bln > 0) {
+        const d = new Date(ci as Date);
+        const day = d.getDate();
+        d.setMonth(d.getMonth() + bln);
+        if (d.getDate() < day) d.setDate(0);
+        return d.toISOString().split('T')[0];
+      }
+    }
+    return b.CheckOut || '';
+  })();
+  const period = b.CheckIn && co ? `${tglShort(b.CheckIn)} – ${tglShort(co)}` : b.Paket || '';
 
   return {
     id,
