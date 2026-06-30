@@ -553,12 +553,22 @@ export default function InfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
-  // Jenis layanan kamar (kost = Gedung A/B, penginapan = Gedung C).
+  // Jenis layanan kamar (kost = Gedung A/B, penginapan = Gedung C / tipe Exec-
+  // Superior-Deluxe / nama D0x). Deteksi diperkuat supaya kamar penginapan TIDAK
+  // salah masuk grup kost (penyebab "penginapan tak muncul").
   const roomLayanan = (r: PublicRoom): 'kost' | 'penginapan' => {
     const l = String(r.layanan || '').toUpperCase();
     if (l.includes('INAP') || l.includes('PENGINAP')) return 'penginapan';
     if (l.includes('KOS')) return 'kost';
-    return String(r.gedung || '').toUpperCase().includes('C') ? 'penginapan' : 'kost';
+    const g = String(r.gedung || '').toUpperCase();
+    const t = String(r.tipe || '').toUpperCase();
+    const n = String(r.nama || '').toUpperCase();
+    if (
+      g.includes('PENGINAP') || /(^|[^A-Z])C([^A-Z]|$|\d)/.test(g) ||
+      /\bD0?\d+/.test(n) ||
+      /(EXECUTIVE|EKSEKUTIF|SUPERIOR|DELUXE)/.test(t)
+    ) return 'penginapan';
+    return 'kost';
   };
   const roomNum = (nama: string) => parseInt(String(nama).replace(/[^0-9]/g, ''), 10) || 0;
 
