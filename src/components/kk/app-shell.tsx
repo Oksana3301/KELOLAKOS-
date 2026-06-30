@@ -48,8 +48,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const supportWa = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
 
-  // Public landing (/info) renders standalone — no app sidebar/tab bar.
-  if (pathname.startsWith('/info')) {
+  // Public landing (/info) & penghuni layer (/rumah) render standalone —
+  // no internal app sidebar/tab bar (keduanya punya UI sendiri).
+  if (pathname.startsWith('/info') || pathname.startsWith('/rumah')) {
     return <>{children}</>;
   }
 

@@ -18,6 +18,9 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
   const [tier, setTier] = useState('');
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const pathname = usePathname();
+  // Halaman publik yang TIDAK pakai access code internal: landing /info & layer
+  // penghuni /rumah (auth-nya lewat WhatsApp, bukan kode internal).
+  const isPublicPath = !!pathname && (pathname.startsWith('/info') || pathname.startsWith('/rumah'));
 
   const supportWa = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
 
@@ -26,7 +29,7 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
   // Saat user pindah dari /info ke halaman dashboard, verifikasi baru jalan.
   const didCheck = useRef(false);
   useEffect(() => {
-    if (pathname && pathname.startsWith('/info')) return;
+    if (isPublicPath) return;
     if (didCheck.current) return;
     didCheck.current = true;
     const stored = getStoredAccessCode();
@@ -42,7 +45,7 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
   // providers): minta kode lagi alih-alih membiarkan user mentok di data kosong.
   useEffect(() => {
     function onLicenseError() {
-      if (pathname && pathname.startsWith('/info')) return; // publik tak terpengaruh
+      if (isPublicPath) return; // publik tak terpengaruh
       clearStoredAccessCode();
       didCheck.current = false; // izinkan verifikasi ulang saat kode baru dimasukkan
       setErrorMsg('Sesi akses berakhir atau dicabut. Masukkan kode lagi untuk lanjut.');
@@ -129,8 +132,8 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
     );
   }
 
-  // Public pages (e.g. the /info landing) are NOT behind the access code.
-  if (pathname && pathname.startsWith('/info')) {
+  // Public pages (landing /info & penghuni /rumah) are NOT behind the access code.
+  if (isPublicPath) {
     return <>{children}</>;
   }
 
