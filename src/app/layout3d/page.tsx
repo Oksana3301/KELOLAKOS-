@@ -31,11 +31,13 @@ const HELP = {
   ],
 };
 
-// Tint per status denah (tiles + ringkasan). 4 warna jelas untuk scan sekilas.
+// Tint per status denah (tiles + ringkasan). Konvensi SAMA dgn peta denah &
+// /info publik: HIJAU = Kosong/tersedia, abu = Terisi, kuning = DP, merah/oranye
+// = Perbaikan — supaya tidak ada "hijau" berarti dua hal berbeda di satu layar.
 const TILE_TINT: Record<DenahStat, { bg: string; dot: string; text: string; label: string }> = {
-  terisi: { bg: 'bg-kk-mint-soft border-kk-green', dot: 'bg-kk-green', text: 'text-kk-green', label: 'Terisi' },
+  kosong: { bg: 'bg-kk-mint-soft border-kk-green', dot: 'bg-kk-green', text: 'text-kk-green', label: 'Kosong' },
   dp: { bg: 'bg-kk-yellow-soft border-kk-yellow', dot: 'bg-kk-yellow', text: 'text-kk-navy', label: 'DP' },
-  kosong: { bg: 'bg-white border-kk-mauve', dot: 'bg-kk-ink', text: 'text-kk-ink', label: 'Kosong' },
+  terisi: { bg: 'bg-kk-mauve-soft border-kk-mauve', dot: 'bg-kk-ink', text: 'text-kk-ink', label: 'Terisi' },
   perbaikan: { bg: 'bg-kk-orange-soft border-kk-orange', dot: 'bg-kk-orange', text: 'text-kk-orange', label: 'Perbaikan' },
 };
 
@@ -280,9 +282,9 @@ export default function LayoutPropertiPage() {
 
       {/* Legenda warna — biar gampang dibaca sekilas */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3">
-        <LegendItem dot="bg-kk-green" label="Terisi (lunas)" />
+        <LegendItem dot="bg-kk-green" label="Kosong (tersedia)" />
         <LegendItem dot="bg-kk-yellow" label="DP (dipesan)" />
-        <LegendItem dot="bg-kk-ink" label="Kosong" ring />
+        <LegendItem dot="bg-kk-ink" label="Terisi (lunas)" />
         <LegendItem dot="bg-kk-orange" label="Perbaikan" />
       </div>
 
