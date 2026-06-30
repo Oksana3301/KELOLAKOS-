@@ -13,7 +13,7 @@ import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/h
 import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, ALL_ROOMS, type RoomStatus3 } from '@/lib/building-layout';
-import { todayISO } from '@/lib/availability';
+import { todayISO, addDaysISO } from '@/lib/availability';
 import { JAM_NOTE } from '@/lib/booking-rules';
 import {
   buildAvailabilityImage,
@@ -626,6 +626,33 @@ export default function InfoPage() {
 
   const rangeLabel = rangeActive ? `${fmtShort(rangeStart)} – ${fmtShort(rangeEnd)}` : '';
 
+  // ── REKOMENDASI PINTAR ───────────────────────────────────────────────────
+  // Bila kamar penginapan penuh untuk rentang yang dipilih, cari jendela kosong
+  // TERDEKAT (sepanjang jumlah malam yang sama) per kamar → user bisa langsung
+  // booking tanggal alternatif tanpa mikir. Kost = berbasis "kosong saat ini".
+  const recommendation = useMemo(() => {
+    if (!rangeActive || !hasRangeData) return null;
+    const dBetween = (a: string, b: string) =>
+      Math.max(0, Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / 86400000));
+    const nights = Math.max(1, dBetween(rangeStart, rangeEnd));
+    const lookEnd = addDaysISO(rangeStart, Math.max(nights * 4, 45)); // jendela ke depan
+    const later: { nama: string; gedung: string; tipe: string; start: string; end: string }[] = [];
+    roomList.forEach((r) => {
+      if (roomLayanan(r) !== 'penginapan' || r.status === 'perbaikan') return;
+      if (rangeStatusOf(r, rangeStart, rangeEnd) === 'kosong') return; // sudah bisa di rentang ini
+      const free = freeIntervals(r.bookedRanges || [], rangeStart, lookEnd);
+      for (const iv of free) {
+        if (dBetween(iv.start, iv.end) >= nights) {
+          later.push({ nama: r.nama, gedung: r.gedung || '', tipe: r.tipe || '', start: iv.start, end: addDaysISO(iv.start, nights) });
+          break;
+        }
+      }
+    });
+    later.sort((a, b) => a.start.localeCompare(b.start) || (roomNum(a.nama) - roomNum(b.nama)));
+    return { nights, freeCount: availDetail.length, later: later.slice(0, 6), soonest: later[0]?.start || null };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData, availDetail]);
+
   // ── Salin/Bagikan ketersediaan sebagai GAMBAR (PNG) ──────────────────────
   // Gedung & lantai diambil dari denah resmi (building-layout) yang paling
   // akurat — bukan dari tebakan field lantai backend.
@@ -1015,6 +1042,51 @@ export default function InfoPage() {
                     🏠 {availFull.kost} kost · 🏨 {availFull.penginapan} penginapan {rangeDetail.length === 0 ? '· semua bebas 🎉' : ''}
                   </div>
                 </div>
+
+                {/* 💡 REKOMENDASI PINTAR — biar user langsung tahu booking apa & kapan */}
+                {recommendation && (
+                  recommendation.freeCount > 0 ? (
+                    <div className="mb-4 rounded-[14px] px-4 py-3" style={{ background: 'linear-gradient(135deg, rgba(168,184,156,.22), rgba(168,184,156,.10))', border: '1px solid rgba(122,159,101,.45)' }}>
+                      <div className="text-[14px] font-bold" style={{ color: '#15724A' }}>💡 Bisa langsung booking untuk {rangeLabel}! 🎉</div>
+                      <div className="text-[13px] mt-1" style={{ color: C.brown }}>
+                        Ada <b>{recommendation.freeCount} kamar kosong penuh</b> di tanggal ini — pilih di daftar <b>“Kamar tersedia”</b> di bawah, langsung amankan.
+                        {recommendation.soonest ? <> Kamar lain mulai kosong <b>{fmtShort(recommendation.soonest)}</b>.</> : null}
+                      </div>
+                    </div>
+                  ) : recommendation.later.length > 0 ? (
+                    <div className="mb-4 rounded-[14px] px-4 py-4" style={{ background: '#FBF3E0', border: `1px solid ${C.gold}` }}>
+                      <div className="text-[14px] font-bold" style={{ color: C.brown }}>😔 Penuh untuk {rangeLabel}. Ini tanggal terdekat yang bisa 👇</div>
+                      <div className="text-[12.5px] mt-1 mb-3" style={{ color: C.brownSoft }}>
+                        Untuk <b>{recommendation.nights} malam</b>, kamar berikut kosong di tanggal terdekat. Tap untuk langsung booking (form terisi otomatis).
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {recommendation.later.map((rec) => (
+                          <a
+                            key={rec.nama + rec.start}
+                            href={`/info/booking/baru?layanan=PENGINAPAN&nama=${encodeURIComponent(rec.nama)}&gedung=${encodeURIComponent(rec.gedung)}&checkin=${encodeURIComponent(rec.start)}&checkout=${encodeURIComponent(rec.end)}`}
+                            className="flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-3 no-underline"
+                            style={{ background: C.card, border: `1px solid ${C.border}` }}
+                          >
+                            <span className="min-w-0">
+                              <span className="text-[14px] font-bold" style={{ color: C.brown }}>{rec.nama}</span>
+                              <span className="text-[12.5px]" style={{ color: C.brownSoft }}>{rec.tipe ? ` · ${rec.tipe}` : ''} · {rec.gedung}</span>
+                              <span className="block text-[12.5px] font-semibold" style={{ color: '#15724A' }}>✅ kosong {fmtShort(rec.start)} – {fmtShort(rec.end)}</span>
+                            </span>
+                            <span className="flex-none text-[12.5px] font-bold rounded-full px-3 py-1.5" style={{ background: C.gold, color: '#fff' }}>Booking ›</span>
+                          </a>
+                        ))}
+                      </div>
+                      <a href={wa(info.waMezi, `Halo Bang Mezi 🌸, saya cari penginapan ${recommendation.nights} malam sekitar ${rangeLabel}. Mohon dibantu cek tanggal yang pas ya.`)} target="_blank" rel="noopener noreferrer" className="block text-center text-[12.5px] font-semibold mt-3 no-underline" style={{ color: C.gold }}>
+                        Atau tanya Bang Mezi untuk tanggal lain →
+                      </a>
+                    </div>
+                  ) : recommendation.freeCount === 0 ? (
+                    <div className="mb-4 rounded-[14px] px-4 py-3 text-[13px]" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
+                      😔 Maaf, kamar penginapan penuh cukup lama untuk <b>{rangeLabel}</b>.{' '}
+                      <a href={wa(info.waMezi, `Halo Bang Mezi 🌸, saya cari penginapan ${recommendation.nights} malam sekitar ${rangeLabel} tapi penuh. Mohon dibantu carikan slot ya.`)} target="_blank" rel="noopener noreferrer" className="font-semibold no-underline" style={{ color: C.gold }}>Chat Bang Mezi</a> untuk dibantu carikan slot ya. 🌸
+                    </div>
+                  ) : null
+                )}
 
                 {/* ✅ Kamar yang TERSEDIA (bebas penuh) — jelas mana saja yang bisa dibooking */}
                 {availDetail.length > 0 && (
