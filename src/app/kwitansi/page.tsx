@@ -158,7 +158,9 @@ export default function InvoicePage() {
   }, [mode, manualInv, selectedBooking, detail]);
 
   const { subtotal, balance, fullyPaid } = deriveInvoice(invoice);
-  const payNominal = fullyPaid ? subtotal : balance;
+  // Nominal yang DITAMPILKAN di kartu total invoice: saat LUNAS tampil TOTAL,
+  // selain itu tampil SISA TAGIHAN. Dipakai juga untuk tombol "Salin nominal".
+  const shownTotal = fullyPaid ? subtotal : balance;
   const layanan: Layanan = invoice.layanan || 'penginapan';
   const identity = resolveIdentity(settings, layanan);
 
@@ -364,7 +366,7 @@ export default function InvoicePage() {
               inv={invoice} identity={identity} variant={variant} showStamp={showStamp} showQR={showQR}
               copied={copied}
               onCopyRek={() => flashCopied('rek', digitsOnly(identity.accountNo))}
-              onCopyTotal={() => flashCopied('total', String(balance))}
+              onCopyTotal={() => flashCopied('total', String(shownTotal))}
             />
           </div>
         </div>

@@ -49,7 +49,12 @@ export function InvoiceDocument({
   const { subtotal, totalPaid, balance, fullyPaid } = deriveInvoice(inv);
   const balanceLabel = fullyPaid ? 'TOTAL' : 'SISA TAGIHAN';
   const balanceVal = fullyPaid ? subtotal : balance;
-  const paidLines = inv.payments.map((p) => ({ label: p.label, text: '− ' + rp(p.amount) }));
+  // Pembayaran mengurangi tagihan ("− Rp"). Baris refund (amount negatif) menambah
+  // kembali yang harus dibayar → tampil "+ Rp X" (bukan "− Rp -X" yg membingungkan).
+  const paidLines = inv.payments.map((p) => ({
+    label: p.label,
+    text: (p.amount < 0 ? '+ ' : '− ') + rp(Math.abs(p.amount)),
+  }));
   // LUNAS → dokumen jadi KWITANSI (tanda terima); DP/belum → INVOICE (tagihan).
   const docType = fullyPaid && subtotal > 0 ? 'KWITANSI' : 'INVOICE';
 

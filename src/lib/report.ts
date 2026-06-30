@@ -39,8 +39,11 @@ export function reportDataToPeriod(
 
   // ── Uang masuk: kelompokkan pembayaran per booking (penyewa · kamar) ──
   const incMap = new Map<string, RLine>();
-  (data.transactions || []).filter((t) => t.direction === 'IN').forEach((t) => {
-    const key = t.bookingId || t.title;
+  (data.transactions || []).filter((t) => t.direction === 'IN').forEach((t, i) => {
+    // Gabung pembayaran SATU booking (DP + pelunasan) lewat bookingId. Tanpa
+    // bookingId (mis. pemasukan manual) → JANGAN gabung berdasarkan judul, karena
+    // dua penyewa berbeda berjudul sama bisa keliru menyatu → pakai kunci unik.
+    const key = t.bookingId || `__tx_${i}`;
     const cust = (t.title.split('·').pop() || t.title).trim();
     const kamar = (t.subtitle.split('·')[0] || '').trim();
     const e = incMap.get(key) || { label: cust || 'Pembayaran', sub: kamar, amount: 0 };
