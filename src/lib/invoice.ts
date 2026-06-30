@@ -195,6 +195,11 @@ export function bookingToInvoice(
         (p.Tanggal_Bayar ? ` · ${tglShort(p.Tanggal_Bayar)}` : ''),
       amount: Number(p.Nominal || 0),
     }));
+    // Nominal pembayaran bersifat KOTOR. Bila ada refund, kurangi supaya
+    // "dibayar" = uang yg benar2 diterima (= Net_Diterima), sehingga SISA &
+    // status LUNAS/KWITANSI tidak salah (mis. sudah refund tapi terlanjur LUNAS).
+    const refund = Number(b.Refund_Total || 0);
+    if (refund > 0) pays.push({ label: 'Refund (dikembalikan)', amount: -refund });
   } else {
     const net = Number(b.Net_Diterima || 0);
     if (net > 0) {
