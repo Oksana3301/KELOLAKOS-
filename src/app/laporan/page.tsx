@@ -186,13 +186,12 @@ function DetailModal({ kind, rep, onClose }: { kind: 'bersih' | 'masuk' | 'kelua
     ];
     totalLabel = 'Untung bersih'; totalText = rp(net);
   } else {
-    title = 'Rincian Sisa Uang';
+    title = 'Rincian Arus Kas Bersih';
     rows = [
-      { primary: 'Saldo awal periode', secondary: 'kas tersedia', amount: rp(rep.openingBalance) },
       { primary: 'Uang masuk', secondary: 'pemasukan periode', amount: rp(rep.cashIn) },
       { primary: 'Uang keluar', secondary: 'pengeluaran periode', amount: rep.cashOut ? '− ' + rp(rep.cashOut) : rp(0) },
     ];
-    totalLabel = 'Sisa uang sekarang'; totalText = rp(sisa);
+    totalLabel = 'Arus kas bersih'; totalText = rp(sisa);
   }
   return (
     <div onClick={onClose} className="fixed inset-0 z-[70] flex items-center justify-center p-6" style={{ background: 'rgba(44,38,32,.46)', backdropFilter: 'blur(3px)' }}>

@@ -95,7 +95,7 @@ export function ReportDocument({ rep, showTrend = true, showDetailLinks = true, 
         <Kpi label="PENDAPATAN BERSIH" sub="Untung Anda — uang masuk dikurangi uang keluar" value={rp(net)} onClick={showDetailLinks && !forExport ? () => onShow?.('bersih') : undefined} />
         <Kpi label="UANG MASUK" sub="Semua uang yang Anda terima" value={rp(rep.cashIn)} onClick={showDetailLinks && !forExport ? () => onShow?.('masuk') : undefined} />
         <Kpi label="UANG KELUAR" sub="Semua uang yang Anda keluarkan" value={rp(rep.cashOut)} muted={keluarZero} dotMuted={keluarZero} onClick={showDetailLinks && !forExport ? () => onShow?.('keluar') : undefined} />
-        <Kpi label="SISA UANG" sub="Uang tunai yang Anda punya sekarang" value={rp(sisa)} onClick={showDetailLinks && !forExport ? () => onShow?.('sisa') : undefined} />
+        <Kpi label="ARUS KAS BERSIH" sub="Selisih uang masuk − keluar periode ini" value={rp(sisa)} onClick={showDetailLinks && !forExport ? () => onShow?.('sisa') : undefined} />
       </div>
 
       {/* TREND */}
