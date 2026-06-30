@@ -157,6 +157,15 @@
   }
 }
 
+/* ───────── /rumah (penghuni layer) — fokus & hover input/tombol ───────── */
+.th-input { transition: border-color .25s, box-shadow .25s; }
+.th-input:focus { border-color: #C9A86A !important; box-shadow: 0 0 0 3px rgba(201,168,106,.22) !important; }
+.th-gold { transition: transform .3s ease-out, box-shadow .3s ease-out; }
+.th-gold:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -6px rgba(201,168,106,.7); }
+.th-card { transition: transform .3s ease-out, box-shadow .3s ease-out, border-color .3s; }
+.th-card:hover { transform: translateY(-3px); box-shadow: 0 12px 26px -8px rgba(201,168,106,.35); border-color: rgba(201,168,106,.5); }
+@keyframes thFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
 /* Reduced motion respect */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -19,6 +19,7 @@ interface NavEntry {
   label: string;
   icon: KkIconName;
   desc?: string;
+  external?: boolean; // buka di tab baru (mis. portal penghuni /rumah, di luar app gate)
 }
 
 const PRIMARY: NavEntry[] = [
@@ -32,6 +33,7 @@ const MORE: NavEntry[] = [
   { href: '/laporan', label: 'Laporan', icon: 'laporan', desc: 'Ringkasan untung-rugi & laporan PDF.' },
   { href: '/kwitansi', label: 'Invoice', icon: 'kwitansi', desc: 'Buat & kirim invoice mewah Top Hills ke penyewa.' },
   { href: '/layout3d', label: 'Layout Properti', icon: 'layout', desc: 'Peta semua kamar dan kondisinya.' },
+  { href: '/rumah/login', label: 'Rumah Penghuni', icon: 'akun', desc: 'Portal penyewa (loyalitas & profil). Buka untuk lihat / bagikan tautannya.', external: true },
   { href: '/setting', label: 'Pengaturan', icon: 'setting', desc: 'Profil bisnis, harga, fasilitas, akun.' },
 ];
 
@@ -48,8 +50,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const supportWa = process.env.NEXT_PUBLIC_SUPPORT_WA || '62895610524580';
 
-  // Public landing (/info) renders standalone — no app sidebar/tab bar.
-  if (pathname.startsWith('/info')) {
+  // Public landing (/info) & penghuni layer (/rumah) render standalone —
+  // no internal app sidebar/tab bar (keduanya punya UI sendiri).
+  if (pathname.startsWith('/info') || pathname.startsWith('/rumah')) {
     return <>{children}</>;
   }
 
@@ -145,23 +148,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sheet open={moreOpen} onClose={() => setMoreOpen(false)}>
         <SheetHead title="Menu Lainnya" onClose={() => setMoreOpen(false)} />
         <div className="px-5 pb-7 space-y-3">
-          {moreItems.map((e) => (
-            <Link
-              key={e.href}
-              href={e.href}
-              onClick={() => setMoreOpen(false)}
-              className="flex items-center gap-4 bg-white border-2 border-kk-mauve rounded-kk-card p-4"
-            >
-              <div className="flex-shrink-0 w-12 h-12 rounded-[14px] bg-kk-mauve-soft text-kk-navy grid place-items-center">
-                <KkIcon name={e.icon} size={26} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-heading font-bold text-[19px]">{e.label}</div>
-                <div className="text-caption text-kk-ink leading-snug">{e.desc}</div>
-              </div>
-              <KkIcon name="chevron" size={22} className="text-kk-ink flex-shrink-0" />
-            </Link>
-          ))}
+          {moreItems.map((e) => {
+            const sheetCls = 'flex items-center gap-4 bg-white border-2 border-kk-mauve rounded-kk-card p-4';
+            const inner = (
+              <>
+                <div className="flex-shrink-0 w-12 h-12 rounded-[14px] bg-kk-mauve-soft text-kk-navy grid place-items-center">
+                  <KkIcon name={e.icon} size={26} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-heading font-bold text-[19px]">{e.label}</div>
+                  <div className="text-caption text-kk-ink leading-snug">{e.desc}</div>
+                </div>
+                <KkIcon name="chevron" size={22} className="text-kk-ink flex-shrink-0" />
+              </>
+            );
+            return e.external ? (
+              <a key={e.href} href={e.href} target="_blank" rel="noopener noreferrer" onClick={() => setMoreOpen(false)} className={sheetCls}>
+                {inner}
+              </a>
+            ) : (
+              <Link key={e.href} href={e.href} onClick={() => setMoreOpen(false)} className={sheetCls}>
+                {inner}
+              </Link>
+            );
+          })}
         </div>
       </Sheet>
 
@@ -199,14 +209,20 @@ function SidebarGroup({ label, children }: { label: string; children: React.Reac
 }
 
 function SidebarItem({ entry, active }: { entry: NavEntry; active: boolean }) {
+  const cls = cn(
+    'flex items-center gap-3 px-3.5 min-h-kk-touch rounded-kk-btn font-body font-semibold text-body',
+    active ? 'bg-kk-navy text-white' : 'text-kk-navy hover:bg-kk-mauve-soft',
+  );
+  if (entry.external) {
+    return (
+      <a href={entry.href} target="_blank" rel="noopener noreferrer" className={cls}>
+        <KkIcon name={entry.icon} size={24} />
+        {entry.label}
+      </a>
+    );
+  }
   return (
-    <Link
-      href={entry.href}
-      className={cn(
-        'flex items-center gap-3 px-3.5 min-h-kk-touch rounded-kk-btn font-body font-semibold text-body',
-        active ? 'bg-kk-navy text-white' : 'text-kk-navy hover:bg-kk-mauve-soft',
-      )}
-    >
+    <Link href={entry.href} className={cls}>
       <KkIcon name={entry.icon} size={24} />
       {entry.label}
     </Link>
