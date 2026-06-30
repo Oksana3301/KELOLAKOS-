@@ -643,7 +643,9 @@ export function BookingFlow({
   }, [chosen, multiAllowed, extraIds, options]);
   const roomCount = selectedOptions.length;
   // Data kamar/penyewa/tanggal berubah → mulai attempt submit baru (reset dedup).
-  useEffect(() => { submittedRef.current = new Set(); }, [roomId, extraIds.join('|'), nama, masuk, keluar, paketKind, lama, customDate]);
+  // Pakai keluarDate (state, sudah terdefinisi) — JANGAN `keluar` (const dideklarasi
+  // jauh di bawah) supaya tak kena TDZ ReferenceError yang bikin halaman crash.
+  useEffect(() => { submittedRef.current = new Set(); }, [roomId, extraIds.join('|'), nama, masuk, keluarDate, paketKind, lama, customDate]);
 
   // Opsi paket — DISAMAKAN PERSIS dengan form publik /info supaya harga & booking
   // konsisten (tidak ikut baris harga sheet yang bisa bikin opsi/harga ngaco):

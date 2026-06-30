@@ -134,6 +134,7 @@ type BookingLike = {
   CheckIn?: string; CheckOut?: string;
   Harga_Kamar?: number; Extra_Charge?: number; Diskon?: number;
   Harga_Total_Net?: number; Net_Diterima?: number; Sisa_Bayar?: number;
+  Refund_Total?: number;
   Catatan?: string;
 };
 type PaymentRecordLike = { Jenis_Bayar?: string; Nominal?: number; Tanggal_Bayar?: string };
