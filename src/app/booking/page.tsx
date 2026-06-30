@@ -9,9 +9,9 @@ import { facilityApi, kwitansiApi } from '@/lib/api-v2';
 import { ScreenHead, KkButton, KkCard, BayarBadge, StickyCTA } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { PaymentConfirm, DeleteConfirm } from '@/components/kk/confirm';
+import { DeleteConfirm } from '@/components/kk/confirm';
 import { mapPayStatus, rupiah, tglPendek, tglPanjang, type PayStatus } from '@/components/kk/status';
-import { BookingFlow, BookingDetail, CancelConfirm, RefundForm, TagihWa } from '@/components/kk/booking-ui';
+import { BookingFlow, BookingDetail, CancelConfirm, RefundForm, TagihWa, PaymentForm } from '@/components/kk/booking-ui';
 import { PendingConfirmations } from '@/components/kk/pending-confirmations';
 
 const HELP = {
@@ -305,23 +305,24 @@ function BookingPageInner() {
   }
 
   const payMutation = useMutation({
-    mutationFn: (b: BookingFullData) =>
-      api.submitPayment({ bookingId: b.BookingID, nominal: b.Sisa_Bayar, jenisBayar: 'PELUNASAN' }),
-    onSuccess: (_r, b) => {
+    mutationFn: (v: { b: BookingFullData; nominal: number; jenis: string }) =>
+      api.submitPayment({ bookingId: v.b.BookingID, nominal: v.nominal, jenisBayar: v.jenis }),
+    onSuccess: (_r, v) => {
       toast.success('✓ Pembayaran tercatat');
-      invalidateAll(b.BookingID);
+      invalidateAll(v.b.BookingID);
       setPayTarget(null);
     },
     onError: (e) => toast.error('Gagal mencatat: ' + (e as Error).message),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: async (b: BookingFullData) => {
+    mutationFn: async (v: { b: BookingFullData; mode: 'hangus' | 'refund' }) => {
+      const { b, mode } = v;
       const dibayar = Number(b.Total_Bayar) || 0;
       const existingRefund = Number(b.Refund_Total) || 0;
       const maxRefund = Math.max(0, dibayar - existingRefund);
-      if (maxRefund > 0) {
-        // Tenant already paid → cancel with a recorded refund.
+      if (maxRefund > 0 && mode === 'refund') {
+        // Refund penuh → batal + catat refund.
         return api.submitStatusAction({
           bookingId: b.BookingID,
           statusBooking: 'CANCEL_DENGAN_REFUND',
@@ -331,19 +332,27 @@ function BookingPageInner() {
           dikembalikanOleh: 'admin',
           alasanRefund: 'Booking dibatalkan',
           tanggalRefund: new Date().toISOString().split('T')[0],
-          catatanTambahan: 'Booking dibatalkan',
+          catatanTambahan: 'Booking dibatalkan — refund penuh',
         });
       }
-      // Nothing paid → plain cancel.
+      if (maxRefund > 0) {
+        // DP HANGUS — sudah bayar tapi tidak dikembalikan (sesuai aturan).
+        return api.submitStatusAction({
+          bookingId: b.BookingID,
+          statusBooking: 'CANCEL_DP_HANGUS',
+          catatanTambahan: 'Booking dibatalkan — DP hangus (tidak dikembalikan)',
+        });
+      }
+      // Belum bayar apa pun → batal biasa.
       return api.submitStatusAction({
         bookingId: b.BookingID,
         statusBooking: 'CANCEL_TANPA_DP',
         catatanTambahan: 'Booking dibatalkan',
       });
     },
-    onSuccess: (_r, b) => {
+    onSuccess: (_r, v) => {
       toast.success('✓ Booking dibatalkan');
-      invalidateAll(b.BookingID);
+      invalidateAll(v.b.BookingID);
       setCancelTarget(null);
       setDetail(null);
     },
@@ -593,21 +602,21 @@ function BookingPageInner() {
         />
       )}
 
-      <PaymentConfirm
-        open={!!payTarget}
-        name={payTarget?.Nama_Customer || ''}
-        amount={payTarget?.Sisa_Bayar || 0}
-        loading={payMutation.isPending}
-        onConfirm={() => payTarget && payMutation.mutate(payTarget)}
-        onCancel={() => setPayTarget(null)}
-      />
+      {payTarget && (
+        <PaymentForm
+          booking={payTarget}
+          loading={payMutation.isPending}
+          onClose={() => setPayTarget(null)}
+          onConfirm={(nominal, jenis) => payMutation.mutate({ b: payTarget, nominal, jenis })}
+        />
+      )}
 
       {cancelTarget && (
         <CancelConfirm
           booking={cancelTarget}
           loading={cancelMutation.isPending}
           onClose={() => setCancelTarget(null)}
-          onConfirm={() => cancelMutation.mutate(cancelTarget)}
+          onConfirm={(mode) => cancelMutation.mutate({ b: cancelTarget, mode })}
         />
       )}
 
