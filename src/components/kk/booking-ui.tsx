@@ -47,6 +47,29 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().split('T')[0];
 }
 
+// Periode (bulan) dari label paket: "1 Tahun"→12, "6 Bulan"→6, "3 Bulan"→3.
+function periodeBulanOf(s?: string): number {
+  const t = String(s || '').toUpperCase();
+  if (/TAHUN|SETAHUN/.test(t)) return 12;
+  const m = t.match(/(\d+)\s*BULAN/);
+  if (m) return Number(m[1]);
+  if (/6\s*BULAN|ENAM\s*BULAN/.test(t)) return 6;
+  return 0;
+}
+// Check-out untuk DITAMPILKAN: bila tersimpan kosong / ≤ check-in (data lama
+// salah, khusus kost), hitung dari check-in + periode. Selaras dgn kartu /booking.
+function displayCheckOutOf(b: { CheckIn?: string; CheckOut?: string; Paket?: string; Durasi?: string }): string {
+  const ci = b.CheckIn ? new Date(b.CheckIn) : null;
+  const co = b.CheckOut ? new Date(b.CheckOut) : null;
+  const ciOk = ci && !isNaN(ci.getTime());
+  const coOk = co && !isNaN(co.getTime());
+  if (ciOk && (!coOk || (co as Date).getTime() <= (ci as Date).getTime())) {
+    const bln = periodeBulanOf(b.Paket || b.Durasi);
+    if (bln > 0) return addMonths((ci as Date).toISOString().split('T')[0], bln);
+  }
+  return b.CheckOut || '';
+}
+
 export type Satuan = 'Bulanan' | 'Harian';
 
 // ── Paket (rental period) model ──────────────────────────────────────────────
@@ -1900,7 +1923,7 @@ export function BookingDetail({
         <KkCard className="mb-5">
           {booking.WhatsApp && <InfoRow label="Nomor HP" value={booking.WhatsApp} />}
           <InfoRow label="Tanggal masuk" value={tglPanjang(booking.CheckIn)} />
-          <InfoRow label="Tanggal keluar" value={tglPanjang(booking.CheckOut)} />
+          <InfoRow label="Tanggal keluar" value={tglPanjang(displayCheckOutOf(booking))} />
           <InfoRow label="Total sewa" value={rupiah(booking.Harga_Total_Net)} />
           <InfoRow label="Sudah dibayar" value={rupiah(dibayar)} accent="green" />
           {sisa > 0 && !batal && (
