@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type BookingFullData, type RoomStatus } from '@/lib/api';
+import { driveImageUrl } from '@/lib/halaman-info';
 import { KkCard, KkButton, Sheet } from './ui';
 import { rupiah } from './status';
 
@@ -20,6 +21,15 @@ function parseCatatan(catatan?: string) {
   };
 }
 const toNum = (s: string) => Number(String(s).replace(/[^0-9]/g, '')) || 0;
+// Normalisasi nomor HP ke format wa.me (62…) — selaras dgn form /info & Tagih WA.
+function normWa(raw: string | number | null | undefined): string {
+  let p = String(raw ?? '').replace(/[^0-9]/g, '');
+  if (!p) return '';
+  if (p.startsWith('620')) p = '62' + p.slice(3);
+  else if (p.startsWith('0')) p = '62' + p.slice(1);
+  else if (p.startsWith('8')) p = '62' + p;
+  return p;
+}
 // Jumlah orang yang aman ditampilkan (kolom kadang keisi nilai aneh) → angka 1–30 saja.
 function safeOrang(b: BookingFullData, p: { orang: string }): number {
   const fromCol = Number(b.Jumlah_Orang);
@@ -106,7 +116,7 @@ export function PendingConfirmations() {
                   </div>
                   {b.Bukti_Bayar ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.Bukti_Bayar} alt="bukti" className="w-[56px] h-[56px] rounded-[10px] object-cover border border-kk-mauve flex-shrink-0" />
+                    <img src={driveImageUrl(b.Bukti_Bayar)} alt="bukti" className="w-[56px] h-[56px] rounded-[10px] object-cover border border-kk-mauve flex-shrink-0" />
                   ) : (
                     <span className="text-[11px] text-kk-ink/60 flex-shrink-0">tanpa bukti</span>
                   )}
@@ -186,8 +196,11 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
         {/* Bukti bayar — besar */}
         {b.Bukti_Bayar ? (
           <a href={b.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="block mb-4 no-underline">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={b.Bukti_Bayar} alt="bukti bayar" className="w-full rounded-kk-card border border-kk-mauve" style={{ maxHeight: 320, objectFit: 'contain', background: '#faf7f2' }} />
+            {/* Tinggi kotak dikunci → gambar yang termuat belakangan tidak bikin layout meloncat. */}
+            <span className="block h-[260px] rounded-kk-card border border-kk-mauve overflow-hidden" style={{ background: '#faf7f2' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={driveImageUrl(b.Bukti_Bayar)} alt="bukti bayar" className="w-full h-full" style={{ objectFit: 'contain' }} />
+            </span>
             <span className="block text-center text-[12px] font-semibold text-kk-navy mt-1">🔍 Buka bukti di tab baru</span>
           </a>
         ) : (
@@ -196,7 +209,7 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
 
         {/* Detail */}
         <div className="rounded-kk-card border border-kk-mauve px-4 py-1 mb-4">
-          <Row label="WhatsApp" value={b.WhatsApp ? <a href={`https://wa.me/${b.WhatsApp}`} target="_blank" rel="noopener noreferrer" className="text-kk-navy underline">{b.WhatsApp}</a> : ''} />
+          <Row label="WhatsApp" value={b.WhatsApp ? <a href={`https://wa.me/${normWa(b.WhatsApp)}`} target="_blank" rel="noopener noreferrer" className="text-kk-navy underline">{b.WhatsApp}</a> : ''} />
           <Row label="Kamar" value={`${b.Nama_Kamar || '-'}${b.Gedung ? ' · ' + b.Gedung : ''}`} />
           <Row label="Layanan" value={layanan} />
           <Row label="Tipe" value={b.Tipe_Kamar} />
@@ -300,7 +313,7 @@ function PendingEditSheet({ b, rooms, busy, onClose, onSave }: {
     onSave({
       bookingId: b.BookingID,
       nama: nama.trim(),
-      whatsapp: hp.trim(),
+      whatsapp: hp.trim() ? normWa(hp) : '',
       roomId: selRoom?.RoomID,
       kamar,
       tipe,
