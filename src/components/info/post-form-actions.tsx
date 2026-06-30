@@ -5,15 +5,18 @@ import { toast } from 'sonner';
 import { TH } from '@/lib/tophills-theme';
 import { THBtn, THField, THInput } from '@/components/info/booking-shell';
 
-const MEZI_WA = '6283841614871'; // Bang Mezi (penjaga)
+const MEZI_WA_FALLBACK = '6283841614871'; // Bang Mezi (penjaga) — dipakai bila setelan kosong
 
 // Pilihan setelah form terisi: janji survey / tanya Mezi / lanjut pembayaran.
-export function PostFormActions({ nama, ringkas, onLanjut, submitting }: {
+export function PostFormActions({ nama, ringkas, onLanjut, submitting, meziWa }: {
   nama: string;
   ringkas: string;
   onLanjut: () => void;
   submitting?: boolean;
+  /** Nomor WA Bang Mezi dari Pengaturan (sudah ternormalisasi 62…). */
+  meziWa?: string;
 }) {
+  const MEZI_WA = (meziWa || '').replace(/[^0-9]/g, '') || MEZI_WA_FALLBACK;
   const [surveyOpen, setSurveyOpen] = useState(false);
   const [tgl, setTgl] = useState('');
   const [jam, setJam] = useState('');

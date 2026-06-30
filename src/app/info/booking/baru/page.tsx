@@ -64,7 +64,9 @@ export default function BookingBaruPage() {
   const acDisabled = isKost && durasi === '6 Bulan';
   const kostLockTanggal = isKost && info.kostKunciTanggal !== false;
   const allFasilitas = fasData?.list || [];
-  const fasilitas = acDisabled ? allFasilitas.filter((f) => !isAcFacility(f)) : allFasilitas;
+  // Kost: sembunyikan AC (paket 6 bulan non-AC) & extra bed (konsep per-malam
+  // penginapan — tidak berlaku untuk kontrak kost) agar tak ikut terhitung.
+  const fasilitas = allFasilitas.filter((f) => !(acDisabled && isAcFacility(f)) && !(isKost && isExtraBed(f)));
   useEffect(() => {
     if (!acDisabled) return;
     setSelFac((prev) => prev.filter((id) => { const f = allFasilitas.find((x) => x.id === id); return !(f && isAcFacility(f)); }));
@@ -238,7 +240,12 @@ export default function BookingBaruPage() {
         <THField label="1. Pilih layanan">
           <div className="grid grid-cols-2 gap-2">
             {(['KOS', 'PENGINAPAN'] as const).map((l) => (
-              <button key={l} onClick={() => { setLayanan(l); setKamar(''); setDurasi(l === 'KOS' ? '6 Bulan' : 'Per Malam'); }}
+              <button key={l} onClick={() => {
+                  setLayanan(l); setKamar(''); setDurasi(l === 'KOS' ? '6 Bulan' : 'Per Malam');
+                  // Reset tambahan yang nempel ke layanan supaya estimasi tidak terbawa
+                  // dari layanan sebelumnya (mis. extra bed/fasilitas penginapan ke kost).
+                  setSelFac([]); setExtraBedQty(0); setOrang(1); setDpAmount(0);
+                }}
                 className="min-h-[48px] rounded-[12px] font-bold text-[14px]"
                 style={layanan === l ? { background: TH.gold, color: '#FBF7EC', border: `1px solid ${TH.gold}` } : { background: '#fff', color: TH.brown, border: `1.5px solid ${TH.border}` }}>
                 {l === 'KOS' ? '🏠 Kost Putri' : '🛏️ Penginapan'}
@@ -411,6 +418,7 @@ export default function BookingBaruPage() {
         ringkas={kamar ? `${kamar}${durasi ? ' · ' + durasi : ''}${perMalam ? ' · ' + nights + ' malam' : ''}${orang > 1 ? ' · ' + orang + ' org' : ''}${base.price > 0 ? ' · est ' + formatRupiah(base.price + addonTotal + extraOrang) : ''}` : ''}
         onLanjut={lanjut}
         submitting={submitting}
+        meziWa={normWa(meziNo)}
       />
     </BookingShell>
   );
