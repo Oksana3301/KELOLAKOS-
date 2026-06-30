@@ -67,6 +67,13 @@ export function statusTodayOf(r: RoomAvail): RoomStatus3 {
   return 'kosong';
 }
 
+/** Tanggal HARI INI zona WIB (Asia/Jakarta) → yyyy-mm-dd.
+ *  Jangan pakai new Date().toISOString() (UTC): dini hari WIB (00:00–07:00)
+ *  UTC masih "kemarin" → ketersediaan/tanggal bisa mundur 1 hari. */
+export function todayISO(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+}
+
 /** + N hari → ISO yyyy-mm-dd. */
 export function addDaysISO(iso: string, n: number): string {
   const d = new Date(iso + 'T00:00:00');

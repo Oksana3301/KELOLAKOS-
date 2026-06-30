@@ -10,6 +10,7 @@ import { HelpSheet } from '@/components/kk/help-sheet';
 import { ScrollFab } from '@/components/kk/scroll-fab';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, type RoomStatus3 } from '@/lib/building-layout';
+import { todayISO } from '@/lib/availability';
 
 const SEMUA = 'Semua';
 
@@ -44,9 +45,11 @@ function statBucket(s: DenahStat): Exclude<StatusFilter, 'Semua'> {
 }
 
 // Derive a floor number from the room's tipe/catatan ("Lantai 2" → 2).
+// HANYA pola eksplisit "Lantai N" — jangan ambil sembarang angka (mis. tipe
+// "Deluxe D04" jangan terbaca Lantai 4). Selaras dgn /kamar.
 function floorForRoom(room: RoomStatus): number {
-  const src = `${room.Tipe_Kamar} ${room.Catatan}`;
-  const m = src.match(/lantai\s*(\d+)/i) || src.match(/\b(\d+)\b/);
+  const src = `${room.Tipe_Kamar || ''} ${room.Catatan || ''}`;
+  const m = src.match(/lantai\s*(\d+)/i);
   return m ? Number(m[1]) : 1;
 }
 
@@ -97,7 +100,7 @@ export default function LayoutPropertiPage() {
   // Peta status per kamar dari getPublicRooms (kunci = roomKey nama kamar) —
   // identik dengan /info: Lunas→terisi, DP→dp, Belum Bayar/tanpa→kosong, maintenance→perbaikan.
   const statusByKey = useMemo(() => {
-    const todayISO = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     const m = new Map<string, DenahStat>();
     (Array.isArray(publicRooms) ? publicRooms : []).forEach((r) => {
       // REAL-TIME hari ini: perbaikan tetap; selain itu hitung dari rentang booking
@@ -105,7 +108,7 @@ export default function LayoutPropertiPage() {
       const s: DenahStat = r.status === 'perbaikan'
         ? 'perbaikan'
         : Array.isArray(r.bookedRanges)
-          ? statusOnDate(r.bookedRanges, todayISO, r.status)
+          ? statusOnDate(r.bookedRanges, today, r.status)
           : (r.status === 'dp' || r.status === 'terisi' ? r.status : 'kosong');
       m.set(roomKey(r.nama), s);
     });

@@ -14,6 +14,7 @@ import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
 import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, isAcFacility, kostBasePrice } from '@/lib/booking-pricing';
 import { api, type PenyewaLookup, type BuktiFile } from '@/lib/api';
+import { todayISO } from '@/lib/availability';
 
 type Step = 'input' | 'pilih' | 'form';
 
@@ -24,7 +25,7 @@ function tglPanjang(iso: string): string {
 }
 function dayAfter(iso: string): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+  if (isNaN(d.getTime())) return todayISO();
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
 }
