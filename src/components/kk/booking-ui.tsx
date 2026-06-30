@@ -1554,22 +1554,30 @@ export function BookingFlow({
                       </button>
                     ))}
                     {/* KOST: opsi "Belum Tahu" — hanya boleh saat DP / Belum Bayar.
-                        Saat Lunas dimatikan (wajib pilih periode pasti). */}
+                        TIDAK dimatikan saat Lunas — tetap kelihatan & kalau diklik
+                        kasih hint ramah biar tak terasa "hilang". */}
                     {isKostChosen && (
                       <button
                         type="button"
-                        disabled={bayar === 'Lunas'}
-                        onClick={() => { if (bayar !== 'Lunas') { setBelumTahu(true); setPaketKind('6bulan'); setLama(1); } }}
-                        title={bayar === 'Lunas' ? 'Sudah Lunas — periode wajib dipastikan' : undefined}
+                        onClick={() => {
+                          if (bayar === 'Lunas') {
+                            toast('Ganti status ke DP / Belum Bayar dulu ya 🙂', {
+                              description: '“Belum Tahu” cuma untuk yang belum lunas. Kalau sudah Lunas, periode wajib dipastikan (6 bulan / 1 tahun).',
+                            });
+                            return;
+                          }
+                          setBelumTahu(true); setPaketKind('6bulan'); setLama(1);
+                        }}
+                        title={bayar === 'Lunas' ? 'Khusus DP / Belum Bayar — klik untuk info' : undefined}
                         className={`min-h-[48px] px-4 rounded-kk-pill font-body font-semibold text-body border-2 ${
                           belumTahu
                             ? 'border-kk-orange bg-kk-orange text-white'
                             : bayar === 'Lunas'
-                              ? 'border-kk-mauve bg-kk-mauve-soft text-kk-ink opacity-60 cursor-not-allowed'
+                              ? 'border-dashed border-kk-mauve bg-white text-kk-ink'
                               : 'border-kk-mauve bg-white text-kk-navy'
                         }`}
                       >
-                        🤔 Belum Tahu
+                        {bayar === 'Lunas' ? '🔒 ' : '🤔 '}Belum Tahu
                       </button>
                     )}
                   </div>
