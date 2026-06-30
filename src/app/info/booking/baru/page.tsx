@@ -40,7 +40,8 @@ export default function BookingBaruPage() {
   const [wa, setWa] = useState('');
   const [waErr, setWaErr] = useState('');
   const [layanan, setLayanan] = useState<'KOS' | 'PENGINAPAN'>('KOS');
-  const [kamar, setKamar] = useState('');
+  const [kamar, setKamar] = useState(''); // KOST: kamar tunggal
+  const [pickedPng, setPickedPng] = useState<string[]>([]); // PENGINAPAN: bisa banyak kamar
   const [durasi, setDurasi] = useState('6 Bulan');
   const today = todayISO();
   const [mulai, setMulai] = useState(today);
@@ -106,34 +107,54 @@ export default function BookingBaruPage() {
   const kosongRooms = useMemo(() => classified.filter((x) => x.st === 'kosong').map((x) => x.r), [classified]);
   const dpRooms = useMemo(() => classified.filter((x) => x.st === 'dp').map((x) => x.r), [classified]);
 
-  // Kamar terpilih jadi tak tersedia → kosongkan.
+  const roomKeyOf = (r: PublicRoom) => `${r.nama} — ${r.gedung}`;
+
+  // Kamar terpilih jadi tak tersedia → buang dari pilihan (single & multi).
   useEffect(() => {
-    if (kamar && !kosongRooms.some((r) => `${r.nama} — ${r.gedung}` === kamar)) setKamar('');
+    const avail = new Set(kosongRooms.map(roomKeyOf));
+    if (kamar && !avail.has(kamar)) setKamar('');
+    setPickedPng((prev) => { const next = prev.filter((k) => avail.has(k)); return next.length === prev.length ? prev : next; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kosongRooms]);
 
-  const selRoom = kosongRooms.find((r) => `${r.nama} — ${r.gedung}` === kamar);
+  // Kamar terpilih: KOST = tunggal (kamar) · PENGINAPAN = bisa banyak (pickedPng).
+  const selectedKeys = isKost ? (kamar ? [kamar] : []) : pickedPng;
+  const selRooms = useMemo(
+    () => selectedKeys.map((k) => kosongRooms.find((r) => roomKeyOf(r) === k)).filter(Boolean) as PublicRoom[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedKeys.join('|'), kosongRooms],
+  );
+  const selRoom = selRooms[0]; // kamar pertama → acuan tipe (kost & extra orang)
+  const roomCount = selRooms.length;
 
-  const base = useMemo(() => {
-    if (isKost) return kostBasePrice(info, durasi, selRoom);
+  // Harga dasar SATU kamar (sesuai paket & tanggal).
+  function perRoomBasePrice(r: PublicRoom | undefined): number {
+    if (!r) return 0;
+    if (isKost) return kostBasePrice(info, durasi, r).price;
     const tipe = info.penginapan.find((p) => {
       const pn = p.nama.toLowerCase();
-      const rt = (selRoom?.tipe || '').toLowerCase();
-      const rn = (selRoom?.nama || '').toLowerCase();
+      const rt = (r.tipe || '').toLowerCase();
+      const rn = (r.nama || '').toLowerCase();
       return (rt && (rt.includes(pn) || pn.includes(rt))) || rn.includes(pn);
     });
-    if (perMalam) {
-      const malam = tipe ? parseRupiah(tipe.malam) : selRoom?.harga || 0;
-      return { price: malam * Math.max(1, nights), label: `${Math.max(1, nights)} malam` };
-    }
-    if (durasi === 'Mingguan') {
-      const minggu = tipe ? parseRupiah(tipe.mingguan) : 0;
-      return { price: minggu, label: 'Per minggu' };
-    }
-    const bulan = tipe ? parseRupiah(tipe.bulan) : selRoom?.harga || 0;
-    return { price: bulan, label: 'Per bulan' };
-  }, [isKost, selRoom, durasi, perMalam, nights, info]);
+    if (perMalam) return (tipe ? parseRupiah(tipe.malam) : r.harga || 0) * Math.max(1, nights);
+    if (durasi === 'Mingguan') return tipe ? parseRupiah(tipe.mingguan) : 0;
+    return tipe ? parseRupiah(tipe.bulan) : r.harga || 0;
+  }
 
+  // Total harga kamar = jumlah SELURUH kamar terpilih.
+  const baseSum = useMemo(
+    () => selRooms.reduce((s, r) => s + perRoomBasePrice(r), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selRooms, isKost, durasi, perMalam, nights, info],
+  );
+  const base = (() => {
+    if (isKost) return { price: baseSum, label: kostBasePrice(info, durasi, selRoom).label };
+    const lbl = perMalam ? `${Math.max(1, nights)} malam` : durasi === 'Mingguan' ? 'Per minggu' : 'Per bulan';
+    return { price: baseSum, label: lbl + (roomCount > 1 ? ` · ${roomCount} kamar` : '') };
+  })();
+
+  // Fasilitas & extra bed = dibebankan SEKALI untuk satu pesanan (bukan per kamar).
   const addonTotal = useMemo(() => {
     const eb = fasilitas.find(isExtraBed);
     return selFac.reduce((s, id) => { const f = fasilitas.find((x) => x.id === id); return s + (f ? Number(f.price_adjust) || 0 : 0); }, 0)
@@ -141,8 +162,11 @@ export default function BookingBaruPage() {
   }, [selFac, extraBedQty, fasilitas]);
 
   const maxOrang = isKost ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
-  const dpMin = isKost ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
-  useEffect(() => { if (bayar === 'DP' && dpAmount === 0 && dpMin > 0) setDpAmount(dpMin); }, [dpMin, bayar]); // eslint-disable-line react-hooks/exhaustive-deps
+  // DP minimal PER KAMAR (penginapan): 100rb/kamar → 3 kamar = 300rb.
+  const dpUnit = isKost ? (info.kostDpMin || 0) : (info.penginapanDpMin || 0);
+  const dpMin = dpUnit * (isKost ? 1 : Math.max(1, roomCount));
+  // Default & jaga: DP minimal mengikuti jumlah kamar (naikkan bila di bawah min).
+  useEffect(() => { if (bayar === 'DP') setDpAmount((cur) => (cur < dpMin ? dpMin : cur)); }, [dpMin, bayar]); // eslint-disable-line react-hooks/exhaustive-deps
   const extraOrang = useMemo(() => {
     if (isKost) return Math.max(0, orang - 1) * (info.kostExtraPerOrang || 0);
     const baseOrang = info.penginapanBaseOrang || 1;
@@ -163,45 +187,67 @@ export default function BookingBaruPage() {
     if (!nama.trim()) { toast.error('Nama wajib diisi'); return; }
     if (!isValidWa(wa)) { setWaErr('Format WA belum benar. Contoh: 6281234567890'); return; }
     if (perMalam && !rangeReady) { toast.error('Tanggal check-out harus setelah check-in'); return; }
-    if (!kamar) { toast.error('Pilih kamar yang tersedia dulu'); return; }
+    if (selectedKeys.length === 0) { toast.error('Pilih kamar yang tersedia dulu'); return; }
     if (bayar === 'DP') {
-      if (dpAmount < dpMin) { toast.error(`DP minimal ${formatRupiah(dpMin)}`); return; }
+      if (dpAmount < dpMin) {
+        toast.error(`DP minimal ${formatRupiah(dpMin)}${!isKost && roomCount > 1 ? ` (${roomCount} kamar × ${formatRupiah(dpUnit)})` : ''}`);
+        return;
+      }
       if (base.price > 0 && dpAmount > base.price + addonTotal + extraOrang) { toast.error('DP tidak boleh melebihi total'); return; }
     }
     setPayStep(true);
   }
 
   async function doSubmit(bukti: BuktiFile | null) {
+    const targets = selRooms;
+    if (!targets.length) { toast.error('Pilih kamar dulu'); return; }
+    const n = targets.length;
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
     const rincQty = perMalam ? Math.max(1, nights) : 1;
-    const rincUnit = rincQty > 0 ? Math.round(base.price / rincQty) : base.price;
-    const rincAddon = addonTotal + extraOrang;
-    const catat = [
-      catatan.trim(),
-      orang > 1 ? `${orang} orang` : '',
-      perMalam ? `Check-out: ${fmtTgl(checkOut)}` : '',
-      facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
-      extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
-      base.price > 0 ? `Estimasi: ${formatRupiah(base.price + addonTotal + extraOrang)}` : '',
-      bayar === 'DP' && dpAmount > 0 ? `DP: ${formatRupiah(dpAmount)}` : '',
-      base.price > 0 ? `[RINC u=${rincUnit} q=${rincQty} a=${rincAddon}]` : '',
-    ].filter(Boolean).join(' — ');
+    // DP total dibagi rata ke tiap kamar (sisa pembulatan → kamar pertama).
+    const totalDp = bayar === 'DP' ? dpAmount : 0;
+    const dpEach = n > 0 ? Math.floor(totalDp / n) : 0;
+    const dpRemainder = totalDp - dpEach * n;
     setSubmitting(true);
-    const res = await submitBookingRequest({
-      jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar,
-      durasi: perMalam ? `${Math.max(1, nights)} malam` : durasi,
-      // Kost dgn kunci tanggal → tanggal di-set admin saat konfirmasi (lunas).
-      tglMulai: kostLockTanggal ? '' : mulai, bayar, catatan: catat, jumlahOrang: orang, bukti: bukti || undefined,
-      dpAmount: bayar === 'DP' ? dpAmount : undefined,
-    });
+    let demoFlag = false;
+    let failMsg = '';
+    for (let i = 0; i < n; i++) {
+      const r = targets[i];
+      const roomBase = perRoomBasePrice(r);
+      // Fasilitas + extra bed + tambahan orang dibebankan SEKALI di kamar pertama.
+      const addonForRoom = i === 0 ? addonTotal + extraOrang : 0;
+      const roomEstimasi = roomBase + addonForRoom;
+      const rincUnit = rincQty > 0 ? Math.round(roomBase / rincQty) : roomBase;
+      const dpRoom = bayar === 'DP' ? dpEach + (i === 0 ? dpRemainder : 0) : 0;
+      const catat = [
+        catatan.trim(),
+        orang > 1 ? `${orang} orang` : '',
+        perMalam ? `Check-out: ${fmtTgl(checkOut)}` : '',
+        n > 1 ? `Booking grup ${i + 1}/${n} kamar` : '',
+        i === 0 && facNames.length ? 'Fasilitas: ' + facNames.join(', ') : '',
+        i === 0 && extraBedQty > 0 ? `Extra bed x${extraBedQty}` : '',
+        roomEstimasi > 0 ? `Estimasi: ${formatRupiah(roomEstimasi)}` : '',
+        bayar === 'DP' && dpRoom > 0 ? `DP: ${formatRupiah(dpRoom)}` : '',
+        roomEstimasi > 0 ? `[RINC u=${rincUnit} q=${rincQty} a=${addonForRoom}]` : '',
+      ].filter(Boolean).join(' — ');
+      const res = await submitBookingRequest({
+        jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar: roomKeyOf(r),
+        durasi: perMalam ? `${Math.max(1, nights)} malam` : durasi,
+        // Kost dgn kunci tanggal → tanggal di-set admin saat konfirmasi (lunas).
+        tglMulai: kostLockTanggal ? '' : mulai, bayar, catatan: catat, jumlahOrang: orang,
+        bukti: bukti || undefined, dpAmount: bayar === 'DP' ? dpRoom : undefined,
+      });
+      if (!res.ok) { failMsg = res.error || 'Gagal mengirim booking.'; break; }
+      demoFlag = res.demo;
+    }
     setSubmitting(false);
     // GAGAL nyata → JANGAN tampilkan "Terkirim". Tetap di langkah pembayaran
     // (bukti tetap tersimpan) supaya user bisa coba lagi / hubungi admin.
-    if (!res.ok) {
-      toast.error(res.error || 'Gagal mengirim booking. Periksa koneksi lalu coba lagi, atau hubungi admin.');
+    if (failMsg) {
+      toast.error(failMsg + ' Periksa koneksi lalu coba lagi, atau hubungi admin.');
       return;
     }
-    setDemo(res.demo);
+    setDemo(demoFlag);
     setDone(true);
   }
 
@@ -217,7 +263,7 @@ export default function BookingBaruPage() {
           layanan={layanan}
           total={base.price + addonTotal + extraOrang}
           dp={dpAmount}
-          ringkas={`${kamar} · ${durasi}${perMalam ? ' · s/d ' + fmtTgl(checkOut) : ''}${orang > 1 ? ' · ' + orang + ' org' : ''}`}
+          ringkas={`${selectedKeys.join(', ')} · ${durasi}${perMalam ? ' · s/d ' + fmtTgl(checkOut) : ''}${roomCount > 1 ? ` · ${roomCount} kamar` : ''}${orang > 1 ? ' · ' + orang + ' org' : ''}`}
           bayar={bayar}
           onSubmit={doSubmit}
           submitting={submitting}
@@ -247,7 +293,7 @@ export default function BookingBaruPage() {
           <div className="grid grid-cols-2 gap-2">
             {(['KOS', 'PENGINAPAN'] as const).map((l) => (
               <button key={l} onClick={() => {
-                  setLayanan(l); setKamar(''); setDurasi(l === 'KOS' ? '6 Bulan' : 'Per Malam');
+                  setLayanan(l); setKamar(''); setPickedPng([]); setDurasi(l === 'KOS' ? '6 Bulan' : 'Per Malam');
                   // Reset tambahan yang nempel ke layanan supaya estimasi tidak terbawa
                   // dari layanan sebelumnya (mis. extra bed/fasilitas penginapan ke kost).
                   setSelFac([]); setExtraBedQty(0); setOrang(1); setDpAmount(0);
@@ -262,7 +308,7 @@ export default function BookingBaruPage() {
 
         {/* 2) Durasi */}
         <THField label="2. Durasi / paket">
-          <THSelect value={durasi} onChange={(e) => { setDurasi(e.target.value); setKamar(''); }}>
+          <THSelect value={durasi} onChange={(e) => { setDurasi(e.target.value); setKamar(''); setPickedPng([]); }}>
             {durasiOpts.map((d) => <option key={d} value={d}>{d}</option>)}
           </THSelect>
         </THField>
@@ -323,8 +369,8 @@ export default function BookingBaruPage() {
 
         {/* 4) Pilih kamar — tap yang Tersedia. Status lain (DP/Terisi) ditampilkan juga. */}
         <THField
-          label={`${isKost ? '3' : '4'}. Pilih kamar (tap yang ✅ Tersedia)`}
-          hint={!rooms ? 'Memuat data kamar…' : needDates ? '⬆️ Isi tanggal check-in & check-out dulu' : !isKost && rangeReady ? `Status kamar untuk ${fmtTgl(mulai)} → ${fmtTgl(checkOut)}` : 'Status kamar saat ini'}
+          label={`${isKost ? '3' : '4'}. Pilih kamar (tap yang ✅ Tersedia)${!isKost ? ' — boleh lebih dari 1' : ''}`}
+          hint={!rooms ? 'Memuat data kamar…' : needDates ? '⬆️ Isi tanggal check-in & check-out dulu' : !isKost ? `Bisa pilih beberapa kamar sekaligus. ${rangeReady ? `Status untuk ${fmtTgl(mulai)} → ${fmtTgl(checkOut)}` : ''}`.trim() : 'Status kamar saat ini'}
         >
           {showRooms && (
             classified.length === 0 ? (
@@ -337,13 +383,17 @@ export default function BookingBaruPage() {
                   const b = BADGE[st];
                   const val = `${r.nama} — ${r.gedung}`;
                   const selectable = st === 'kosong';
-                  const selected = kamar === val;
+                  const selected = selectedKeys.includes(val);
                   return (
                     <button
                       key={val}
                       type="button"
                       disabled={!selectable}
-                      onClick={() => selectable && setKamar(val)}
+                      onClick={() => {
+                        if (!selectable) return;
+                        if (isKost) setKamar(val);
+                        else setPickedPng((prev) => (prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]));
+                      }}
                       className="flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-3 text-left border-2 transition-colors"
                       style={{
                         borderColor: selected ? TH.gold : b.border,
@@ -367,6 +417,14 @@ export default function BookingBaruPage() {
             )
           )}
         </THField>
+
+        {/* Ringkas kamar terpilih (penginapan multi) */}
+        {!isKost && roomCount > 0 && (
+          <div className="rounded-[12px] p-3.5 text-[12.5px] leading-relaxed" style={{ background: '#EAF5EE', border: '1px solid #BFE0CD', color: TH.brown }}>
+            ✅ <b>{roomCount} kamar</b> dipilih: {selectedKeys.join(', ')}.{' '}
+            {bayar === 'DP' && <>Minimal DP <b>{formatRupiah(dpMin)}</b> ({roomCount} × {formatRupiah(dpUnit)}).</>}
+          </div>
+        )}
 
         {/* Kamar yang masih DP → arahkan ke Penjaga Mezi */}
         {showRooms && dpRooms.length > 0 && (
@@ -415,7 +473,7 @@ export default function BookingBaruPage() {
           </div>
         </THField>
         {bayar === 'DP' && (
-          <THField label="Nominal DP" hint={`Minimal ${formatRupiah(dpMin)} · sisa ditagih saat pelunasan`}>
+          <THField label="Nominal DP" hint={`Minimal ${formatRupiah(dpMin)}${!isKost && roomCount > 1 ? ` (${roomCount} kamar × ${formatRupiah(dpUnit)})` : ''} · sisa ditagih saat pelunasan`}>
             <RupiahInput value={dpAmount} onChange={setDpAmount} placeholder={dpMin.toLocaleString('id-ID')} />
           </THField>
         )}
@@ -428,7 +486,7 @@ export default function BookingBaruPage() {
 
       <PostFormActions
         nama={nama}
-        ringkas={kamar ? `${kamar}${durasi ? ' · ' + durasi : ''}${perMalam ? ' · ' + nights + ' malam' : ''}${orang > 1 ? ' · ' + orang + ' org' : ''}${base.price > 0 ? ' · est ' + formatRupiah(base.price + addonTotal + extraOrang) : ''}` : ''}
+        ringkas={selectedKeys.length ? `${selectedKeys.join(', ')}${roomCount > 1 ? ` (${roomCount} kamar)` : ''}${durasi ? ' · ' + durasi : ''}${perMalam ? ' · ' + nights + ' malam' : ''}${orang > 1 ? ' · ' + orang + ' org' : ''}${base.price > 0 ? ' · est ' + formatRupiah(base.price + addonTotal + extraOrang) : ''}` : ''}
         onLanjut={lanjut}
         submitting={submitting}
         meziWa={normWa(meziNo)}
