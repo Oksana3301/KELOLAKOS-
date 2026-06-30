@@ -623,6 +623,28 @@ export default function InfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomList, rangeActive, rangeStart, rangeEnd, hasRangeData]);
 
+  // Gedung sebuah kamar: penginapan → C; kost → A / B (dari gedung atau nama).
+  const gedungKey = (r: RangeRow): string => {
+    if (r.layanan === 'penginapan') return 'C';
+    const g = String(r.gedung || '').toUpperCase();
+    if (g.includes('B')) return 'B';
+    if (g.includes('A')) return 'A';
+    const n = String(r.nama || '').toUpperCase();
+    if (n.startsWith('B')) return 'B';
+    return 'A';
+  };
+
+  // Kamar tersedia DIKELOMPOKKAN PER GEDUNG (A, B, C-penginapan) — biar jelas.
+  const availByGedung = useMemo(() => {
+    const order = ['A', 'B', 'C'];
+    const map = new Map<string, RangeRow[]>();
+    availDetail.forEach((r) => { const k = gedungKey(r); const arr = map.get(k) || []; arr.push(r); map.set(k, arr); });
+    return [...map.keys()]
+      .sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 9 : ia) - (ib < 0 ? 9 : ib) || a.localeCompare(b); })
+      .map((k) => ({ key: k, label: k === 'C' ? '🏨 Gedung C (Penginapan)' : `🏠 Gedung ${k}`, rows: map.get(k)! }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availDetail]);
+
   // Jumlah kamar bebas-penuh per layanan (untuk ringkasan).
   const availFull = useMemo(() => {
     if (!rangeActive || !hasRangeData) return { kost: 0, penginapan: 0 };
@@ -1106,10 +1128,7 @@ export default function InfoPage() {
                     <div className="text-[14px] font-bold mb-2" style={{ color: '#15724A' }}>
                       ✅ Kamar tersedia ({rangeLabel}): <span className="font-normal text-[12px]" style={{ color: C.brownSoft }}>— tap kamar untuk booking</span>
                     </div>
-                    {([
-                      { key: 'kost', label: '🏠 Kost', rows: availDetail.filter((r) => r.layanan === 'kost') },
-                      { key: 'penginapan', label: '🏨 Penginapan', rows: availDetail.filter((r) => r.layanan === 'penginapan') },
-                    ] as { key: string; label: string; rows: RangeRow[] }[]).filter((g) => g.rows.length > 0).map((g) => {
+                    {availByGedung.map((g) => {
                       const COLLAPSED = 24;
                       const expanded = !!availExpand[g.key];
                       const shown = expanded ? g.rows : g.rows.slice(0, COLLAPSED);
