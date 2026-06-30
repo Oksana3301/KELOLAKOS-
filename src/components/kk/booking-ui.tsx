@@ -477,7 +477,9 @@ export function BookingFlow({
   const [step, setStep] = useState<number | 'sukses'>(1);
   const [nama, setNama] = useState('');
   const [hp, setHp] = useState('');
-  const [roomId, setRoomId] = useState('');
+  const [roomId, setRoomId] = useState(''); // kamar utama (acuan paket/harga tampil)
+  // Kamar PENGINAPAN tambahan (booking baru bisa pilih banyak kamar sekaligus).
+  const [extraIds, setExtraIds] = useState<string[]>([]);
   const [lama, setLama] = useState(1);
   const [jumlahOrang, setJumlahOrang] = useState(1);
   const [masuk, setMasuk] = useState(TODAY());
@@ -533,6 +535,7 @@ export function BookingFlow({
     setSelFas(new Set(editBooking ? editFacilityIds || [] : []));
     setBukti([]);
     setHapusBukti(false);
+    setExtraIds([]);
     setGantiKamar(false);
     setFLayanan('Semua');
     setFCari('');
@@ -620,6 +623,21 @@ export function BookingFlow({
     }
     return c;
   }, [options, roomId, isEdit, editBooking]);
+
+  // ── Booking BARU boleh pilih BANYAK kamar PENGINAPAN sekaligus (tanggal sama) ──
+  const chosenIsPenginapan = !!chosen && /INAP|PENGINAP/.test(String(chosen.room.Layanan_Default || '').toUpperCase());
+  const multiAllowed = !isEdit && chosenIsPenginapan;
+  // Daftar kamar terpilih (utama + tambahan penginapan, unik). EDIT/kost → 1 kamar.
+  const selectedOptions = useMemo<RoomOption[]>(() => {
+    if (!chosen) return [];
+    if (!multiAllowed) return [chosen];
+    const extra = extraIds
+      .filter((id) => id !== chosen.room.RoomID)
+      .map((id) => options.find((o) => o.room.RoomID === id))
+      .filter((o): o is RoomOption => !!o && /INAP|PENGINAP/.test(String(o.room.Layanan_Default || '').toUpperCase()));
+    return [chosen, ...extra];
+  }, [chosen, multiAllowed, extraIds, options]);
+  const roomCount = selectedOptions.length;
 
   // Opsi paket — DISAMAKAN PERSIS dengan form publik /info supaya harga & booking
   // konsisten (tidak ikut baris harga sheet yang bisa bikin opsi/harga ngaco):
@@ -719,13 +737,16 @@ export function BookingFlow({
   // Room unit price for the active paket. Custom (per-day) mode uses the daily
   // price, deriving from the monthly one (/30) only when no daily price is set.
   // Harga dari Pengaturan (sama dgn /info) bila tersedia; jika 0 → pakai harga lama.
-  const configHarga = !customDate ? configHargaSatuan(chosen?.room, paketKind, info) : 0;
-  const hargaSatuanRoom = configHarga > 0
-    ? configHarga
-    : customDate
-      ? chosen?.paketPrices.harian ??
-        (chosen?.paketPrices.bulanan ? Math.round(chosen.paketPrices.bulanan / 30) : 0)
-      : chosen?.paketPrices[paketKind] || 0;
+  // Harga satuan SATU kamar untuk paket aktif (dipakai utk kamar utama & tiap
+  // kamar di multi-select). Config Pengaturan menang; else harga paket; custom → harian.
+  function unitPriceOf(opt: RoomOption | null | undefined): number {
+    if (!opt) return 0;
+    const cfg = !customDate ? configHargaSatuan(opt.room, paketKind, info) : 0;
+    if (cfg > 0) return cfg;
+    if (customDate) return opt.paketPrices.harian ?? (opt.paketPrices.bulanan ? Math.round(opt.paketPrices.bulanan / 30) : 0);
+    return opt.paketPrices[paketKind] || 0;
+  }
+  const hargaSatuanRoom = unitPriceOf(chosen);
 
   // Kost paket 6 bulan = SELALU non-AC → sembunyikan opsi fasilitas AC.
   const acDisabled = isKostChosen && paketKind === '6bulan';
@@ -759,8 +780,14 @@ export function BookingFlow({
   const extraOrang = isEdit ? 0 : extraOrangCharge(chosen?.room, paketKind, jumlahOrang, lamaEff, info);
   const isKostRoom = String(chosen?.room.Layanan_Default || '').toUpperCase().includes('KOS');
   const maxOrang = isKostRoom ? info.kostMaxOrang || 2 : info.penginapanMaxOrang || 3;
-  const dpMin = isKostRoom ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
-  const total = hargaKamarEff * lamaEff + fasTotal + extraOrang;
+  // DP minimal: penginapan baru multi-kamar → per kamar (100rb × jumlah kamar).
+  const dpUnit = isKostRoom ? info.kostDpMin || 0 : info.penginapanDpMin || 0;
+  const dpMin = dpUnit * (multiAllowed ? Math.max(1, roomCount) : 1);
+  // Harga kamar = JUMLAH semua kamar terpilih (multi penginapan) × lama; else 1 kamar.
+  const roomsSubtotal = multiAllowed && roomCount > 1
+    ? selectedOptions.reduce((s, opt) => s + (unitPriceOf(opt) || 0) * lamaEff, 0)
+    : hargaKamarEff * lamaEff;
+  const total = roomsSubtotal + fasTotal + extraOrang;
   const dibayar = bayar === 'Lunas' ? total : bayar === 'DP' ? Math.min(Number(dp || 0), total || Infinity) : 0;
   const sisa = Math.max(total - dibayar, 0);
 
@@ -921,24 +948,44 @@ export function BookingFlow({
         return editRes;
       }
       if (!chosen) throw new Error('Kamar belum dipilih');
-      return api.submitBooking({
-        roomId: chosen.room.RoomID,
-        customerName: nama.trim(),
-        whatsapp: hp ? waPhone(hp) : '',
-        checkIn: effCheckIn,
-        checkOut: effCheckOut,
-        paket: PAKET_BACKEND[customDate ? 'harian' : paketKind],
-        jumlahPeriode: lamaEff,
-        jumlahOrang,
-        hargaKamar: hargaSatuan,
-        hargaTotal: total,
-        dpAwal: dibayar,
-        // Tanggal pembayaran yang dipilih (DP → tanggal DP · Lunas → tanggal pelunasan).
-        // Backend otomatis melabeli DP vs PELUNASAN berdasarkan nominal.
-        dpTanggal: bayar !== 'Belum Bayar' && dibayar > 0 ? tglBayar : '',
-        fasilitasIds: Array.from(selFas),
-        buktiFiles: bukti,
-      });
+      // Booking BARU bisa banyak kamar penginapan → buat 1 booking per kamar.
+      // Harga per kamar = unit × lama; fasilitas/orang & bukti dibebankan SEKALI
+      // (kamar pertama). DP & pelunasan dibagi rata antar kamar.
+      const targets = (multiAllowed && roomCount > 1) ? selectedOptions : [chosen];
+      const n = targets.length;
+      // Pembagian DP antar kamar (khusus status DP). Lunas → tiap kamar dibayar
+      // PENUH sesuai totalnya. Belum Bayar → 0.
+      const dpTotalForSplit = bayar === 'DP' ? dibayar : 0;
+      const dpEach = n > 0 ? Math.floor(dpTotalForSplit / n) : 0;
+      const dpRemainder = dpTotalForSplit - dpEach * n;
+      let last: { bookingId?: string; message?: string; warning?: string } = {};
+      for (let i = 0; i < n; i++) {
+        const opt = targets[i];
+        const unit = unitPriceOf(opt) || (i === 0 ? hargaKamarEff : 0);
+        const roomTotal = unit * lamaEff + (i === 0 ? fasTotal + extraOrang : 0);
+        const dpRoom = bayar === 'Lunas'
+          ? roomTotal
+          : bayar === 'Belum Bayar'
+            ? 0
+            : dpEach + (i === 0 ? dpRemainder : 0);
+        last = await api.submitBooking({
+          roomId: opt.room.RoomID,
+          customerName: nama.trim(),
+          whatsapp: hp ? waPhone(hp) : '',
+          checkIn: effCheckIn,
+          checkOut: effCheckOut,
+          paket: PAKET_BACKEND[customDate ? 'harian' : paketKind],
+          jumlahPeriode: lamaEff,
+          jumlahOrang,
+          hargaKamar: unit,
+          hargaTotal: roomTotal,
+          dpAwal: dpRoom,
+          dpTanggal: bayar !== 'Belum Bayar' && dpRoom > 0 ? tglBayar : '',
+          fasilitasIds: i === 0 ? Array.from(selFas) : [],
+          buktiFiles: i === 0 ? bukti : [],
+        });
+      }
+      return last;
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['initial-data'] });
@@ -972,7 +1019,7 @@ export function BookingFlow({
           </p>
           <KkCard tone="mauve" className="text-left mb-6">
             <InfoRow label="Penyewa" value={nama} />
-            <InfoRow label="Kamar" value={chosen ? chosen.room.Nama_Kamar : '—'} />
+            <InfoRow label="Kamar" value={selectedOptions.length ? selectedOptions.map((o) => o.room.Nama_Kamar).join(', ') : (chosen ? chosen.room.Nama_Kamar : '—')} />
             <InfoRow
               label="Periode"
               value={`${tglPendek(masuk)} – ${keluar ? tglPendek(keluar) : '—'}`}
@@ -1272,7 +1319,8 @@ export function BookingFlow({
                 </KkCard>
               )}
               {filteredOptions.map((o) => {
-                const sel = chosen?.room.RoomID === o.room.RoomID;
+                const isPng = /INAP|PENGINAP/.test(String(o.room.Layanan_Default || '').toUpperCase());
+                const sel = roomId === o.room.RoomID || extraIds.includes(o.room.RoomID);
                 const st = mapRoomStatus(o.room);
                 const border = sel
                   ? 'border-kk-navy bg-kk-mint-soft'
@@ -1281,10 +1329,22 @@ export function BookingFlow({
                   : st === 'Terisi'
                   ? 'border-kk-green bg-white'
                   : 'border-kk-mauve bg-white';
+                // Booking BARU + kamar penginapan → bisa pilih banyak (toggle).
+                // Kost / unknown / EDIT → pilih tunggal seperti biasa.
+                function pickRoom() {
+                  const id = o.room.RoomID;
+                  if (isEdit || !isPng) { setRoomId(id); setExtraIds([]); return; }
+                  if (!roomId) { setRoomId(id); return; }
+                  const primaryOpt = options.find((x) => x.room.RoomID === roomId);
+                  const primaryPng = !!primaryOpt && /INAP|PENGINAP/.test(String(primaryOpt.room.Layanan_Default || '').toUpperCase());
+                  if (!primaryPng) { setRoomId(id); setExtraIds([]); return; } // ganti dari kost → penginapan
+                  if (id === roomId) { setRoomId(extraIds[0] || ''); setExtraIds((p) => p.slice(1)); return; }
+                  setExtraIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+                }
                 return (
                   <button
                     key={o.room.RoomID}
-                    onClick={() => setRoomId(o.room.RoomID)}
+                    onClick={pickRoom}
                     className={`text-left p-[18px] rounded-kk-card border-2 flex justify-between items-center gap-3 ${border}`}
                   >
                     <div className="min-w-0">
@@ -1310,6 +1370,14 @@ export function BookingFlow({
                 );
               })}
             </div>
+
+            {/* Penginapan + booking baru → boleh pilih banyak kamar */}
+            {!isEdit && chosenIsPenginapan && (
+              <div className="rounded-kk-card border-2 border-kk-mint bg-kk-mint-soft p-3.5 mb-2 text-body text-kk-navy">
+                ✅ <b>{roomCount} kamar</b> dipilih{roomCount > 1 ? ` (${selectedOptions.map((o) => o.room.Nama_Kamar).join(', ')})` : ''}.{' '}
+                Tap kamar penginapan lain yang tersedia untuk menambah. DP minimal <b>{rupiah(dpMin)}</b> ({roomCount} × {rupiah(dpUnit)}).
+              </div>
+            )}
 
             {isEdit && (
               <KkButton variant="ghost" block onClick={() => setGantiKamar(false)} className="mb-2">
@@ -1617,7 +1685,9 @@ export function BookingFlow({
                 </p>
                 <div className="flex justify-between items-baseline text-body mb-1.5">
                   <span className="text-kk-navy">
-                    Kamar {rupiah(hargaKamarEff)} × {lamaEff} {unit}
+                    {multiAllowed && roomCount > 1
+                      ? `${roomCount} kamar × ${lamaEff} ${unit}`
+                      : `Kamar ${rupiah(hargaKamarEff)} × ${lamaEff} ${unit}`}
                   </span>
                   <span className="text-caption text-kk-ink">
                     {kostLocked
@@ -1737,7 +1807,7 @@ export function BookingFlow({
 
             <KkCard tone="mauve">
               <InfoRow label="Penyewa" value={nama || '—'} />
-              <InfoRow label="Kamar" value={chosen ? chosen.room.Nama_Kamar : '—'} />
+              <InfoRow label="Kamar" value={selectedOptions.length ? selectedOptions.map((o) => o.room.Nama_Kamar).join(', ') : (chosen ? chosen.room.Nama_Kamar : '—')} />
               <InfoRow
                 label="Periode"
                 value={effCheckIn ? `${tglPendek(effCheckIn)} – ${effCheckOut ? tglPendek(effCheckOut) : '—'}` : 'otomatis saat Lunas'}
