@@ -106,6 +106,7 @@ function BookingPageInner() {
 
   // Detail sheet + its derived dialogs
   const [detail, setDetail] = useState<BookingFullData | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailPayments, setDetailPayments] = useState<PaymentRecord[]>([]);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [payTarget, setPayTarget] = useState<BookingFullData | null>(null);
@@ -237,6 +238,7 @@ function BookingPageInner() {
     setDetail(b as BookingFullData);
     setDetailPayments([]);
     setEditFacilityIds([]);
+    setLoadingDetail(true);
     refreshDetail(b.BookingID);
   }
 
@@ -259,7 +261,8 @@ function BookingPageInner() {
         setDetailPayments(d.payments || []);
         setEditFacilityIds((d.facilities || []).map((f) => f.id));
       })
-      .catch((e) => toast.error('Gagal memuat detail lengkap: ' + (e as Error).message));
+      .catch((e) => toast.error('Gagal memuat detail lengkap: ' + (e as Error).message))
+      .finally(() => setLoadingDetail(false));
     // Ambil baris booking mentah → pastikan Bukti_Bayar & Tgl_Pembayaran terkini
     // ikut tampil (getBookingDetail lama kadang tak mengembalikan kolom ini).
     api
@@ -568,6 +571,7 @@ function BookingPageInner() {
         <BookingDetail
           booking={detail}
           payments={detailPayments}
+          loading={loadingDetail}
           deletingPaymentId={deletingPaymentId}
           onClose={() => {
             setDetail(null);

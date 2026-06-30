@@ -1866,6 +1866,7 @@ export function BookingFlow({
 export function BookingDetail({
   booking,
   payments = [],
+  loading,
   onClose,
   onPay,
   onEdit,
@@ -1878,6 +1879,7 @@ export function BookingDetail({
 }: {
   booking: BookingFullData;
   payments?: PaymentRecord[];
+  loading?: boolean;
   onClose: () => void;
   onPay: () => void;
   onEdit: () => void;
@@ -1949,6 +1951,10 @@ export function BookingDetail({
                 style={{ maxHeight: 320, objectFit: 'contain', background: '#faf7f2' }}
               />
             </a>
+          </div>
+        ) : loading ? (
+          <div className="bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5 text-caption text-kk-ink flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full border-2 border-kk-mauve border-t-kk-navy animate-spin inline-block" /> Memuat bukti…
           </div>
         ) : (
           <div className="text-caption text-kk-ink mb-5 px-1">Belum ada bukti pembayaran. Tambahkan lewat <b>Ubah</b>.</div>
