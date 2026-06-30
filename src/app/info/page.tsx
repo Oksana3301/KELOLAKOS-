@@ -13,6 +13,7 @@ import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/h
 import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, ALL_ROOMS, type RoomStatus3 } from '@/lib/building-layout';
+import { todayISO } from '@/lib/availability';
 import {
   buildAvailabilityImage,
   copyAvailabilityImage,
@@ -84,7 +85,8 @@ const MSG_SURVEY = 'Halo Bang Mezi 🙏, saya mau janji survey lihat kamar Top H
 
 function norm62(raw: string): string {
   let p = String(raw || '').replace(/[^0-9]/g, '');
-  if (p.startsWith('0')) p = '62' + p.slice(1);
+  if (p.startsWith('620')) p = '62' + p.slice(3); // "62" lalu masih ada "0…"
+  else if (p.startsWith('0')) p = '62' + p.slice(1);
   else if (p.startsWith('8')) p = '62' + p;
   return p;
 }
@@ -525,9 +527,9 @@ export default function InfoPage() {
 
   // Status default (tanpa pilih rentang) = REAL-TIME hari ini, dihitung dari
   // rentang booking + tanggal hari ini (bukan sekadar "pernah ada booking").
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const statusToday = (r: PublicRoom): RoomStatus3 =>
-    r.status === 'perbaikan' ? 'perbaikan' : hasRangeData ? statusOnDate(r.bookedRanges, todayISO, r.status) : (r.status as RoomStatus3);
+    r.status === 'perbaikan' ? 'perbaikan' : hasRangeData ? statusOnDate(r.bookedRanges, today, r.status) : (r.status as RoomStatus3);
 
   const statusMap = useMemo(() => {
     const m = new Map<string, RoomStatus3>();
@@ -944,12 +946,12 @@ export default function InfoPage() {
             <div className="flex flex-wrap items-end gap-2.5">
               <label className="flex-1 min-w-[140px] text-[12px] font-semibold" style={{ color: C.brownSoft }}>
                 Check-in
-                <input type="date" value={rangeStart} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeStart(e.target.value)}
+                <input type="date" value={rangeStart} min={todayISO()} onChange={(e) => setRangeStart(e.target.value)}
                   className="block w-full mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
               </label>
               <label className="flex-1 min-w-[140px] text-[12px] font-semibold" style={{ color: C.brownSoft }}>
                 Check-out
-                <input type="date" value={rangeEnd} min={rangeStart || new Date().toISOString().slice(0, 10)} onChange={(e) => setRangeEnd(e.target.value)}
+                <input type="date" value={rangeEnd} min={rangeStart || todayISO()} onChange={(e) => setRangeEnd(e.target.value)}
                   className="block w-full mt-1 rounded-[12px] px-3.5 py-2.5 text-[15px] outline-none" style={{ background: '#fff', border: `1.5px solid ${C.border}`, color: C.brown, fontFamily: body }} />
               </label>
               {(rangeStart || rangeEnd) && (

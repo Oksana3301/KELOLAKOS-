@@ -13,7 +13,7 @@ import { PaymentStep } from '@/components/info/payment-step';
 import { TH, isValidWa, normWa } from '@/lib/tophills-theme';
 import { submitBookingRequest } from '@/lib/booking-request';
 import { fetchFasilitas, parseRupiah, formatRupiah, isExtraBed, isAcFacility, kostBasePrice } from '@/lib/booking-pricing';
-import { hasRangeData, rangeStatusOf, statusTodayOf, addDaysISO } from '@/lib/availability';
+import { hasRangeData, rangeStatusOf, statusTodayOf, addDaysISO, todayISO } from '@/lib/availability';
 import { JAM_NOTE_LONG } from '@/lib/booking-rules';
 import type { RoomStatus3 } from '@/lib/building-layout';
 
@@ -42,7 +42,7 @@ export default function BookingBaruPage() {
   const [layanan, setLayanan] = useState<'KOS' | 'PENGINAPAN'>('KOS');
   const [kamar, setKamar] = useState('');
   const [durasi, setDurasi] = useState('6 Bulan');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const [mulai, setMulai] = useState(today);
   const [keluar, setKeluar] = useState(addDaysISO(today, 1)); // check-out (khusus Per Malam)
   const [bayar, setBayar] = useState<'DP' | 'Full'>('DP');
