@@ -14,6 +14,7 @@ import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, ALL_ROOMS, type RoomStatus3 } from '@/lib/building-layout';
 import { todayISO } from '@/lib/availability';
+import { JAM_NOTE } from '@/lib/booking-rules';
 import {
   buildAvailabilityImage,
   copyAvailabilityImage,
@@ -670,7 +671,7 @@ export default function InfoPage() {
     return {
       title: 'Kamar Tersedia',
       subtitle: `Tersedia ${fmtLong(rangeStart)} – ${fmtLong(rangeEnd)}`,
-      note: 'Check-in & check-out pukul 12.00 WIB',
+      note: `Penginapan: ${JAM_NOTE}`,
       groups,
       footer: 'Hubungi kami untuk booking 🌸 · tophillspadang.com',
     };
