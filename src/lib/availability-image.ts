@@ -15,7 +15,7 @@ export type AvailGroup = {
 export interface AvailImageOpts {
   title: string;     // "Kamar Tersedia"
   subtitle: string;  // "Tersedia 27 Jun – 30 Jun 2026"
-  note?: string;     // "Check-in & check-out pukul 12.00 WIB"
+  note?: string;     // "Penginapan: Check-in mulai 13.00 WIB · Check-out maksimal 12.00 WIB"
   groups: AvailGroup[];
   footer: string;
 }
