@@ -767,23 +767,29 @@ export default function InfoPage() {
       groups.push({ key: 'kost', label: '🏠 KOST PUTRI', rooms: availKost, photos: await loadKostPhotos() });
     if (availPng.length)
       groups.push({ key: 'penginapan', label: '🏨 PENGINAPAN', rooms: availPng, photos: await loadPenginapanPhotos() });
+    const partial = (recommendation?.partial || []).map((p) => ({
+      nama: p.nama, tipe: p.tipe, gedung: p.gedung,
+      dates: `${fmtShort(p.start)} – ${fmtShort(p.end)}`,
+    }));
     return {
       title: 'Kamar Tersedia',
       subtitle: `Tersedia ${fmtLong(rangeStart)} – ${fmtLong(rangeEnd)}`,
       note: `Penginapan: ${JAM_NOTE}`,
       groups,
+      partial,
       footer: 'Hubungi kami untuk booking 🌸 · tophillspadang.com',
     };
   }
 
   async function handleSalinGambar() {
     if (imgBusy) return;
-    if (availList.length === 0) return;
+    const partialCount = recommendation?.partial?.length || 0;
+    if (availList.length === 0 && partialCount === 0) return;
     setImgBusy(true);
     setImgMsg('Menyiapkan gambar & foto…');
     try {
       const opts = await assembleImageOpts();
-      if (opts.groups.length === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
+      if (opts.groups.length === 0 && (opts.partial?.length || 0) === 0) { setImgMsg('Tidak ada kamar tersedia untuk disalin.'); return; }
       const blob = await buildAvailabilityImage(opts);
       const fname = `ketersediaan-top-hills-${rangeStart}_${rangeEnd}.png`;
       const res = await copyAvailabilityImage(blob, fname);
@@ -1289,15 +1295,15 @@ export default function InfoPage() {
               </div>
             )}
 
-            {/* SALIN GAMBAR — hanya muncul bila tanggal diisi & ADA kamar kosong */}
+            {/* SALIN GAMBAR — muncul bila tanggal diisi & ADA kamar kosong (penuh / sebagian) */}
             {rangeActive && hasRangeData && (
-              availList.length > 0 ? (
+              (availList.length > 0 || (recommendation?.partial?.length || 0) > 0) ? (
                 <div className="mt-5 rounded-[16px] p-4" style={{ background: '#FBF7EC', border: `2px solid ${C.gold}` }}>
                   <div className="text-[15px] font-extrabold mb-1" style={{ color: C.brown }}>
                     📋 Salin denah kamar tersedia
                   </div>
                   <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.brownSoft }}>
-                    Denah kamar <b>kosong</b> untuk <b>{rangeLabel}</b> — lengkap Gedung, Lantai &amp; foto.
+                    Denah kamar <b>kosong</b> untuk <b>{rangeLabel}</b> — lengkap Gedung, Lantai{(recommendation?.partial?.length || 0) > 0 ? ', tanggal kosong sebagian,' : ''} &amp; foto.
                     Tinggal <b>tempel (paste)</b> ke chat WhatsApp calon penyewa. 🌸
                   </p>
                   <button

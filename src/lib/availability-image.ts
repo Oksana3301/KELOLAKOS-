@@ -12,11 +12,16 @@ export type AvailGroup = {
   photos?: AvailPhoto[];
 };
 
+// Kamar yang kosong SEBAGIAN (dalam rentang) → tampil sebagai baris teks dgn
+// tanggal kosongnya, mis. "D02 · Superior (Gedung C) — kosong 2 Jul – 4 Jul".
+export type AvailPartial = { nama: string; tipe?: string; gedung?: string; dates: string };
+
 export interface AvailImageOpts {
   title: string;     // "Kamar Tersedia"
   subtitle: string;  // "Tersedia 27 Jun – 30 Jun 2026"
   note?: string;     // "Penginapan: Check-in mulai 13.00 WIB · Check-out maksimal 12.00 WIB"
   groups: AvailGroup[];
+  partial?: AvailPartial[]; // kamar kosong sebagian (rekomendasi tanggal x–y)
   footer: string;
 }
 
@@ -187,6 +192,8 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
     }
     total += groupGap;
   }
+  const partial = opts.partial || [];
+  if (partial.length) total += 34 + partial.length * 23 + 12; // seksi "tersedia sebagian"
   total += 76; // footer
   const H = Math.max(Math.round(total), 360);
 
@@ -306,6 +313,26 @@ export async function buildAvailabilityImage(opts: AvailImageOpts): Promise<Blob
       y += height + subGap;
     }
     y += groupGap;
+  }
+
+  // ── Tersedia sebagian (rekomendasi tanggal x–y di dalam rentang) ──
+  if (partial.length) {
+    ctx.fillStyle = COL.brown;
+    ctx.font = `800 15px ${FONT}`;
+    ctx.fillText('Tersedia sebagian (tanggal di dalam rentang):', pad, y + 14);
+    y += 32;
+    partial.forEach((p) => {
+      const head = `${p.nama}${p.tipe ? ' · ' + p.tipe : ''}${p.gedung ? ' (Gedung ' + shortGedung(p.gedung) + ')' : ''} — `;
+      ctx.font = `700 13.5px ${FONT}`;
+      ctx.fillStyle = COL.brown;
+      const headTxt = trim(ctx, head, contentW - 4);
+      ctx.fillText(headTxt, pad, y + 13);
+      const hw = ctx.measureText(headTxt).width;
+      ctx.fillStyle = COL.boxText; // hijau utk tanggal kosong
+      ctx.fillText('kosong ' + p.dates, pad + hw, y + 13);
+      y += 23;
+    });
+    y += 12;
   }
 
   // ── Footer ──
