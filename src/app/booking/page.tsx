@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type BookingItem, type BookingFullData, type PaymentRecord } from '@/lib/api';
+import { invalidateBookingData } from '@/lib/query-sync';
 import { facilityApi, kwitansiApi } from '@/lib/api-v2';
 import { ScreenHead, KkButton, KkCard, BayarBadge, StickyCTA } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
@@ -401,11 +402,10 @@ function BookingPageInner() {
   }
 
   // ── Mutations ──
+  // Sinkron ke SEMUA halaman (Beranda/Kamar/Uang/Laporan/Invoice/Layout) tiap ada
+  // perubahan booking — lewat helper terpusat.
   function invalidateAll(id?: string) {
-    qc.invalidateQueries({ queryKey: ['initial-data'] });
-    if (id) qc.invalidateQueries({ queryKey: ['booking-detail', id] });
-    qc.invalidateQueries({ queryKey: ['recent-transactions'] });
-    qc.invalidateQueries({ queryKey: ['report-data'] });
+    invalidateBookingData(qc, id);
   }
 
   const payMutation = useMutation({

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type BookingFullData, type RoomStatus } from '@/lib/api';
+import { invalidateBookingData } from '@/lib/query-sync';
 import { driveImageUrl } from '@/lib/halaman-info';
 import { KkCard, KkButton, Sheet } from './ui';
 import { rupiah } from './status';
@@ -61,14 +62,13 @@ export function PendingConfirmations() {
     onSuccess: () => {
       toast.success('✓ Booking diterima — total & sisa tercatat otomatis');
       setSel(null);
-      qc.invalidateQueries({ queryKey: ['pending-bookings'] });
-      qc.invalidateQueries({ queryKey: ['initial-data'] });
+      invalidateBookingData(qc);
     },
     onError: (e) => toast.error('Gagal: ' + (e as Error).message),
   });
   const reject = useMutation({
     mutationFn: (id: string) => api.rejectBooking(id),
-    onSuccess: () => { toast.success('Booking ditolak'); setSel(null); qc.invalidateQueries({ queryKey: ['pending-bookings'] }); },
+    onSuccess: () => { toast.success('Booking ditolak'); setSel(null); invalidateBookingData(qc); },
     onError: (e) => toast.error('Gagal: ' + (e as Error).message),
   });
   const saveEdit = useMutation({
@@ -76,8 +76,7 @@ export function PendingConfirmations() {
     onSuccess: () => {
       toast.success('✓ Data booking diperbarui');
       setEdit(null);
-      qc.invalidateQueries({ queryKey: ['pending-bookings'] });
-      qc.invalidateQueries({ queryKey: ['initial-data'] });
+      invalidateBookingData(qc);
     },
     onError: (e) => toast.error('Gagal menyimpan: ' + (e as Error).message),
   });
