@@ -130,6 +130,68 @@ export function periodeInfo(paket?: string): { key: string; label: string; belum
   return { key: raw ? 'lainnya' : 'kosong', label: raw || '—', belumTahu: false };
 }
 
+// Bukti bisa berisi >1 URL (mis. tamu upload 2 bukti) yang digabung di satu kolom
+// dengan pemisah koma / baris baru / spasi. Pecah jadi daftar URL unik.
+export function parseBuktiUrls(raw?: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  String(raw || '')
+    .split(/[\s,;|]+/)
+    .map((s) => s.trim())
+    .forEach((u) => {
+      if (/^https?:\/\//i.test(u) && !seen.has(u)) { seen.add(u); out.push(u); }
+    });
+  return out;
+}
+
+// Preview bukti dengan slider bila lebih dari satu (tombol ‹ ›, indikator "1/2",
+// titik-titik). Satu bukti → tampil biasa. driveImageUrl mengubah link Drive → thumbnail.
+export function BuktiSlider({ raw, heightClass = 'h-[260px]' }: { raw?: string; heightClass?: string }) {
+  const urls = useMemo(() => parseBuktiUrls(raw), [raw]);
+  const [i, setI] = useState(0);
+  if (urls.length === 0) return null;
+  const idx = ((i % urls.length) + urls.length) % urls.length;
+  const cur = urls[idx];
+  return (
+    <div>
+      <a
+        href={cur}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`block ${heightClass} rounded-kk-card border border-kk-mauve overflow-hidden`}
+        style={{ background: '#faf7f2' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={driveImageUrl(cur)} alt={`Bukti pembayaran ${idx + 1}`} className="w-full h-full" style={{ objectFit: 'contain' }} />
+      </a>
+      {urls.length > 1 && (
+        <div className="flex items-center justify-between gap-2 mt-2.5">
+          <button
+            type="button"
+            onClick={() => setI(idx - 1)}
+            className="min-h-[40px] px-3 rounded-kk-pill border-2 border-kk-mauve bg-white text-kk-navy font-body font-semibold text-caption"
+          >
+            ‹ Sebelumnya
+          </button>
+          <div className="flex items-center gap-1.5">
+            {urls.map((_, k) => (
+              <span key={k} className={`w-2 h-2 rounded-full ${k === idx ? 'bg-kk-navy' : 'bg-kk-mauve'}`} />
+            ))}
+            <span className="ml-1.5 text-caption font-semibold text-kk-ink">{idx + 1}/{urls.length}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setI(idx + 1)}
+            className="min-h-[40px] px-3 rounded-kk-pill border-2 border-kk-mauve bg-white text-kk-navy font-body font-semibold text-caption"
+          >
+            Berikutnya ›
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Check-out date = check-in + count × paket duration.
 function addPaket(iso: string, kind: PaketKind, count: number): string {
   const m = PAKET_META[kind];
@@ -1946,9 +2008,11 @@ export function BookingFlow({
               {isEdit && editBooking?.Bukti_Bayar && !hapusBukti && bukti.length === 0 && (
                 <div className="rounded-kk-card border-2 border-kk-mauve p-3.5">
                   <div className="flex items-center justify-between gap-3 mb-2.5">
-                    <span className="font-heading font-bold text-[16px] text-kk-navy">Bukti tersimpan</span>
+                    <span className="font-heading font-bold text-[16px] text-kk-navy">
+                      Bukti tersimpan{parseBuktiUrls(editBooking.Bukti_Bayar).length > 1 ? ` (${parseBuktiUrls(editBooking.Bukti_Bayar).length})` : ''}
+                    </span>
                     <div className="flex items-center gap-4 flex-shrink-0">
-                      <a href={editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption">
+                      <a href={parseBuktiUrls(editBooking.Bukti_Bayar)[0] || editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption">
                         Buka
                       </a>
                       <button type="button" onClick={() => setHapusBukti(true)} className="text-kk-orange font-semibold text-caption">
@@ -1956,16 +2020,8 @@ export function BookingFlow({
                       </button>
                     </div>
                   </div>
-                  {/* Preview gambar bukti */}
-                  <a href={editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="block">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={driveImageUrl(editBooking.Bukti_Bayar)}
-                      alt="Bukti pembayaran"
-                      className="w-full rounded-kk-card border border-kk-mauve"
-                      style={{ maxHeight: 300, objectFit: 'contain', background: '#faf7f2' }}
-                    />
-                  </a>
+                  {/* Preview gambar bukti — slider bila lebih dari satu */}
+                  <BuktiSlider raw={editBooking.Bukti_Bayar} heightClass="h-[300px]" />
                 </div>
               )}
               {isEdit && hapusBukti && (
@@ -2194,28 +2250,16 @@ export function BookingDetail({
         {booking.Bukti_Bayar ? (
           <div className="bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5">
             <div className="flex items-center justify-between gap-3 mb-2.5">
-              <span className="font-heading font-bold text-[16px] text-kk-navy">Bukti pembayaran</span>
-              <a href={booking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption flex-shrink-0">
+              <span className="font-heading font-bold text-[16px] text-kk-navy">
+                Bukti pembayaran{parseBuktiUrls(booking.Bukti_Bayar).length > 1 ? ` (${parseBuktiUrls(booking.Bukti_Bayar).length})` : ''}
+              </span>
+              <a href={parseBuktiUrls(booking.Bukti_Bayar)[0] || booking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption flex-shrink-0">
                 Buka di Drive
               </a>
             </div>
             {/* Tinggi kotak dikunci → gambar yang termuat belakangan tidak
-                membuat layout meloncat (kesan sheet "naik lagi"). */}
-            <a
-              href={booking.Bukti_Bayar}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block h-[260px] rounded-kk-card border border-kk-mauve overflow-hidden"
-              style={{ background: '#faf7f2' }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={driveImageUrl(booking.Bukti_Bayar)}
-                alt="Bukti pembayaran"
-                className="w-full h-full"
-                style={{ objectFit: 'contain' }}
-              />
-            </a>
+                membuat layout meloncat. Slider bila bukti lebih dari satu. */}
+            <BuktiSlider raw={booking.Bukti_Bayar} />
           </div>
         ) : loading ? (
           <div className="bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5 text-caption text-kk-ink flex items-center gap-2">
