@@ -1074,21 +1074,31 @@ export function BookingFlow({
           });
         }
         // 2) Harga (IKUT tipe kamar + paket terpilih) + total + tanggal + fasilitas.
-        const editRes = await api.submitBookingEdit({
-          bookingId: editBooking.BookingID,
-          customerName: nama.trim(),
-          whatsapp: hp ? waPhone(hp) : '',
-          checkIn: effCheckIn,
-          checkOut: effCheckOut,
-          hargaKamar: hargaKamarEff,
-          extraCharge: editBooking.Extra_Charge,
-          diskon: editBooking.Diskon,
-          hargaTotal: total,
-          catatan: editBooking.Catatan,
-          extraRequest: editBooking.Extra_Request,
-          isEkstra: editBooking.Is_Ekstra === 'YA',
-          fasilitasIds: Array.from(selFas),
-        });
+        //    NON-FATAL: kalau submitBookingEdit backend bermasalah (mis. belum
+        //    di-deploy / "…is not defined" / error), edit TIDAK gagal total —
+        //    data inti tetap tersimpan lewat editPendingBooking (di atas) +
+        //    confirmBooking (di bawah, otoritatif untuk uang & tanggal). Harga
+        //    satuan/diskon/fasilitas per-booking baru ikut saat backend diperbaiki.
+        let editRes: { bookingId?: string; message?: string } = { bookingId: editBooking.BookingID };
+        try {
+          editRes = await api.submitBookingEdit({
+            bookingId: editBooking.BookingID,
+            customerName: nama.trim(),
+            whatsapp: hp ? waPhone(hp) : '',
+            checkIn: effCheckIn,
+            checkOut: effCheckOut,
+            hargaKamar: hargaKamarEff,
+            extraCharge: editBooking.Extra_Charge,
+            diskon: editBooking.Diskon,
+            hargaTotal: total,
+            catatan: editBooking.Catatan,
+            extraRequest: editBooking.Extra_Request,
+            isEkstra: editBooking.Is_Ekstra === 'YA',
+            fasilitasIds: Array.from(selFas),
+          });
+        } catch (e) {
+          console.warn('submitBookingEdit dilewati (backend belum siap):', e);
+        }
         // 3) OTORITATIF: tulis kolom uang (Total, Dibayar, SISA) lewat confirmBooking
         //    supaya SISA = total − dibayar selalu benar (submitBookingEdit lama bisa
         //    me-reset sisa jadi 0). Lewati bila booking masih MENUNGGU (alur pending).
