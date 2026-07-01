@@ -611,10 +611,17 @@ export function BookingFlow({
       const ps = mapPayStatus(editBooking);
       setBayar(ps === 'Batal' ? 'Lunas' : ps);
       setDp(ps === 'DP' ? String(editBooking.Net_Diterima || 0) : '');
-      // KOST: tgl pelunasan = tgl check-in tersimpan → field ter-isi, dan check-in
-      // "ikut" pelunasan tanpa geser tak sengaja (baru berubah kalau owner ubah).
+      // Prefill tanggal bayar SESUAI STATUS (jangan asal = tanggal masuk):
+      //  • KOST + LUNAS → tgl pelunasan = tgl check-in tersimpan (check-in memang
+      //    diturunkan dari pelunasan) → field ter-isi & round-trip benar.
+      //  • DP / lainnya → pakai tanggal pembayaran tercatat (Tgl_Pembayaran),
+      //    BUKAN tanggal masuk.
       const editIsKost = String(editBooking.Layanan || '').toUpperCase().includes('KOS');
-      setTglBayar(editIsKost && editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : '');
+      const dOf = (v: string) => { const d = new Date(v); return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0]; };
+      let initTgl = '';
+      if (ps === 'Lunas' && editIsKost && editBooking.CheckIn) initTgl = dOf(editBooking.CheckIn);
+      else if (editBooking.Tgl_Pembayaran) initTgl = dOf(String(editBooking.Tgl_Pembayaran));
+      setTglBayar(initTgl);
       setJumlahOrang(editBooking.Jumlah_Orang || 1);
     } else {
       setNama('');
@@ -2225,6 +2232,15 @@ export function BookingDetail({
   const dibayar = booking.Net_Diterima ?? 0;
   const router = useRouter();
 
+  // Tanggal DP & pelunasan dari riwayat pembayaran (fallback: Tgl_Pembayaran booking).
+  const dpPay = payments.find((p) => /DP|MUKA/i.test(p.Jenis_Bayar || ''));
+  const lunasPay = payments.find((p) => /LUNAS|PELUNASAN/i.test(p.Jenis_Bayar || ''));
+  const dpDate = dpPay?.Tanggal_Bayar || (status === 'DP' ? String(booking.Tgl_Pembayaran || '') : '');
+  const lunasDate = lunasPay?.Tanggal_Bayar || (status === 'Lunas' ? String(booking.Tgl_Pembayaran || '') : '');
+  // Semua bukti: kolom booking + tiap record pembayaran (Bukti_URLs) → slider.
+  const allBuktiRaw = [booking.Bukti_Bayar || '', ...payments.flatMap((p) => p.Bukti_URLs || [])].filter(Boolean).join(',');
+  const buktiUrls = parseBuktiUrls(allBuktiRaw);
+
   // Semi-auto WA (PR-2): kabari penjaga (Mezi) booking yang sudah diterima.
   function kabariMezi() {
     const MEZI = '6283841614871'; // Bang Mezi (penjaga). Ganti bila nomornya beda.
@@ -2260,6 +2276,8 @@ export function BookingDetail({
               accent={periodeInfo(booking.Paket).belumTahu ? 'orange' : undefined}
             />
           )}
+          {dpDate && <InfoRow label="Tanggal DP" value={tglPanjang(dpDate)} />}
+          {lunasDate && <InfoRow label="Tanggal pelunasan" value={tglPanjang(lunasDate)} />}
           <InfoRow label="Tanggal masuk" value={tglPanjang(booking.CheckIn)} />
           <InfoRow label="Tanggal keluar" value={tglPanjang(displayCheckOutOf(booking))} />
           <InfoRow label="Total sewa" value={rupiah(booking.Harga_Total_Net)} />
@@ -2288,20 +2306,21 @@ export function BookingDetail({
           </KkCard>
         )}
 
-        {/* Bukti pembayaran — preview gambar + link Google Drive */}
-        {booking.Bukti_Bayar ? (
+        {/* Bukti pembayaran — gabung bukti dari kolom booking + semua record
+            pembayaran; slider kalau lebih dari satu. */}
+        {buktiUrls.length > 0 ? (
           <div className="bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5">
             <div className="flex items-center justify-between gap-3 mb-2.5">
               <span className="font-heading font-bold text-[16px] text-kk-navy">
-                Bukti pembayaran{parseBuktiUrls(booking.Bukti_Bayar).length > 1 ? ` (${parseBuktiUrls(booking.Bukti_Bayar).length})` : ''}
+                Bukti pembayaran{buktiUrls.length > 1 ? ` (${buktiUrls.length})` : ''}
               </span>
-              <a href={parseBuktiUrls(booking.Bukti_Bayar)[0] || booking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption flex-shrink-0">
+              <a href={buktiUrls[0]} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption flex-shrink-0">
                 Buka di Drive
               </a>
             </div>
             {/* Tinggi kotak dikunci → gambar yang termuat belakangan tidak
                 membuat layout meloncat. Slider bila bukti lebih dari satu. */}
-            <BuktiSlider raw={booking.Bukti_Bayar} />
+            <BuktiSlider raw={allBuktiRaw} />
           </div>
         ) : loading ? (
           <div className="bg-white border-2 border-kk-mauve rounded-kk-card p-3.5 mb-5 text-caption text-kk-ink flex items-center gap-2">
