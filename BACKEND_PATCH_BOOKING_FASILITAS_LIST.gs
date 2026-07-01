@@ -48,6 +48,13 @@ var BK_FAS_CFG = {
   mapFasilitasCol: ['fasilitas_id', 'Fasilitas_ID', 'fasilitas_ids', 'id'],
 
   maxNames: 6, // batasi panjang ringkasan; sisanya jadi "(+N)"
+
+  // Deteksi TANGGAL BERMASALAH per booking (untuk outline merah di kartu):
+  // baca sheet Pembayaran → bandingkan tanggal DP vs Pelunasan (mustinya DP dulu).
+  paymentsSheet: ['Payments', 'Pembayaran', 'Payment', 'Pembayaran_Booking'],
+  payBookingCol: ['booking_id', 'BookingID', 'Booking_ID', 'bookingId'],
+  payJenisCol: ['jenis_bayar', 'Jenis_Bayar', 'jenis', 'tipe', 'kategori'],
+  payTanggalCol: ['tanggal_bayar', 'Tanggal_Bayar', 'tgl_bayar', 'tanggal', 'date'],
 };
 
 /**
@@ -122,7 +129,53 @@ function getBookingFasilitas_(payload) {
       ringkas: shown.join(' · ') + (extra > 0 ? ' (+' + extra + ')' : ''),
     };
   });
+
+  // (C) Tanggal bermasalah (mis. DP > pelunasan). Masukkan juga booking yang
+  //     TIDAK punya fasilitas tapi tanggalnya kacau, supaya kartunya ikut merah.
+  var issues = _bkDateIssues_(only);
+  Object.keys(issues).forEach(function (bId) {
+    if (out[bId]) out[bId].dateIssue = issues[bId];
+    else out[bId] = { count: 0, names: [], ringkas: '', dateIssue: issues[bId] };
+  });
+
   return out;
+}
+
+// Peta BookingID → alasan tanggal bermasalah (dari sheet Pembayaran).
+function _bkDateIssues_(only) {
+  var res = {};
+  var sh = _bkFirstSheet_(BK_FAS_CFG.paymentsSheet);
+  if (!sh) return res;
+  var headers = _bkHeaders_(sh);
+  var bCol = _bkColIndex_(headers, BK_FAS_CFG.payBookingCol);
+  var jCol = _bkColIndex_(headers, BK_FAS_CFG.payJenisCol);
+  var tCol = _bkColIndex_(headers, BK_FAS_CFG.payTanggalCol);
+  if (bCol === -1 || jCol === -1 || tCol === -1) return res;
+
+  var vals = sh.getDataRange().getValues();
+  var dp = {};      // bookingId → tanggal DP paling awal (ISO)
+  var lunas = {};   // bookingId → tanggal pelunasan (ISO)
+  for (var i = 1; i < vals.length; i++) {
+    var bId = String(vals[i][bCol] || '').trim();
+    if (!bId || (only && !only[bId])) continue;
+    var jenis = String(vals[i][jCol] || '').toUpperCase();
+    var iso = _bkIso_(vals[i][tCol]);
+    if (!iso) continue;
+    if (/DP|MUKA/.test(jenis)) { if (!dp[bId] || iso < dp[bId]) dp[bId] = iso; }
+    else if (/LUNAS|PELUNAS/.test(jenis)) { if (!lunas[bId] || iso > lunas[bId]) lunas[bId] = iso; }
+  }
+  Object.keys(dp).forEach(function (bId) {
+    if (lunas[bId] && dp[bId] > lunas[bId]) {
+      res[bId] = 'DP setelah pelunasan (urutan tanggal ketuker)';
+    }
+  });
+  return res;
+}
+function _bkIso_(v) {
+  if (v == null || v === '') return '';
+  var d = (v instanceof Date) ? v : new Date(String(v));
+  if (isNaN(d.getTime())) return '';
+  return Utilities.formatDate(d, Session.getScriptTimeZone() || 'GMT+7', 'yyyy-MM-dd');
 }
 
 /** Diagnostik: pastikan sumber fasilitas booking kebaca. Lihat View → Logs. */

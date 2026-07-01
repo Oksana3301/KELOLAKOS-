@@ -78,8 +78,11 @@ function bookingDateIssue(b: BookingItem): string {
   if (status === 'Batal') return '';
   const ci = isoDay(b.CheckIn);
   const co = isoDay(b.CheckOut);
+  const tp = isoDay(b.Tgl_Pembayaran || '');
   if (ci && co && co <= ci) return 'Tanggal keluar ≤ tanggal masuk';
   if (status === 'Lunas' && !ci) return 'Lunas tapi tanggal masuk kosong';
+  // Tanggal pembayaran (pelunasan) SETELAH tanggal keluar → tidak logis.
+  if (tp && co && tp > co) return 'Tanggal bayar setelah tanggal keluar';
   return '';
 }
 // Tentukan jenis layanan sebuah booking dari kolom Layanan.
@@ -752,7 +755,7 @@ function BookingCard({
   onClick,
 }: {
   booking: BookingItem;
-  fas?: { count: number; names: string[]; ringkas: string };
+  fas?: { count: number; names: string[]; ringkas: string; dateIssue?: string };
   onClick: () => void;
 }) {
   const status = mapPayStatus(b);
@@ -764,7 +767,9 @@ function BookingCard({
   // Show the paid/remaining split whenever money is still owed (DP / belum lunas).
   const showSplit = !batal && sisa > 0;
   // Tanggal tidak logis → outline merah + banner supaya gampang ditemukan.
-  const dateIssue = bookingDateIssue(b);
+  // Gabung deteksi lokal (dari data list) + flag dari backend (mis. DP > pelunasan,
+  // yang butuh data pembayaran → dikirim lewat peta bookingFas).
+  const dateIssue = bookingDateIssue(b) || fas?.dateIssue || '';
   return (
     <KkCard
       onClick={onClick}
