@@ -19,6 +19,7 @@ import {
   type BuktiFile,
   type PaymentRecord,
 } from '@/lib/api';
+import { invalidateBookingData } from '@/lib/query-sync';
 import { type Fasilitas, halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo, driveImageUrl, type HalamanInfo } from '@/lib/halaman-info';
 import { kostBasePrice, parseRupiah, isAcFacility } from '@/lib/booking-pricing';
@@ -1196,12 +1197,8 @@ export function BookingFlow({
       return last;
     },
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['initial-data'] });
-      qc.invalidateQueries({ queryKey: ['recent-transactions'] });
-      qc.invalidateQueries({ queryKey: ['report-data'] });
-      if (editBooking) {
-        qc.invalidateQueries({ queryKey: ['booking-detail', editBooking.BookingID] });
-      }
+      // Sinkron ke SEMUA halaman (Beranda/Kamar/Uang/Laporan/Invoice/Layout).
+      invalidateBookingData(qc, editBooking ? editBooking.BookingID : undefined);
       const id = editBooking ? editBooking.BookingID : (data as { bookingId?: string })?.bookingId || '';
       setNewBookingId(id);
       setStep('sukses');

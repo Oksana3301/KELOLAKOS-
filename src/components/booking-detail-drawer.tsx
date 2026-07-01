@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type BookingItem, type SubmitStatusActionPayload } from '@/lib/api';
+import { invalidateBookingData } from '@/lib/query-sync';
 import { formatRupiah, formatRupiahShort, formatDate } from '@/lib/utils';
 import { CancelRefundModal } from '@/components/cancel-refund-modal';
 import { toast } from 'sonner';
@@ -28,8 +29,7 @@ export function BookingDetailDrawer({ bookingId, onClose, onEdit }: BookingDetai
   });
 
   function invalidateAll() {
-    queryClient.invalidateQueries({ queryKey: ['booking-detail', bookingId] });
-    queryClient.invalidateQueries({ queryKey: ['initial-data'] });
+    invalidateBookingData(queryClient, bookingId);
   }
 
   async function handleSelesaikan() {

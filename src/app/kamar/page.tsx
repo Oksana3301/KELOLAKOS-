@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type RoomStatus, type BookingItem, type SubmitRoomUpsertPayload } from '@/lib/api';
+import { invalidateBookingData } from '@/lib/query-sync';
 import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
@@ -202,6 +203,15 @@ export default function KamarPage() {
     filtered.forEach((v) => {
       (grouped[v.room.Gedung] ||= []).push(v);
     });
+    // Rapikan penempatan: urutkan kamar per gedung secara natural (A-101, A-102,
+    // A-2 sebelum A-10, dst) — bukan urutan acak dari backend.
+    Object.keys(grouped).forEach((g) => {
+      grouped[g].sort((a, b) =>
+        String(a.room.Nama_Kamar || '').localeCompare(
+          String(b.room.Nama_Kamar || ''), 'id', { numeric: true, sensitivity: 'base' },
+        ),
+      );
+    });
     return grouped;
   }, [filtered]);
 
@@ -211,8 +221,7 @@ export default function KamarPage() {
     onSuccess: (res, payload) => {
       toast.success(res.message || `✓ ${payload.namaKamar} berhasil disimpan`);
       setForm(null);
-      qc.invalidateQueries({ queryKey: ['initial-data'] });
-      qc.invalidateQueries({ queryKey: ['room-management'] });
+      invalidateBookingData(qc); // sinkron kamar ke Layout/Beranda/Booking
     },
     onError: (e) => toast.error('Gagal menyimpan: ' + (e as Error).message),
   });
@@ -223,8 +232,7 @@ export default function KamarPage() {
       toast.success(res.message || 'Kamar telah dihapus');
       setHapus(null);
       setDetail(null);
-      qc.invalidateQueries({ queryKey: ['initial-data'] });
-      qc.invalidateQueries({ queryKey: ['room-management'] });
+      invalidateBookingData(qc); // sinkron kamar ke Layout/Beranda/Booking
     },
     onError: (e) => toast.error('Gagal menghapus: ' + (e as Error).message),
   });

@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type BookingItem, type BuktiFile } from '@/lib/api';
+import { invalidateBookingData } from '@/lib/query-sync';
 import { rupiah } from './status';
 import { Sheet, SheetHead, KkButton } from './ui';
 import { FileUpload } from './file-upload';
@@ -329,9 +330,7 @@ export function TransaksiFormSheet({
         });
       }
       toast.success(`✓ ${jenis!.label} berhasil dicatat`);
-      qc.invalidateQueries({ queryKey: ['recent-transactions'] });
-      qc.invalidateQueries({ queryKey: ['initial-data'] });
-      qc.invalidateQueries({ queryKey: ['report-data'] });
+      invalidateBookingData(qc); // sinkron ke semua halaman
       onClose();
     } catch (e) {
       toast.error('Gagal: ' + (e as Error).message);

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type BookingFullData } from '@/lib/api';
+import { invalidateBookingData } from '@/lib/query-sync';
 import { formatRupiah } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -145,11 +146,8 @@ export function CancelRefundModal({ booking, onClose, onSuccess }: CancelRefundM
         });
       }
 
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['initial-data'] });
-      queryClient.invalidateQueries({ queryKey: ['booking-detail', booking.BookingID] });
-      queryClient.invalidateQueries({ queryKey: ['recent-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['report-data'] });
+      // Sinkron ke SEMUA halaman (Beranda/Kamar/Uang/Laporan/Invoice/Layout).
+      invalidateBookingData(queryClient, booking.BookingID);
 
       onSuccess?.();
       onClose();
