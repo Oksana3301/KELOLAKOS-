@@ -1098,8 +1098,9 @@ export function BookingFlow({
             durasi: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
             jumlahOrang,
             tglMulai: effCheckIn,
-            // Bukti: ganti (upload baru) / hapus tersimpan.
-            buktiFile: bukti[0] || undefined,
+            // Bukti: kirim SEMUA file (multi) → backend simpan & nempel ke BookingID
+            // ini (append ke Bukti_URLs). Cukup buktiFiles (tak dobel-upload).
+            buktiFiles: bukti.length ? bukti : undefined,
             hapusBukti: hapusBukti || undefined,
           });
         }
