@@ -611,6 +611,10 @@ export function BookingFlow({
       const ps = mapPayStatus(editBooking);
       setBayar(ps === 'Batal' ? 'Lunas' : ps);
       setDp(ps === 'DP' ? String(editBooking.Net_Diterima || 0) : '');
+      // KOST: tgl pelunasan = tgl check-in tersimpan → field ter-isi, dan check-in
+      // "ikut" pelunasan tanpa geser tak sengaja (baru berubah kalau owner ubah).
+      const editIsKost = String(editBooking.Layanan || '').toUpperCase().includes('KOS');
+      setTglBayar(editIsKost && editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : '');
       setJumlahOrang(editBooking.Jumlah_Orang || 1);
     } else {
       setNama('');
@@ -899,17 +903,29 @@ export function BookingFlow({
   // +periode. Tanggal HANYA terisi saat LUNAS; DP/Belum Bayar → kosong dulu.
   // (Penginapan & kost-unlock pakai tanggal manual seperti biasa.)
   const kostLocked = isKostRoom && info.kostKunciTanggal !== false;
-  // EDIT kost terkunci: PERTAHANKAN tanggal yang sudah tersimpan (jangan dihitung
-  // ulang dari tglBayar/hari ini) — supaya ubah nama/fasilitas/bukti tidak
-  // diam-diam menggeser check-in/out. Bila booking belum punya check-in (mis. DP
-  // belum dikonfirmasi), biarkan kosong. NEW: check-in = tanggal pelunasan.
-  const editHadCheckIn = isEdit && !!editBooking?.CheckIn;
+  // KOST terkunci: CHECK-IN = TANGGAL PELUNASAN (tglBayar). Berlaku untuk booking
+  // BARU maupun EDIT — saat EDIT, tglBayar sudah di-prefill dari check-in tersimpan
+  // (lihat reset di atas), jadi tidak geser tak sengaja; baru berubah kalau owner
+  // benar-benar mengganti tanggal pelunasan. DP / Belum Bayar → tanggal kosong dulu.
+  // CHECK-OUT = check-in + periode paket (otomatis, sesuai paket yang dipilih).
   const effCheckIn = kostLocked
-    ? (isEdit ? (editHadCheckIn ? masuk : '') : (bayar === 'Lunas' ? (tglBayar || TODAY()) : ''))
+    ? (bayar === 'Lunas' ? (tglBayar || TODAY()) : '')
     : masuk;
   const effCheckOut = kostLocked
     ? (effCheckIn ? addPaket(effCheckIn, paketKind, lama) : '')
     : keluar;
+
+  // Validasi: kalau booking ini SEBELUMNYA DP, tanggal pelunasan (tglBayar) tidak
+  // boleh lebih awal dari tanggal DP tercatat. (Ref: Tgl_Pembayaran saat DP.)
+  const dpDateRef = (() => {
+    if (!isEdit || !editBooking) return '';
+    if (mapPayStatus(editBooking) !== 'DP') return '';
+    const raw = String(editBooking.Tgl_Pembayaran || '');
+    if (!raw) return '';
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+  })();
+  const pelunasanSebelumDp = bayar === 'Lunas' && !!dpDateRef && !!tglBayar && tglBayar < dpDateRef;
 
   // DP default mengikuti jumlah kamar (PENGINAPAN baru multi): naikkan ke dpMin
   // saat menambah kamar. KOST dikecualikan (DP kost sengaja fleksibel, lihat
@@ -927,6 +943,7 @@ export function BookingFlow({
     (isEdit || !!chosen) &&
     (kostLocked || !!masuk) &&
     (customDate ? customHari >= 1 : lama >= 1) &&
+    !pelunasanSebelumDp &&
     (bayar !== 'DP' || (Number(dp) > 0 && (isKostRoom || Number(dp) >= dpMin)));
 
   // Bentrok tanggal: cek booking lain di kamar yang sama yang menutupi rentang
@@ -1078,10 +1095,11 @@ export function BookingFlow({
         const pending = String(editBooking.Status_Booking || '').toUpperCase().includes('MENUNGGU');
         const payStatus = bayar === 'Lunas' || bayar === 'DP' || bayar === 'Belum Bayar' ? bayar : null;
         if (!pending && total > 0 && payStatus) {
-          // Pertahankan tanggal kost yang sudah ada (jangan ter-reset ke hari ini).
-          const keepDate = editBooking.CheckIn
-            ? new Date(editBooking.CheckIn).toISOString().split('T')[0]
-            : (effCheckIn || undefined);
+          // KOST: check-in = tanggal pelunasan yang dipilih (effCheckIn). Pakai ini
+          // supaya saat owner mengganti tgl pelunasan, backend (confirmBooking) TIDAK
+          // menimpanya kembali ke check-in lama. Fallback: check-in tersimpan.
+          const keepDate = effCheckIn
+            || (editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : undefined);
           // Non-fatal: bila confirmBooking gagal (mis. backend belum deploy),
           // data & total tetap tersimpan — jangan gagalkan seluruh edit.
           try {
@@ -1979,14 +1997,28 @@ export function BookingFlow({
 
             {bayar !== 'Belum Bayar' && (
               <BookingField
-                label={bayar === 'DP' ? 'Tanggal DP (opsional)' : 'Tanggal Pelunasan (opsional)'}
+                label={bayar === 'DP' ? 'Tanggal DP' : 'Tanggal Pelunasan'}
                 hint={
                   kostLocked && bayar === 'Lunas'
-                    ? 'Tanggal ini jadi CHECK-IN kost (check-out otomatis +periode). Kosongkan = hari ini.'
-                    : 'Kosongkan = pakai tanggal hari ini.'
+                    ? `Bisa diubah. Tanggal ini jadi CHECK-IN kost & check-out dihitung otomatis (+periode paket).${dpDateRef ? ` Minimal tanggal DP (${tglPendek(dpDateRef)}).` : ''} Kosongkan = hari ini.`
+                    : dpDateRef && bayar === 'Lunas'
+                      ? `Bisa diubah. Minimal tanggal DP (${tglPendek(dpDateRef)}). Kosongkan = hari ini.`
+                      : 'Bisa diubah. Kosongkan = pakai tanggal hari ini.'
                 }
               >
-                <DatePicker variant="kk" value={tglBayar} onChange={setTglBayar} clearable placeholder="Pilih tanggal" />
+                <DatePicker
+                  variant="kk"
+                  value={tglBayar}
+                  onChange={setTglBayar}
+                  min={bayar === 'Lunas' && dpDateRef ? dpDateRef : undefined}
+                  clearable
+                  placeholder="Pilih tanggal"
+                />
+                {pelunasanSebelumDp && (
+                  <p className="text-caption font-semibold text-kk-orange mt-1.5 mb-0">
+                    ⚠️ Tanggal pelunasan tidak boleh sebelum tanggal DP ({tglPendek(dpDateRef)}).
+                  </p>
+                )}
               </BookingField>
             )}
 
