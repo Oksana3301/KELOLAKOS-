@@ -511,7 +511,7 @@ export const api = {
   // Ringkasan fasilitas per booking (untuk badge di kartu daftar /booking).
   // Backend: BACKEND_PATCH_BOOKING_FASILITAS_LIST.gs (action getBookingFasilitas).
   getBookingFasilitas: () =>
-    callApi<Record<string, { count: number; names: string[]; ringkas: string }>>('getBookingFasilitas'),
+    callApi<Record<string, { count: number; names: string[]; ringkas: string; dateIssue?: string }>>('getBookingFasilitas'),
   getBookingPayments: (bookingId: string) =>
     callApi<{ payments: PaymentRecord[]; refunds: RefundRecord[] }>('getBookingPayments', { bookingId, booking_id: bookingId }),
 
