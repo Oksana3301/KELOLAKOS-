@@ -3,38 +3,37 @@
  * -----------------------------------------------------------------
  * FIX BUG FATAL: "ubah 1 booking → SEMUA kartu ikut berubah".
  *
- * Penyebab: fungsi submitBookingEdit LAMA (di Api.gs) menulis ke banyak/semua
- * baris (mis. setValues satu kolom penuh, atau lupa filter BookingID). Versi
- * ini menulis HANYA ke 1 baris sesuai BookingID lewat _setBookingStatus_
- * (helper yang sudah ada di project — dipakai confirmBooking/editPendingBooking).
+ * Penyebab: fungsi submitBookingEdit LAMA (di file logic-mu, dipanggil dari
+ * dispatchV1_) menulis ke banyak/semua baris. Versi ini menulis HANYA ke 1
+ * baris sesuai BookingID lewat _setBookingStatus_ (helper yang sudah ada).
  *
- * ================= CARA PASANG (WAJIB urut) =================
- * 1) Di SEMUA file (terutama Api.gs), CARI `function submitBookingEdit`.
- *    HAPUS seluruh fungsi lama itu (dari `function submitBookingEdit(` sampai
- *    kurung tutup `}` penutupnya). Tujuannya: BOLEH ADA HANYA SATU fungsi
- *    bernama submitBookingEdit — yaitu versi ini. (Kalau ada dua, yang lama
- *    yang rusak bisa menang tergantung urutan file → bug balik lagi.)
+ * ================= CARA PASANG (paling aman — MENCEGAT) =================
+ * Urutan dispatch di Api.gs: dispatchLicense_ → dispatchV2_ → dispatchV1_
+ * (yang pertama mengembalikan non-null menang). Jadi kita cegat di dispatchV2_
+ * SEBELUM sampai ke submitBookingEdit lama di dispatchV1_. TIDAK perlu cari /
+ * hapus fungsi lama.
  *
- * 2) Paste file ini sebagai .gs baru. Router yang sudah ada (dispatch_) tetap
- *    memanggil fungsi bernama submitBookingEdit → sekarang = versi benar ini.
- *    TIDAK perlu ubah dispatchV2_ / dispatch_.
+ * 1) Buka apiv2.gs → fungsi dispatchV2_(action, payload) → tambahkan 1 baris
+ *    SEBELUM `default:` :
  *
- * 3) (Sekali) Jalankan diagBookingEditFix() untuk memastikan hanya ada 1
- *    submitBookingEdit & helper _setBookingStatus_ terbaca — lihat View → Logs.
+ *        case 'submitBookingEdit': return submitBookingEdit_fixed_(payload);
  *
- * 4) Deploy → Manage deployments → ✏️ Edit → New version → Deploy.
+ * 2) Paste file ini sebagai .gs baru (mendefinisikan submitBookingEdit_fixed_).
  *
- * Catatan: kolom uang final (Total/Dibayar/Sisa) tetap dikunci oleh confirmBooking
+ * 3) Deploy → Manage deployments → ✏️ Edit → New version → Deploy.
+ *
+ * (Opsional) Jalankan diagBookingEditFix() → View → Logs untuk cek helper.
+ *
+ * Catatan: kolom uang final (Total/Dibayar/Sisa) tetap dikunci confirmBooking
  * yang dipanggil frontend SETELAH ini — jadi angka akhir selalu benar.
  *******************************************************************/
 
-function submitBookingEdit(data) {
+function submitBookingEdit_fixed_(data) {
   data = data || {};
   var id = String(data.bookingId || data.booking_id || '').trim();
   if (!id) throw new Error('bookingId wajib diisi');
 
-  // Ambil nilai pertama yang terdefinisi dari beberapa kemungkinan nama field
-  // (frontend kirim camelCase + snake_case sekaligus).
+  // Ambil nilai pertama yang terdefinisi (frontend kirim camelCase + snake_case).
   function pick() {
     for (var i = 0; i < arguments.length; i++) {
       if (arguments[i] !== undefined && arguments[i] !== null) return arguments[i];
@@ -88,20 +87,19 @@ function submitBookingEdit(data) {
   }
 
   if (typeof _setBookingStatus_ !== 'function') {
-    throw new Error('_setBookingStatus_ belum ada — pastikan patch Perpanjang/apiv2 terpasang.');
+    throw new Error('_setBookingStatus_ belum ada — pastikan apiv2.gs / patch Perpanjang terpasang.');
   }
-  // ⬇️ INTI FIX: hanya menulis ke 1 baris (BookingID yang cocok), lalu return.
+  // ⬇️ INTI FIX: _setBookingStatus_ hanya menulis 1 baris (BookingID cocok) lalu return.
   var res = _setBookingStatus_(id, updates);
-  return { bookingId: id, ok: res && res.ok, message: 'Booking diperbarui.' };
+  return { ok: res && res.ok, bookingId: id, message: 'Booking diperbarui (1 baris).' };
 }
 
-// Diagnostik: pastikan helper terbaca. (Tidak bisa cek fungsi duplikat dari
-// dalam skrip — pastikan manual di langkah 1 hanya ada SATU submitBookingEdit.)
+// Diagnostik: pastikan helper & fungsi fix terbaca. Lihat View → Logs.
 function diagBookingEditFix() {
-  Logger.log('_setBookingStatus_ ada: %s', typeof _setBookingStatus_ === 'function');
-  Logger.log('_perpanjangNormWa_ ada: %s', typeof _perpanjangNormWa_ === 'function');
-  Logger.log('_ensureBookingCol_ ada: %s', typeof _ensureBookingCol_ === 'function');
-  Logger.log('submitBookingEdit ada: %s', typeof submitBookingEdit === 'function');
-  Logger.log('👉 Pastikan di editor kamu CARI "function submitBookingEdit" dan HANYA ADA 1 (ini).');
+  Logger.log('_setBookingStatus_ ada       : %s', typeof _setBookingStatus_ === 'function');
+  Logger.log('_perpanjangNormWa_ ada       : %s', typeof _perpanjangNormWa_ === 'function');
+  Logger.log('_ensureBookingCol_ ada       : %s', typeof _ensureBookingCol_ === 'function');
+  Logger.log('submitBookingEdit_fixed_ ada : %s', typeof submitBookingEdit_fixed_ === 'function');
+  Logger.log('👉 Pastikan di dispatchV2_ sudah ada: case "submitBookingEdit": return submitBookingEdit_fixed_(payload);');
   return 'OK — cek Logs';
 }
