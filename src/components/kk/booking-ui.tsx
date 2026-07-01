@@ -637,7 +637,10 @@ export function BookingFlow({
       setKeluarDate('');
       setBayar('Lunas');
       setDp('');
-      setTglBayar('');
+      // Default tanggal bayar = HARI INI (jangan kosong). Kalau kosong, check-in
+      // kost diam-diam jadi hari ini padahal field terlihat kosong → tanggal ngaco.
+      // Owner tetap bisa mengubahnya; untuk kost Lunas tanggal ini = tanggal masuk.
+      setTglBayar(TODAY());
       setJumlahOrang(1);
     }
     setSelFas(new Set(editBooking ? editFacilityIds || [] : []));
@@ -1032,6 +1035,8 @@ export function BookingFlow({
     }
     setBayar(s);
     if (s === 'DP' && !dp && dpMin > 0 && !isEdit) setDp(String(dpMin));
+    // Kost + Lunas: tanggal pelunasan = tanggal masuk → jangan biarkan kosong.
+    if (s === 'Lunas' && isKostChosen && !tglBayar) setTglBayar(TODAY());
   }
 
   // Resolusi popup: owner memilih periode pasti. Bila dipicu dari tombol Lunas
@@ -2021,10 +2026,16 @@ export function BookingFlow({
 
             {bayar !== 'Belum Bayar' && (
               <BookingField
-                label={bayar === 'DP' ? 'Tanggal DP' : 'Tanggal Pelunasan'}
+                label={
+                  bayar === 'DP'
+                    ? 'Tanggal DP'
+                    : kostLocked
+                      ? 'Tanggal Pelunasan = Tanggal Masuk'
+                      : 'Tanggal Pelunasan'
+                }
                 hint={
                   kostLocked && bayar === 'Lunas'
-                    ? `Bisa diubah. Tanggal ini jadi CHECK-IN kost & check-out dihitung otomatis (+periode paket).${dpDateRef ? ` Minimal tanggal DP (${tglPendek(dpDateRef)}).` : ''} Kosongkan = hari ini.`
+                    ? `Tanggal ini jadi CHECK-IN kost & check-out dihitung otomatis (+periode paket). Bisa diubah.${dpDateRef ? ` Minimal tanggal DP (${tglPendek(dpDateRef)}).` : ''}`
                     : dpDateRef && bayar === 'Lunas'
                       ? `Bisa diubah. Minimal tanggal DP (${tglPendek(dpDateRef)}). Kosongkan = hari ini.`
                       : 'Bisa diubah. Kosongkan = pakai tanggal hari ini.'
@@ -2032,12 +2043,14 @@ export function BookingFlow({
               >
                 {/* Tanpa `min` keras (yang diam-diam menolak klik → terasa "tak
                     bisa diubah"). Tanggal selalu bisa dipilih; kalau pelunasan lebih
-                    awal dari tgl DP → peringatan + Simpan diblok (validasi lunak). */}
+                    awal dari tgl DP → peringatan + Simpan diblok (validasi lunak).
+                    KOST + Lunas TIDAK clearable → tanggal ini = tanggal masuk, tak
+                    boleh kosong (biar check-in tidak diam-diam jadi hari ini). */}
                 <DatePicker
                   variant="kk"
                   value={tglBayar}
                   onChange={setTglBayar}
-                  clearable
+                  clearable={!(kostLocked && bayar === 'Lunas')}
                   placeholder="Pilih tanggal"
                 />
                 {pelunasanSebelumDp && (
@@ -2260,10 +2273,19 @@ export function BookingDetail({
   const router = useRouter();
 
   // Tanggal DP & pelunasan dari riwayat pembayaran (fallback: Tgl_Pembayaran booking).
+  const isKostBk = String(booking.Layanan || '').toUpperCase().includes('KOS');
   const dpPay = payments.find((p) => /DP|MUKA/i.test(p.Jenis_Bayar || ''));
   const lunasPay = payments.find((p) => /LUNAS|PELUNASAN/i.test(p.Jenis_Bayar || ''));
   const dpDate = dpPay?.Tanggal_Bayar || (status === 'DP' ? String(booking.Tgl_Pembayaran || '') : '');
-  const lunasDate = lunasPay?.Tanggal_Bayar || (status === 'Lunas' ? String(booking.Tgl_Pembayaran || '') : '');
+  // KOST: tanggal pelunasan = tanggal masuk (CheckIn = sumber kebenaran), supaya
+  // konsisten (tidak beda antara payment record vs kolom booking).
+  const lunasDate = isKostBk && status === 'Lunas' && booking.CheckIn
+    ? String(booking.CheckIn)
+    : (lunasPay?.Tanggal_Bayar || (status === 'Lunas' ? String(booking.Tgl_Pembayaran || '') : ''));
+  // Peringatan bila tanggal DP lebih besar dari tanggal pelunasan (mustinya DP dulu).
+  const dpDateISO = dpDate ? new Date(dpDate).toISOString().slice(0, 10) : '';
+  const lunasDateISO = lunasDate ? new Date(lunasDate).toISOString().slice(0, 10) : '';
+  const dpAfterLunas = !!dpDateISO && !!lunasDateISO && dpDateISO > lunasDateISO;
   // Semua bukti: kolom booking + tiap record pembayaran (Bukti_URLs) → slider.
   const allBuktiRaw = [booking.Bukti_Bayar || '', ...payments.flatMap((p) => p.Bukti_URLs || [])].filter(Boolean).join(',');
   const buktiUrls = parseBuktiUrls(allBuktiRaw);
@@ -2303,8 +2325,13 @@ export function BookingDetail({
               accent={periodeInfo(booking.Paket).belumTahu ? 'orange' : undefined}
             />
           )}
-          {dpDate && <InfoRow label="Tanggal DP" value={tglPanjang(dpDate)} />}
+          {dpDate && <InfoRow label="Tanggal DP" value={tglPanjang(dpDate)} accent={dpAfterLunas ? 'orange' : undefined} />}
           {lunasDate && <InfoRow label="Tanggal pelunasan" value={tglPanjang(lunasDate)} />}
+          {dpAfterLunas && (
+            <div className="text-caption font-semibold text-kk-orange py-1.5">
+              ⚠️ Tanggal DP lebih besar dari pelunasan — mustinya DP duluan. Perbaiki lewat <b>Ubah</b>.
+            </div>
+          )}
           <InfoRow label="Tanggal masuk" value={tglPanjang(booking.CheckIn)} />
           <InfoRow label="Tanggal keluar" value={tglPanjang(displayCheckOutOf(booking))} />
           <InfoRow label="Total sewa" value={rupiah(booking.Harga_Total_Net)} />
