@@ -266,8 +266,8 @@ export interface SubmitBookingEditPayload {
 export interface EditPendingBookingPayload {
   bookingId: string; nama?: string; whatsapp?: string; roomId?: string; kamar?: string; tipe?: string;
   layanan?: string; durasi?: string; jumlahOrang?: number; tglMulai?: string; catatan?: string;
-  /** Ganti bukti (upload baru) atau hapus bukti tersimpan. */
-  buktiFile?: BuktiFile; hapusBukti?: boolean;
+  /** Ganti bukti (upload baru) atau hapus bukti tersimpan. buktiFiles = multi. */
+  buktiFile?: BuktiFile; buktiFiles?: BuktiFile[]; hapusBukti?: boolean;
 }
 
 export interface SubmitPaymentPayload {
@@ -496,7 +496,11 @@ export const api = {
   // Ubah data booking PENDING (tanpa mengubah status bayar). Lihat
   // BACKEND_PATCH_EDIT_PENDING.gs.
   editPendingBooking: (data: EditPendingBookingPayload) =>
-    callApi<{ ok: boolean; bookingId: string }>('editPendingBooking', { ...data, booking_id: data.bookingId }),
+    callApi<{ ok: boolean; bookingId: string }>('editPendingBooking', {
+      ...data,
+      booking_id: data.bookingId,
+      bukti_files: data.buktiFiles || [], // multi-bukti → semua nempel ke BookingID
+    }),
 
   submitStatusAction: (data: SubmitStatusActionPayload) =>
     callApi<{ message?: string }>('submitStatusAction', {
