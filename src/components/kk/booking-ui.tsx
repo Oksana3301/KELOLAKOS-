@@ -548,6 +548,8 @@ export function BookingFlow({
   // status otomatis jadi Lunas (dipicu dari tombol status, bukan saat simpan).
   const [periodePopup, setPeriodePopup] = useState(false);
   const [pendingLunas, setPendingLunas] = useState(false);
+  // Popup peringatan: tanggal pelunasan lebih awal dari tanggal DP.
+  const [pelunasanPopup, setPelunasanPopup] = useState(false);
   // "Atur tanggal sendiri" mode: pick check-in/check-out, bill per day.
   const [customDate, setCustomDate] = useState(false);
   const [keluarDate, setKeluarDate] = useState('');
@@ -645,6 +647,7 @@ export function BookingFlow({
     submittedRef.current = new Set();
     setPeriodePopup(false);
     setPendingLunas(false);
+    setPelunasanPopup(false);
     setGantiKamar(false);
     setFLayanan('Semua');
     setFCari('');
@@ -950,7 +953,6 @@ export function BookingFlow({
     (isEdit || !!chosen) &&
     (kostLocked || !!masuk) &&
     (customDate ? customHari >= 1 : lama >= 1) &&
-    !pelunasanSebelumDp &&
     (bayar !== 'DP' || (Number(dp) > 0 && (isKostRoom || Number(dp) >= dpMin)));
 
   // Bentrok tanggal: cek booking lain di kamar yang sama yang menutupi rentang
@@ -1048,6 +1050,11 @@ export function BookingFlow({
     if (bayar === 'Lunas' && belumTahu) {
       setPendingLunas(false);
       setPeriodePopup(true);
+      return;
+    }
+    // Tanggal pelunasan tidak boleh lebih awal dari tanggal DP → popup peringatan.
+    if (pelunasanSebelumDp) {
+      setPelunasanPopup(true);
       return;
     }
     if (roomOccupied && !isEdit) {
@@ -2193,6 +2200,24 @@ export function BookingFlow({
         >
           Batal — tetap belum tahu (status bukan Lunas)
         </button>
+      </Dialog>
+
+      {/* Peringatan: tanggal pelunasan lebih awal dari tanggal DP */}
+      <Dialog open={pelunasanPopup}>
+        <div className="w-14 h-14 rounded-full bg-kk-orange-soft text-kk-orange grid place-items-center mx-auto mb-4">
+          <KkIcon name="info" size={30} />
+        </div>
+        <h3 className="font-heading font-bold text-subhead text-center m-0 mb-2">
+          Tanggal pelunasan terlalu awal ⚠️
+        </h3>
+        <p className="text-body text-kk-ink text-center mt-0 mb-6 leading-snug">
+          Tanggal <b className="text-kk-navy">pelunasan</b> ({tglPendek(tglBayar)}) tidak boleh
+          lebih awal dari tanggal <b className="text-kk-navy">DP</b> ({tglPendek(dpDateRef)}).
+          DP dibayar duluan, pelunasan belakangan. Perbaiki dulu ya 🙏
+        </p>
+        <KkButton variant="primary" block onClick={() => setPelunasanPopup(false)}>
+          Mengerti, perbaiki tanggal
+        </KkButton>
       </Dialog>
     </>
   );
