@@ -2357,6 +2357,12 @@ export function BookingDetail({
           {sisa > 0 && !batal && (
             <InfoRow label="Sisa tagihan" value={rupiah(sisa)} accent="orange" />
           )}
+          {(booking.Created_At || booking.Timestamp) && (
+            <InfoRow label="Dibuat" value={tglPanjang(booking.Created_At || booking.Timestamp || '')} />
+          )}
+          {booking.Updated_At && (
+            <InfoRow label="Diperbarui" value={tglPanjang(booking.Updated_At)} />
+          )}
         </KkCard>
 
         {/* Fasilitas yang dipilih penyewa (data dari detail booking). */}
