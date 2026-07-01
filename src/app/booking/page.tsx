@@ -70,6 +70,18 @@ function displayCheckOut(b: BookingItem): string {
   }
   return b.CheckOut;
 }
+// Deteksi tanggal yang tidak logis pada sebuah booking → dipakai untuk menandai
+// kartu (outline merah) supaya owner/penjaga gampang menemukan & memperbaiki.
+// Aturan: keluar harus SETELAH masuk; booking Lunas harus punya tanggal masuk.
+function bookingDateIssue(b: BookingItem): string {
+  const status = mapPayStatus(b);
+  if (status === 'Batal') return '';
+  const ci = isoDay(b.CheckIn);
+  const co = isoDay(b.CheckOut);
+  if (ci && co && co <= ci) return 'Tanggal keluar ≤ tanggal masuk';
+  if (status === 'Lunas' && !ci) return 'Lunas tapi tanggal masuk kosong';
+  return '';
+}
 // Tentukan jenis layanan sebuah booking dari kolom Layanan.
 function bookingLayanan(b: BookingItem): 'kost' | 'penginapan' | 'lain' {
   const l = String(b.Layanan || '').toUpperCase();
@@ -751,8 +763,19 @@ function BookingCard({
   const sisa = b.Sisa_Bayar != null ? Number(b.Sisa_Bayar) : Math.max(total - dibayar, 0);
   // Show the paid/remaining split whenever money is still owed (DP / belum lunas).
   const showSplit = !batal && sisa > 0;
+  // Tanggal tidak logis → outline merah + banner supaya gampang ditemukan.
+  const dateIssue = bookingDateIssue(b);
   return (
-    <KkCard onClick={onClick} className={batal ? 'opacity-[0.72]' : ''}>
+    <KkCard
+      onClick={onClick}
+      className={`${batal ? 'opacity-[0.72]' : ''} ${dateIssue ? 'ring-2 ring-red-400 ring-offset-1' : ''}`}
+    >
+      {dateIssue && (
+        <div className="flex items-center gap-1.5 mb-2.5 rounded-kk-pill px-3 py-1.5 text-[13px] font-bold"
+          style={{ background: '#FDECEC', color: '#B42318', border: '1.5px solid #F3B4B4' }}>
+          ⚠️ Cek tanggal: {dateIssue}
+        </div>
+      )}
       <div className="flex justify-between items-start gap-3 mb-2.5">
         <div className="min-w-0">
           <div
