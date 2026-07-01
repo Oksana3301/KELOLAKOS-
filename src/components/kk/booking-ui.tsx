@@ -593,9 +593,17 @@ export function BookingFlow({
   const [fGedung, setFGedung] = useState('Semua');
   const [fLantai, setFLantai] = useState<'Semua' | number>('Semua');
 
+  // Init HANYA SEKALI per sesi buka (per booking). Tanpa guard ini, effect bisa
+  // jalan ulang saat re-render / editBooking ganti referensi → mereset field yang
+  // sedang diedit (tanggal "balik lagi balik lagi"). Ref menyimpan booking yang
+  // sudah di-init; reset saat sheet ditutup.
+  const initializedFor = useRef<string | null>(null);
   // Reset / prefill whenever the sheet opens.
   useEffect(() => {
-    if (!open) return;
+    if (!open) { initializedFor.current = null; return; }
+    const initKey = editBooking ? String(editBooking.BookingID || '(edit)') : '__new__';
+    if (initializedFor.current === initKey) return; // sudah di-init → JANGAN reset lagi
+    initializedFor.current = initKey;
     if (editBooking) {
       setNama(editBooking.Nama_Customer || '');
       setHp(String(editBooking.WhatsApp || ''));
