@@ -2023,11 +2023,13 @@ export function BookingFlow({
                       : 'Bisa diubah. Kosongkan = pakai tanggal hari ini.'
                 }
               >
+                {/* Tanpa `min` keras (yang diam-diam menolak klik → terasa "tak
+                    bisa diubah"). Tanggal selalu bisa dipilih; kalau pelunasan lebih
+                    awal dari tgl DP → peringatan + Simpan diblok (validasi lunak). */}
                 <DatePicker
                   variant="kk"
                   value={tglBayar}
                   onChange={setTglBayar}
-                  min={bayar === 'Lunas' && dpDateRef ? dpDateRef : undefined}
                   clearable
                   placeholder="Pilih tanggal"
                 />
