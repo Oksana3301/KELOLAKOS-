@@ -533,6 +533,9 @@ export function BookingFlow({
   const qc = useQueryClient();
   const router = useRouter();
   const isEdit = !!editBooking;
+  // Semua bukti tersimpan pada booking yang diedit: Bukti_Bayar + Bukti_URLs
+  // (tempat backend menyimpan bukti >1, dipisah baris baru).
+  const editBuktiRaw = [editBooking?.Bukti_Bayar, editBooking?.Bukti_URLs].filter(Boolean).join('\n');
   // Harga & aturan dari Pengaturan (sama dengan form publik /info).
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, staleTime: 60_000 });
   const info = useMemo(() => mergeInfo(infoRaw || DEFAULT_INFO), [infoRaw]);
@@ -2084,14 +2087,14 @@ export function BookingFlow({
             {/* Bukti — paling bawah. Tampilkan bukti tersimpan (link Drive) bila ada,
                 bisa di-Hapus (ada Batal), dan bisa diganti dgn upload baru. */}
             <div className="mt-4 space-y-2">
-              {isEdit && editBooking?.Bukti_Bayar && !hapusBukti && bukti.length === 0 && (
+              {isEdit && !!editBuktiRaw && !hapusBukti && bukti.length === 0 && (
                 <div className="rounded-kk-card border-2 border-kk-mauve p-3.5">
                   <div className="flex items-center justify-between gap-3 mb-2.5">
                     <span className="font-heading font-bold text-[16px] text-kk-navy">
-                      Bukti tersimpan{parseBuktiUrls(editBooking.Bukti_Bayar).length > 1 ? ` (${parseBuktiUrls(editBooking.Bukti_Bayar).length})` : ''}
+                      Bukti tersimpan{parseBuktiUrls(editBuktiRaw).length > 1 ? ` (${parseBuktiUrls(editBuktiRaw).length})` : ''}
                     </span>
                     <div className="flex items-center gap-4 flex-shrink-0">
-                      <a href={parseBuktiUrls(editBooking.Bukti_Bayar)[0] || editBooking.Bukti_Bayar} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption">
+                      <a href={parseBuktiUrls(editBuktiRaw)[0] || editBuktiRaw} target="_blank" rel="noopener noreferrer" className="text-kk-navy font-semibold underline text-caption">
                         Buka
                       </a>
                       <button type="button" onClick={() => setHapusBukti(true)} className="text-kk-orange font-semibold text-caption">
@@ -2100,7 +2103,7 @@ export function BookingFlow({
                     </div>
                   </div>
                   {/* Preview gambar bukti — slider bila lebih dari satu */}
-                  <BuktiSlider raw={editBooking.Bukti_Bayar} heightClass="h-[300px]" />
+                  <BuktiSlider raw={editBuktiRaw} heightClass="h-[300px]" />
                 </div>
               )}
               {isEdit && hapusBukti && (
@@ -2295,7 +2298,14 @@ export function BookingDetail({
   const lunasDateISO = lunasDate ? new Date(lunasDate).toISOString().slice(0, 10) : '';
   const dpAfterLunas = !!dpDateISO && !!lunasDateISO && dpDateISO > lunasDateISO;
   // Semua bukti: kolom booking + tiap record pembayaran (Bukti_URLs) → slider.
-  const allBuktiRaw = [booking.Bukti_Bayar || '', ...payments.flatMap((p) => p.Bukti_URLs || [])].filter(Boolean).join(',');
+  // Gabung SEMUA sumber bukti: kolom Bukti_Bayar + kolom Bukti_URLs booking
+  // (tempat backend menyimpan bukti >1, dipisah baris baru) + Bukti_URLs tiap
+  // record pembayaran. parseBuktiUrls memecah koma/spasi/baris baru → dedupe.
+  const allBuktiRaw = [
+    booking.Bukti_Bayar || '',
+    booking.Bukti_URLs || '',
+    ...payments.flatMap((p) => p.Bukti_URLs || []),
+  ].filter(Boolean).join('\n');
   const buktiUrls = parseBuktiUrls(allBuktiRaw);
 
   // Semi-auto WA (PR-2): kabari penjaga (Mezi) booking yang sudah diterima.

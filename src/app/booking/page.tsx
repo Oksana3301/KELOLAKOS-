@@ -323,6 +323,7 @@ function BookingPageInner() {
           return {
             ...d.booking,
             Bukti_Bayar: d.booking.Bukti_Bayar || prev.Bukti_Bayar,
+            Bukti_URLs: d.booking.Bukti_URLs || prev.Bukti_URLs,
             Tgl_Pembayaran: d.booking.Tgl_Pembayaran || prev.Tgl_Pembayaran,
           };
         });
@@ -344,7 +345,7 @@ function BookingPageInner() {
         if (!raw || detailIdRef.current !== bookingId) return;
         setDetail((prev) =>
           prev && prev.BookingID === bookingId
-            ? { ...prev, Bukti_Bayar: raw.Bukti_Bayar || prev.Bukti_Bayar, Tgl_Pembayaran: raw.Tgl_Pembayaran || prev.Tgl_Pembayaran }
+            ? { ...prev, Bukti_Bayar: raw.Bukti_Bayar || prev.Bukti_Bayar, Bukti_URLs: raw.Bukti_URLs || prev.Bukti_URLs, Tgl_Pembayaran: raw.Tgl_Pembayaran || prev.Tgl_Pembayaran }
             : prev,
         );
       })
