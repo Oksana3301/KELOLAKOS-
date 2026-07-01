@@ -92,6 +92,22 @@ function bookingLayanan(b: BookingItem): 'kost' | 'penginapan' | 'lain' {
   if (l.includes('INAP') || l.includes('PENGINAP')) return 'penginapan';
   return 'lain';
 }
+// Emote per jenis layanan (dipakai di kartu biar enak dilihat & gampang dibedakan).
+function bookingEmote(b: BookingItem): string {
+  const l = bookingLayanan(b);
+  return l === 'kost' ? '🏠' : l === 'penginapan' ? '🏨' : '📁';
+}
+// Tanggal acuan untuk filter rentang & tampilan: tanggal masuk (check-in) kalau ada;
+// kalau belum di-set (mis. DP) → pakai tanggal pembayaran/DP tercatat ("tanggal keisi").
+function bookingRangeDate(b: BookingItem): string {
+  return isoDay(b.CheckIn) || isoDay(b.Tgl_Pembayaran || '');
+}
+// Kunci urutan "terbaru dibuat paling atas". Created_At → Timestamp → tgl bayar →
+// check-in → BookingID (ID berbasis waktu ikut tersortir). Dibandingkan menurun.
+function bookingCreatedKey(b: BookingItem): string {
+  const x = b as BookingItem & { Created_At?: string; Timestamp?: string };
+  return String(x.Created_At || x.Timestamp || b.Tgl_Pembayaran || b.CheckIn || b.BookingID || '');
+}
 
 export default function BookingPage() {
   return (
@@ -250,10 +266,11 @@ function BookingPageInner() {
     if (tab !== 'semua') {
       list = list.filter((b) => mapPayStatus(b) === (tab as PayStatus));
     }
-    // 3) Filter RENTANG TANGGAL (berdasarkan tanggal masuk / check-in).
+    // 3) Filter RENTANG TANGGAL — pakai "tanggal keisi": check-in kalau ada, kalau
+    //    belum (mis. DP) pakai tanggal DP/pembayaran. Jadi booking DP tetap muncul.
     if (dateFrom || dateTo) {
       list = list.filter((b) => {
-        const d = isoDay(b.CheckIn);
+        const d = bookingRangeDate(b);
         if (!d) return false;
         if (dateFrom && d < dateFrom) return false;
         if (dateTo && d > dateTo) return false;
@@ -268,7 +285,8 @@ function BookingPageInner() {
           b.Nama_Customer.toLowerCase().includes(q) || b.Nama_Kamar.toLowerCase().includes(q),
       );
     }
-    return list;
+    // 5) Urutkan TERBARU DIBUAT PALING ATAS.
+    return [...list].sort((a, b) => bookingCreatedKey(b).localeCompare(bookingCreatedKey(a)));
   }, [allBookings, layanan, periode, tab, cari, dateFrom, dateTo]);
 
   // Ringkasan untuk laporan penjaga (mengikuti filter aktif).
@@ -345,7 +363,15 @@ function BookingPageInner() {
         if (!raw || detailIdRef.current !== bookingId) return;
         setDetail((prev) =>
           prev && prev.BookingID === bookingId
-            ? { ...prev, Bukti_Bayar: raw.Bukti_Bayar || prev.Bukti_Bayar, Bukti_URLs: raw.Bukti_URLs || prev.Bukti_URLs, Tgl_Pembayaran: raw.Tgl_Pembayaran || prev.Tgl_Pembayaran }
+            ? {
+                ...prev,
+                Bukti_Bayar: raw.Bukti_Bayar || prev.Bukti_Bayar,
+                Bukti_URLs: raw.Bukti_URLs || prev.Bukti_URLs,
+                Tgl_Pembayaran: raw.Tgl_Pembayaran || prev.Tgl_Pembayaran,
+                Created_At: raw.Created_At || prev.Created_At,
+                Updated_At: raw.Updated_At || prev.Updated_At,
+                Timestamp: raw.Timestamp || prev.Timestamp,
+              }
             : prev,
         );
       })
@@ -643,25 +669,25 @@ function BookingPageInner() {
         </KkCard>
       )}
 
-      {/* List */}
-      <div className="flex flex-col gap-3">
-        {filtered.length === 0 ? (
-          <KkCard className="text-center text-body text-kk-ink py-7">
-            {cari || tab !== 'semua' || layanan !== 'semua'
-              ? 'Tidak ada penyewa di kategori ini.'
-              : 'Belum ada booking. Tekan tombol Tambah Penyewa di atas untuk mencatat penyewa pertama Anda.'}
-          </KkCard>
-        ) : (
-          filtered.map((b) => (
+      {/* List — grid 2 kolom biar lebih banyak & jelas keliatan */}
+      {filtered.length === 0 ? (
+        <KkCard className="text-center text-body text-kk-ink py-7">
+          {cari || tab !== 'semua' || layanan !== 'semua'
+            ? 'Tidak ada penyewa di kategori ini.'
+            : 'Belum ada booking. Tekan tombol Tambah Penyewa di atas untuk mencatat penyewa pertama Anda.'}
+        </KkCard>
+      ) : (
+        <div className="grid grid-cols-2 gap-2.5 items-start">
+          {filtered.map((b) => (
             <BookingCard
               key={b.BookingID}
               booking={b}
               fas={bookingFas?.[b.BookingID]}
               onClick={() => openDetail(b)}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Modals & sheets ── */}
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP} />
@@ -771,89 +797,61 @@ function BookingCard({
   // Gabung deteksi lokal (dari data list) + flag dari backend (mis. DP > pelunasan,
   // yang butuh data pembayaran → dikirim lewat peta bookingFas).
   const dateIssue = bookingDateIssue(b) || fas?.dateIssue || '';
+  const rangeD = bookingRangeDate(b);
+  const dateLabel = isoDay(b.CheckIn) ? 'Masuk' : 'DP';
   return (
     <KkCard
       onClick={onClick}
-      className={`${batal ? 'opacity-[0.72]' : ''} ${dateIssue ? 'ring-2 ring-red-400 ring-offset-1' : ''}`}
+      className={`!p-3 ${batal ? 'opacity-[0.72]' : ''} ${dateIssue ? 'ring-2 ring-red-400 ring-offset-1' : ''}`}
     >
       {dateIssue && (
-        <div className="flex items-center gap-1.5 mb-2.5 rounded-kk-pill px-3 py-1.5 text-[13px] font-bold"
+        <div className="flex items-center gap-1 mb-2 rounded-kk-pill px-2 py-1 text-[11px] font-bold leading-tight"
           style={{ background: '#FDECEC', color: '#B42318', border: '1.5px solid #F3B4B4' }}>
-          ⚠️ Cek tanggal: {dateIssue}
+          ⚠️ {dateIssue}
         </div>
       )}
-      <div className="flex justify-between items-start gap-3 mb-2.5">
-        <div className="min-w-0">
-          <div
-            className={`font-heading font-bold text-[20px] text-kk-navy truncate ${
-              batal ? 'line-through decoration-kk-ink' : ''
-            }`}
-          >
+      {/* Nama + emote layanan + status */}
+      <div className="flex items-start justify-between gap-1.5">
+        <div className="min-w-0 flex items-center gap-1">
+          <span className="text-[16px] leading-none flex-shrink-0">{bookingEmote(b)}</span>
+          <span className={`font-heading font-bold text-[15px] text-kk-navy truncate ${batal ? 'line-through decoration-kk-ink' : ''}`}>
             {b.Nama_Customer || '(tanpa nama)'}
-          </div>
-          <div className="text-[17px] text-kk-ink mt-0.5 truncate">{b.Nama_Kamar}</div>
-          {/* Periode yang dipilih penyewa — biar owner/penjaga gampang cari & kelompokkan. */}
-          {per.label !== '—' && (
-            <span
-              className="inline-flex items-center gap-1 rounded-kk-pill px-2.5 py-1 mt-1.5 text-[13px] font-bold"
-              style={
-                per.belumTahu
-                  ? { background: '#FBEEE6', color: '#9A4A1E', border: '1.5px solid #F0C9AE' }
-                  : { background: '#EEF0F4', color: '#3A4256', border: '1.5px solid #D6DAE3' }
-              }
-            >
-              {per.belumTahu ? '🤔' : '🗓️'} {per.label}
-            </span>
-          )}
+          </span>
         </div>
         <BayarBadge status={status} />
       </div>
-      {/* Tanggal — pill terang & jelas (lengkap dgn TAHUN) biar mudah dibaca */}
-      {(b.CheckIn || b.CheckOut) && (
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-kk-mauve-soft pt-2.5 mb-2">
-          <span className="inline-flex items-center gap-1.5 rounded-kk-pill px-3 py-1.5 text-[14px] font-bold"
-            style={{ background: '#EAF1FB', color: '#1E4E8C', border: '1.5px solid #B9D0EE' }}>
-            📅 Masuk: {tglPanjang(b.CheckIn) || '—'}
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-kk-pill px-3 py-1.5 text-[14px] font-bold"
-            style={{ background: '#FBEEE6', color: '#9A4A1E', border: '1.5px solid #F0C9AE' }}>
-            🏁 Keluar: {tglPanjang(displayCheckOut(b)) || '—'}
-          </span>
+      <div className="text-[13px] text-kk-ink mt-0.5 truncate">{b.Nama_Kamar}</div>
+      {/* Periode chip */}
+      {per.label !== '—' && (
+        <span
+          className="inline-flex items-center gap-1 rounded-kk-pill px-2 py-0.5 mt-1.5 text-[11px] font-bold"
+          style={
+            per.belumTahu
+              ? { background: '#FBEEE6', color: '#9A4A1E', border: '1px solid #F0C9AE' }
+              : { background: '#EEF0F4', color: '#3A4256', border: '1px solid #D6DAE3' }
+          }
+        >
+          {per.belumTahu ? '🤔' : '🗓️'} {per.label}
+        </span>
+      )}
+      {/* Tanggal acuan (masuk / DP) — 1 baris ringkas */}
+      {rangeD && (
+        <div className="text-[12px] font-semibold mt-1.5" style={{ color: '#1E4E8C' }}>
+          📅 {dateLabel}: {tglPendek(rangeD)}
         </div>
       )}
-      {/* Fasilitas yang dipilih penyewa (kalau backend mengirimnya). */}
+      {/* Fasilitas indikator ringkas */}
       {fas && fas.count > 0 && (
-        <div className="flex items-start gap-1.5 mb-2 text-[13.5px] text-kk-ink">
-          <span className="flex-shrink-0">🛋️</span>
-          <span className="font-semibold leading-snug">{fas.ringkas}</span>
-        </div>
+        <div className="text-[11px] text-kk-ink mt-1 truncate">🛋️ {fas.ringkas}</div>
       )}
-      <div className="flex justify-between items-baseline">
-        <span className="text-caption text-kk-ink">Total</span>
-        <span className="font-heading font-bold text-[19px] text-kk-navy">{rupiah(total)}</span>
+      {/* Uang */}
+      <div className="flex items-baseline justify-between mt-1.5 pt-1.5 border-t border-kk-mauve-soft">
+        <span className="text-[11px] text-kk-ink">Total</span>
+        <span className="font-heading font-bold text-[15px] text-kk-navy">{rupiah(total)}</span>
       </div>
       {showSplit && (
-        <div className="flex justify-between items-baseline gap-2 mt-1.5">
-          <span className="text-caption font-semibold text-kk-green">Dibayar {rupiah(dibayar)}</span>
-          <span className="text-caption font-semibold text-kk-orange">Sisa {rupiah(sisa)}</span>
-        </div>
+        <div className="text-[11px] font-semibold text-kk-orange mt-0.5 text-right">Sisa {rupiah(sisa)}</div>
       )}
-      {/* Link bukti (kalau ada) — klik buka Drive, tidak ikut buka detail */}
-      {b.Bukti_Bayar && (
-        <a
-          href={b.Bukti_Bayar}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1.5 mt-2.5 text-caption font-semibold text-kk-navy underline"
-        >
-          📎 Lihat bukti bayar
-        </a>
-      )}
-      <div className="flex items-center justify-end gap-1 mt-2.5 text-caption font-semibold text-kk-orange">
-        Ketuk untuk detail &amp; ubah
-        <KkIcon name="chevron" size={16} strokeWidth={2.6} />
-      </div>
     </KkCard>
   );
 }

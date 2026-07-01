@@ -146,6 +146,9 @@ export interface BookingItem {
   Refund_Total: number; Net_Diterima: number; Sisa_Bayar: number;
   Kelebihan_Bayar: number; DP_Hangus: number; Is_Closed: string; Label: string;
   Bukti_Bayar?: string; Tgl_Pembayaran?: string;
+  // Jejak waktu: Created_At (saat dibuat) & Updated_At (tiap diubah). Timestamp =
+  // kolom lama utk booking dari /info. Dipakai utk urutan "terbaru" & tampil di detail.
+  Created_At?: string; Updated_At?: string; Timestamp?: string;
 }
 
 export interface BookingFullData extends BookingItem {
