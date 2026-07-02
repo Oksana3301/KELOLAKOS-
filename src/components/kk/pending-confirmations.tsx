@@ -8,7 +8,10 @@ import { kwitansiApi } from '@/lib/api-v2';
 import { invalidateBookingData } from '@/lib/query-sync';
 import { driveImageUrl } from '@/lib/halaman-info';
 import { bookingToInvoice } from '@/lib/invoice';
-import { resolveIdentity, buildInvoiceWaText, invoiceWaUrl } from '@/lib/invoice-wa';
+import { resolveIdentity, buildInvoiceWaText, buildBookingInternalWaText, invoiceWaUrl } from '@/lib/invoice-wa';
+
+// Nomor Bang Mezi (penjaga) — samakan dengan tombol "Kabari Mezi" di detail booking.
+const MEZI_WA = '6283841614871';
 import { KkCard, KkButton, Sheet } from './ui';
 import { rupiah } from './status';
 
@@ -65,18 +68,27 @@ export function PendingConfirmations() {
       // Simpan WAKTU konfirmasi (saat ini) → dipakai akurat di pesan/invoice WhatsApp.
       api.confirmBooking(v.id, v.status, { total: v.total, dibayar: v.dibayar, tglBayar: new Date().toISOString() }),
     onSuccess: (_r, v) => {
-      // Auto-kirim ke WhatsApp customer: DP → INVOICE (ada sisa + rekening),
-      // Lunas → KUITANSI PELUNASAN (sisa 0). Data booking + rincian dibawa semua.
       const inv = bookingToInvoice(
         { ...v.b, Harga_Total_Net: v.total, Net_Diterima: v.dibayar, Sisa_Bayar: Math.max(0, v.total - v.dibayar) },
         undefined,
       );
       const identity = resolveIdentity(kwSettings, inv.layanan || 'penginapan');
-      const url = invoiceWaUrl(buildInvoiceWaText(inv, identity), v.b.WhatsApp);
-      const opened = typeof window !== 'undefined' ? window.open(url, '_blank', 'noopener') : null;
+      // 1) CUSTOMER: DP → INVOICE (sisa + rekening), Lunas → KUITANSI (sisa 0).
+      const custUrl = invoiceWaUrl(buildInvoiceWaText(inv, identity), v.b.WhatsApp);
+      // 2) INTERNAL (Mezi + Admin/owner): recap booking dikonfirmasi + bukti.
+      const recap = buildBookingInternalWaText(v.b, { status: v.status, total: v.total, dibayar: v.dibayar });
+      const meziUrl = invoiceWaUrl(recap, MEZI_WA);
+      const adminUrl = invoiceWaUrl(recap, identity.waResmi || '628116646615');
+      if (typeof window !== 'undefined') {
+        // Customer duluan, lalu Mezi & Admin (best-effort; browser bisa blokir
+        // popup beruntun → tombol "Buka Invoice" di toast jadi cadangan).
+        window.open(custUrl, '_blank', 'noopener');
+        setTimeout(() => { try { window.open(meziUrl, '_blank', 'noopener'); } catch { /* diblokir */ } }, 1400);
+        setTimeout(() => { try { window.open(adminUrl, '_blank', 'noopener'); } catch { /* diblokir */ } }, 2600);
+      }
       const jenis = v.status === 'Lunas' ? 'Kuitansi pelunasan' : 'Invoice';
-      toast.success(`✓ Diterima — ${jenis} ${opened ? 'dibuka di WhatsApp' : 'siap dikirim'}`, {
-        action: { label: 'Buka WA', onClick: () => window.open(url, '_blank', 'noopener') },
+      toast.success(`✓ Diterima — ${jenis} ke customer + recap ke Mezi & Admin`, {
+        action: { label: 'Buka Invoice', onClick: () => window.open(custUrl, '_blank', 'noopener') },
       });
       setSel(null);
       invalidateBookingData(qc);

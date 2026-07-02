@@ -81,6 +81,53 @@ export function buildInvoiceWaText(inv: Invoice, id: InvoiceIdentity): string {
   return L.join('\n');
 }
 
+/** Recap INTERNAL (untuk Bang Mezi & Admin/owner) saat booking dikonfirmasi:
+ *  nama + WA customer, kamar/tipe/gedung, periode, tanggal, status, total/dibayar/
+ *  sisa, dan link bukti bayar. Beda dari pesan customer (yang berupa invoice). */
+type InternalBooking = {
+  Nama_Customer?: string; WhatsApp?: string | number; Layanan?: string;
+  Nama_Kamar?: string; Gedung?: string; Tipe_Kamar?: string;
+  Paket?: string; Durasi?: string; CheckIn?: string; CheckOut?: string;
+  Bukti_Bayar?: string; Bukti_URLs?: string; BookingID?: string;
+};
+function fmtTglInternal(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+export function buildBookingInternalWaText(
+  b: InternalBooking,
+  o: { status: 'DP' | 'Lunas'; total: number; dibayar: number },
+): string {
+  const isKost = String(b.Layanan || '').toUpperCase().includes('KOS');
+  const sisa = Math.max(0, (o.total || 0) - (o.dibayar || 0));
+  const seen = new Set<string>();
+  const bukti = [String(b.Bukti_Bayar || ''), String(b.Bukti_URLs || '')].join('\n')
+    .split(/[\s,;|]+/).map((s) => s.trim())
+    .filter((u) => u && !seen.has(u) && (seen.add(u), true));
+  const wa = String(b.WhatsApp ?? '');
+  const L: string[] = [];
+  L.push('🌸 *Booking DIKONFIRMASI — Top Hills*');
+  L.push(o.status === 'Lunas' ? '(LUNAS) mohon disiapkan ya 🙏' : '(DP) mohon disiapkan ya 🙏');
+  L.push('');
+  L.push(`👤 Nama: *${b.Nama_Customer || '-'}*`);
+  if (wa) L.push(`📱 WA: ${wa}`);
+  L.push(`🏠 Layanan: ${isKost ? 'Kost Putri' : 'Penginapan'}`);
+  L.push(`🚪 Kamar: *${b.Nama_Kamar || '-'}*${b.Gedung ? ` · ${b.Gedung}` : ''}${b.Tipe_Kamar ? ` (${b.Tipe_Kamar})` : ''}`);
+  if (b.Paket || b.Durasi) L.push(`🗓️ Periode: ${b.Paket || b.Durasi}`);
+  if (fmtTglInternal(b.CheckIn)) L.push(`📅 Masuk: ${fmtTglInternal(b.CheckIn)}`);
+  if (fmtTglInternal(b.CheckOut)) L.push(`📅 Keluar: ${fmtTglInternal(b.CheckOut)}`);
+  L.push(`💳 Status: ${o.status === 'Lunas' ? 'LUNAS ✓' : 'DP'}`);
+  if (o.total > 0) L.push(`💰 Total: ${rp(o.total)}`);
+  if (o.dibayar > 0) L.push(`✅ Dibayar: ${rp(o.dibayar)}`);
+  if (sisa > 0) L.push(`⏳ Sisa: ${rp(sisa)}`);
+  if (b.BookingID) L.push(`🔖 ${b.BookingID}`);
+  if (bukti.length) { L.push('🧾 Bukti bayar:'); bukti.slice(0, 3).forEach((u) => L.push(u)); }
+  L.push('');
+  L.push('Makasih 🌸');
+  return L.join('\n');
+}
+
 /** Bangun link wa.me berisi invoice/kuitansi untuk sebuah booking. */
 export function invoiceWaUrl(text: string, whatsapp?: string | number | null): string {
   let p = String(whatsapp ?? '').replace(/[^0-9]/g, '');
