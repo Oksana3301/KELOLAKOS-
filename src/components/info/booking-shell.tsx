@@ -116,6 +116,7 @@ export function THSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 // Detail booking untuk pesan WA konfirmasi (dikirim ke Penjaga & Admin).
 export type BookingDoneDetail = {
   nama?: string;
+  waCustomer?: string;       // nomor WA tamu (untuk internal: Mezi/Admin bisa simpan kontak)
   jenis?: 'baru' | 'perpanjang';
   layanan?: string;          // 'KOS' | 'PENGINAPAN'
   kamar?: string;            // "2A — Gedung B" atau "3A, 3B"
@@ -150,6 +151,7 @@ export function buildBookingWaText(d?: BookingDoneDetail): string {
     : '🌸 *Konfirmasi Booking & Pembayaran — Top Hills*');
   L.push('');
   if (d.nama) L.push(`👤 Nama: *${d.nama}*`);
+  if (d.waCustomer) L.push(`📱 WA: ${d.waCustomer}`);
   L.push(`🏠 Layanan: ${isKost ? 'Kost Putri' : 'Penginapan'}`);
   if (d.kamar) L.push(`🚪 Kamar: *${d.kamar}*${d.roomCount && d.roomCount > 1 ? ` (${d.roomCount} kamar)` : ''}`);
   if (d.durasi) L.push(`🗓️ Periode: ${d.durasi}`);

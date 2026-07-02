@@ -2307,14 +2307,31 @@ export function BookingDetail({
   const buktiUrls = parseBuktiUrls(allBuktiRaw);
 
   // Semi-auto WA (PR-2): kabari penjaga (Mezi) booking yang sudah diterima.
+  // Penjaga butuh info LENGKAP → sertakan WA tamu, tipe kamar, tanggal masuk/keluar,
+  // periode, total & sisa, plus link bukti bayar (kalau ada).
   function kabariMezi() {
     const MEZI = '6283841614871'; // Bang Mezi (penjaga). Ganti bila nomornya beda.
-    const msg =
-      `Halo Bang Mezi 🙏, ada booking:\n` +
-      `${booking.Nama_Customer || '-'} — ${booking.Nama_Kamar || '-'}${booking.Gedung ? ' (' + booking.Gedung + ')' : ''}\n` +
-      `${String(booking.Layanan).toUpperCase() === 'KOS' ? 'Kost' : 'Penginapan'}${booking.Paket ? ' · ' + booking.Paket : ''} · Status: ${status}\n` +
-      `Mohon disiapkan ya, makasih 🌸`;
-    window.open(`https://wa.me/${MEZI}?text=${encodeURIComponent(msg)}`, '_blank');
+    const keluar = displayCheckOutOf(booking);
+    const lines = [
+      '🌸 *Booking Top Hills* — mohon disiapkan ya Bang Mezi 🙏',
+      '',
+      `👤 Nama: *${booking.Nama_Customer || '-'}*`,
+      booking.WhatsApp ? `📱 WA: ${waPhone(booking.WhatsApp)}` : '',
+      `🏠 Layanan: ${isKostBk ? 'Kost Putri' : 'Penginapan'}`,
+      `🚪 Kamar: *${booking.Nama_Kamar || '-'}*${booking.Gedung ? ` · ${booking.Gedung}` : ''}${booking.Tipe_Kamar ? ` (${booking.Tipe_Kamar})` : ''}`,
+      booking.Paket ? `🗓️ Periode: ${booking.Paket}` : '',
+      booking.CheckIn ? `📅 Masuk: ${tglPanjang(booking.CheckIn)}` : '',
+      keluar ? `📅 Keluar: ${tglPanjang(keluar)}` : '',
+      booking.Jumlah_Orang && booking.Jumlah_Orang > 1 ? `👥 Jumlah orang: ${booking.Jumlah_Orang}` : '',
+      `💳 Status bayar: ${status}`,
+      booking.Harga_Total_Net ? `💰 Total: ${rupiah(booking.Harga_Total_Net)}` : '',
+      dibayar ? `✅ Sudah dibayar: ${rupiah(dibayar)}` : '',
+      sisa > 0 ? `⏳ Sisa: ${rupiah(sisa)}` : '',
+      buktiUrls.length ? `🧾 Bukti bayar:\n${buktiUrls.join('\n')}` : '',
+      '',
+      'Makasih 🌸',
+    ].filter(Boolean);
+    window.open(`https://wa.me/${MEZI}?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
   }
 
   return (

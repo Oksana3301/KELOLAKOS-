@@ -220,7 +220,7 @@ function PerpanjangForm() {
   if (done) {
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
     const detail: BookingDoneDetail | undefined = sel ? {
-      nama: sel.nama, jenis: 'perpanjang', layanan: sel.layanan,
+      nama: sel.nama, waCustomer: normWa(sel.whatsapp), jenis: 'perpanjang', layanan: sel.layanan,
       kamar: sel.kamar,
       durasi, checkIn: tglMulai, checkOut: '',
       orang, fasilitas: facNames, extraBed: extraBedQty,
