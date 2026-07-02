@@ -4,8 +4,11 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type BookingFullData, type RoomStatus } from '@/lib/api';
+import { kwitansiApi } from '@/lib/api-v2';
 import { invalidateBookingData } from '@/lib/query-sync';
 import { driveImageUrl } from '@/lib/halaman-info';
+import { bookingToInvoice } from '@/lib/invoice';
+import { resolveIdentity, buildInvoiceWaText, invoiceWaUrl } from '@/lib/invoice-wa';
 import { KkCard, KkButton, Sheet } from './ui';
 import { rupiah } from './status';
 
@@ -50,17 +53,31 @@ export function PendingConfirmations() {
   const { data } = useQuery({ queryKey: ['pending-bookings'], queryFn: api.getPendingBookings, retry: 0, refetchInterval: 60_000 });
   // Daftar kamar (untuk pilih/ganti kamar saat edit) — berbagi cache dgn /booking.
   const { data: initial } = useQuery({ queryKey: ['initial-data'], queryFn: api.getInitialData });
+  // Rekening & identitas untuk invoice/kuitansi WA otomatis.
+  const { data: kwSettings } = useQuery({ queryKey: ['kwitansi-settings'], queryFn: kwitansiApi.get, retry: 0, staleTime: 60_000 });
   const rooms = useMemo<RoomStatus[]>(() => initial?.roomStatus || [], [initial]);
   const list = Array.isArray(data) ? data : [];
   const [sel, setSel] = useState<BookingFullData | null>(null);
   const [edit, setEdit] = useState<BookingFullData | null>(null);
 
   const confirm = useMutation({
-    mutationFn: (v: { id: string; status: 'DP' | 'Lunas'; total: number; dibayar: number }) =>
+    mutationFn: (v: { id: string; status: 'DP' | 'Lunas'; total: number; dibayar: number; b: BookingFullData }) =>
       // Simpan WAKTU konfirmasi (saat ini) → dipakai akurat di pesan/invoice WhatsApp.
       api.confirmBooking(v.id, v.status, { total: v.total, dibayar: v.dibayar, tglBayar: new Date().toISOString() }),
-    onSuccess: () => {
-      toast.success('✓ Booking diterima — total & sisa tercatat otomatis');
+    onSuccess: (_r, v) => {
+      // Auto-kirim ke WhatsApp customer: DP → INVOICE (ada sisa + rekening),
+      // Lunas → KUITANSI PELUNASAN (sisa 0). Data booking + rincian dibawa semua.
+      const inv = bookingToInvoice(
+        { ...v.b, Harga_Total_Net: v.total, Net_Diterima: v.dibayar, Sisa_Bayar: Math.max(0, v.total - v.dibayar) },
+        undefined,
+      );
+      const identity = resolveIdentity(kwSettings, inv.layanan || 'penginapan');
+      const url = invoiceWaUrl(buildInvoiceWaText(inv, identity), v.b.WhatsApp);
+      const opened = typeof window !== 'undefined' ? window.open(url, '_blank', 'noopener') : null;
+      const jenis = v.status === 'Lunas' ? 'Kuitansi pelunasan' : 'Invoice';
+      toast.success(`✓ Diterima — ${jenis} ${opened ? 'dibuka di WhatsApp' : 'siap dikirim'}`, {
+        action: { label: 'Buka WA', onClick: () => window.open(url, '_blank', 'noopener') },
+      });
       setSel(null);
       invalidateBookingData(qc);
     },
@@ -136,7 +153,7 @@ export function PendingConfirmations() {
           onClose={() => setSel(null)}
           onEdit={() => { setEdit(sel); setSel(null); }}
           onConfirm={(s, total, dibayar) => {
-            confirm.mutate({ id: sel.BookingID, status: s, total, dibayar });
+            confirm.mutate({ id: sel.BookingID, status: s, total, dibayar, b: sel });
           }}
           onReject={() => { if (window.confirm(`Tolak booking ${sel.Nama_Customer}?`)) reject.mutate(sel.BookingID); }}
         />

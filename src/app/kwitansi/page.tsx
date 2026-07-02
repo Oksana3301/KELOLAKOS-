@@ -209,21 +209,30 @@ export default function InvoicePage() {
     const sisa = balance;
 
     const lokasi = [`Kamar ${namaKamar}`, gedung, lantai ? `Lantai ${lantai}` : ''].filter(Boolean).join(' · ');
+    // Rincian item (dari data booking) → tampilkan supaya jelas apa yang ditagih.
+    const rincianLines = invoice.items.map((it) => {
+      const sub = it.qty * it.price;
+      return `• ${it.desc}${it.qty > 1 ? ` (${it.qty} × ${rp(it.price)})` : ''}: ${rp(sub)}`;
+    });
 
     return [
       `Halo Kak ${nama} 🌸`,
-      ``,
-      `Berikut konfirmasi pembayaran Top Hills:`,
-      ``,
+      sisa > 0 ? `Berikut *invoice / tagihan* Top Hills:` : `Berikut *kuitansi pelunasan* Top Hills:`,
       `🏠 ${lokasi}`,
       `🛏️ Tipe: ${isKost ? 'Kost' : 'Penginapan'}${tipe ? ` · ${tipe}` : ''}`,
       periode ? `📅 Periode sewa: ${periode}` : '',
-      `✅ Telah melakukan ${jenisBayar}${dibayarAmt ? `: ${rp(dibayarAmt)}` : ''} pada ${bayarSaat}`,
-      sisa > 0 ? `💰 Sisa tagihan: ${rp(sisa)}` : `💰 Status: LUNAS ✓`,
+      `*Rincian:*`,
+      ...rincianLines,
+      `*Total: ${rp(subtotal)}*`,
+      `✅ Telah ${jenisBayar}${dibayarAmt ? ` ${rp(dibayarAmt)}` : ''} pada ${bayarSaat}`,
+      sisa > 0 ? `*💰 Sisa tagihan: ${rp(sisa)}*` : `*💰 Status: LUNAS ✓*`,
+      // Rekening: DP → untuk lunasi sisa · Lunas → arsip.
+      sisa > 0 ? `*Lunasi sisa ke rekening:*` : `*Rekening (arsip):*`,
+      `🏦 ${identity.bankName}`,
+      `No. Rek: *${identity.accountNo}* (a.n. ${identity.accountName})`,
       // Aturan jam khusus penginapan (kost jangka panjang tidak relevan).
       !isKost ? `⏰ ${JAM_NOTE}` : '',
-      ``,
-      `Berikut bukti/invoice yang dapat kami kirimkan, mohon dicek kembali ya. 🙏`,
+      sisa > 0 ? `Setelah transfer, kirim buktinya ke chat ini ya 🙏` : ``,
       `Terima kasih 🌸`,
     ].filter((l) => l !== '').join('\n');
   }
