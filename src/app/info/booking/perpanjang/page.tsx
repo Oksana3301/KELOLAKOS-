@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, RupiahInput, SectionTitle } from '@/components/info/booking-shell';
+import { BookingShell, BookingDone, THCard, THBtn, THField, THInput, THSelect, RupiahInput, SectionTitle, type BookingDoneDetail } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { PostFormActions } from '@/components/info/post-form-actions';
 import { PaymentStep } from '@/components/info/payment-step';
@@ -218,9 +218,21 @@ function PerpanjangForm() {
   }
 
   if (done) {
+    const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
+    const detail: BookingDoneDetail | undefined = sel ? {
+      nama: sel.nama, jenis: 'perpanjang', layanan: sel.layanan,
+      kamar: sel.kamar,
+      durasi, checkIn: tglMulai, checkOut: '',
+      orang, fasilitas: facNames, extraBed: extraBedQty,
+      bayar: bayar === 'DP' ? 'DP' : 'Full',
+      dp: bayar === 'DP' ? dpAmount : undefined,
+      total: base.price + addonTotal + extraOrang,
+      bookingId: sel.bookingId,
+    } : undefined;
     return (
       <BookingShell back={{ href: '/info', label: 'Beranda' }}>
-        <BookingDone nama={sel?.nama} demo={submitDemo} />
+        <BookingDone nama={sel?.nama} demo={submitDemo} detail={detail}
+          waMezi={normWa(info.waMezi || DEFAULT_INFO.waMezi)} waResmi={normWa(info.waResmi || DEFAULT_INFO.waResmi)} />
       </BookingShell>
     );
   }

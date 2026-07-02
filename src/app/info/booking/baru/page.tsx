@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { api, type PublicRoom, type BuktiFile } from '@/lib/api';
 import { halamanInfoApi } from '@/lib/api-v2';
 import { DEFAULT_INFO, mergeInfo } from '@/lib/halaman-info';
-import { BookingShell, BookingDone, THCard, THField, THInput, THSelect, RupiahInput, SectionTitle } from '@/components/info/booking-shell';
+import { BookingShell, BookingDone, THCard, THField, THInput, THSelect, RupiahInput, SectionTitle, type BookingDoneDetail } from '@/components/info/booking-shell';
 import { FasilitasEstimasi } from '@/components/info/fasilitas-estimasi';
 import { PostFormActions } from '@/components/info/post-form-actions';
 import { PaymentStep } from '@/components/info/payment-step';
@@ -292,7 +292,24 @@ export default function BookingBaruPage() {
   }
 
   if (done) {
-    return <BookingShell back={{ href: '/info', label: 'Beranda' }}><BookingDone nama={nama} demo={demo} /></BookingShell>;
+    const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
+    const detail: BookingDoneDetail = {
+      nama, jenis: 'baru', layanan,
+      kamar: selectedKeys.join(', '), roomCount,
+      durasi: perMalam ? `${Math.max(1, nights)} malam` : durasi,
+      checkIn: isKost ? (kostLockTanggal ? '' : mulai) : mulai,
+      checkOut: isKost ? '' : checkOut,
+      orang, fasilitas: facNames, extraBed: extraBedQty, catatan: catatan.trim() || undefined,
+      bayar: bayar === 'DP' ? 'DP' : 'Full',
+      dp: bayar === 'DP' ? dpAmount : undefined,
+      total: base.price + addonTotal + extraOrang,
+    };
+    return (
+      <BookingShell back={{ href: '/info', label: 'Beranda' }}>
+        <BookingDone nama={nama} demo={demo} detail={detail}
+          waMezi={normWa(meziNo)} waResmi={normWa(info.waResmi || DEFAULT_INFO.waResmi)} />
+      </BookingShell>
+    );
   }
 
   if (payStep) {
