@@ -6,6 +6,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, type BookingItem, type BookingFullData, type PaymentRecord } from '@/lib/api';
 import { invalidateBookingData } from '@/lib/query-sync';
+import { bookingToInvoice } from '@/lib/invoice';
+import { resolveIdentity, buildInvoiceWaText, invoiceWaUrl } from '@/lib/invoice-wa';
 import { facilityApi, kwitansiApi } from '@/lib/api-v2';
 import { ScreenHead, KkButton, KkCard, BayarBadge, StickyCTA } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
@@ -456,6 +458,22 @@ function BookingPageInner() {
       // Sheet detail masih terbuka di belakang → segarkan supaya Sisa/Sudah
       // dibayar & Riwayat Pembayaran ikut terupdate (jangan tampil data lama).
       if (detailIdRef.current === v.b.BookingID) refreshDetail(v.b.BookingID);
+      // Auto KUITANSI PELUNASAN ke WhatsApp bila pembayaran ini melunasi.
+      const total = Number(v.b.Harga_Total_Net) || 0;
+      const prevDibayar = Number(v.b.Net_Diterima ?? v.b.Total_Bayar) || 0;
+      const newDibayar = prevDibayar + Number(v.nominal || 0);
+      if (total > 0 && (String(v.jenis).toUpperCase() === 'PELUNASAN' || newDibayar >= total)) {
+        const inv = bookingToInvoice(
+          { ...v.b, Harga_Total_Net: total, Net_Diterima: newDibayar, Sisa_Bayar: Math.max(0, total - newDibayar) },
+          undefined,
+        );
+        const identity = resolveIdentity(bizSettings, inv.layanan || 'penginapan');
+        const url = invoiceWaUrl(buildInvoiceWaText(inv, identity), v.b.WhatsApp);
+        window.open(url, '_blank', 'noopener');
+        toast.success('🧾 Kuitansi pelunasan dibuka di WhatsApp', {
+          action: { label: 'Buka WA', onClick: () => window.open(url, '_blank', 'noopener') },
+        });
+      }
     },
     onError: (e) => toast.error('Gagal mencatat: ' + (e as Error).message),
   });
