@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { TH, TH_SERIF, TH_BODY } from '@/lib/tophills-theme';
 
@@ -187,6 +188,21 @@ export function BookingDone({ nama, demo, detail, waMezi, waResmi }: {
   const linkMezi = `https://wa.me/${MEZI}?text=${msg}`;
   const linkAdmin = `https://wa.me/${ADMIN}?text=${msg}`;
 
+  // Auto-buka WA berurutan: Bang Mezi dulu, lalu Admin (biar owner selalu ikut
+  // dikabari — penjaga kadang lupa). Best-effort: browser bisa memblokir popup
+  // tanpa gesture → tombol ①/② di bawah tetap jadi cadangan yang pasti jalan.
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    try { window.open(linkMezi, '_blank', 'noopener'); } catch { /* diblokir → pakai tombol */ }
+    const t = setTimeout(() => {
+      try { window.open(linkAdmin, '_blank', 'noopener'); } catch { /* diblokir → pakai tombol */ }
+    }, 1600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isKost = String(detail?.layanan || '').toUpperCase().includes('KOS');
   const rows: Array<[string, string]> = [];
   if (detail) {
@@ -207,8 +223,9 @@ export function BookingDone({ nama, demo, detail, waMezi, waResmi }: {
       <div className="text-[56px] leading-none">✅</div>
       <h1 style={{ fontFamily: TH_SERIF, color: TH.brown }} className="text-[28px] font-bold mt-2 mb-2">Permintaan Terkirim!</h1>
       <p className="text-[14.5px] leading-relaxed mb-3" style={{ color: TH.brownSoft }}>
-        Bukti bayarmu sudah kami terima. <b style={{ color: TH.brown }}>Satu langkah terakhir:</b> kirim konfirmasi via WhatsApp
-        — <b style={{ color: TH.brown }}>ke Bang Mezi dulu</b>, lalu ke Admin — supaya booking-mu cepat diproses 🌸
+        Bukti bayarmu sudah kami terima. WhatsApp akan <b style={{ color: TH.brown }}>terbuka otomatis</b> —
+        <b style={{ color: TH.brown }}> ① Bang Mezi</b> dulu, lalu <b style={{ color: TH.brown }}>② Admin</b>. Kalau ada yang
+        tidak terbuka (diblokir browser), tinggal tap tombolnya di bawah ya 🌸
       </p>
 
       {/* Ringkasan booking di layar (biar jelas apa yang dikirim ke WA) */}

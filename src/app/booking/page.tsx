@@ -110,6 +110,44 @@ function bookingCreatedKey(b: BookingItem): string {
   return String(x.Created_At || x.Timestamp || b.Tgl_Pembayaran || b.CheckIn || b.BookingID || '');
 }
 
+// Basis tanggal untuk FILTER rentang — dipilih owner (DP / Lunas / Keluar / Masuk).
+type DateBasis = 'masuk' | 'dp' | 'lunas' | 'keluar';
+function bookingBasisDate(b: BookingItem, basis: DateBasis): string {
+  if (basis === 'keluar') return isoDay(displayCheckOut(b));
+  // Tgl_Pembayaran = tanggal pembayaran tercatat saat konfirmasi (proxy tgl DP/lunas).
+  if (basis === 'dp') return isoDay(b.Tgl_Pembayaran || '') || isoDay(b.CheckIn);
+  if (basis === 'lunas') {
+    // KOST lunas → tanggal masuk = tanggal pelunasan (CheckIn sumber kebenaran).
+    if (bookingLayanan(b) === 'kost' && mapPayStatus(b) === 'Lunas' && isoDay(b.CheckIn)) return isoDay(b.CheckIn);
+    return isoDay(b.Tgl_Pembayaran || '');
+  }
+  return bookingRangeDate(b); // 'masuk' = tanggal keisi (check-in / DP)
+}
+
+// Urutan per-status untuk "nyisir & penagihan":
+//  • Lunas / Belum Bayar → tanggal MASUK menaik (rencana masuk paling awal di atas).
+//  • DP → tanggal DP menaik (paling LAMA DP di atas → paling perlu ditagih pelunasan).
+// Tanggal kosong ditaruh paling bawah (sentinel tinggi).
+function bookingSortKey(b: BookingItem, status: PayStatus): string {
+  const HI = '9999-12-31';
+  if (status === 'DP') return isoDay(b.Tgl_Pembayaran || '') || isoDay(b.CheckIn) || HI;
+  if (status === 'Lunas' || status === 'Belum Bayar') return isoDay(b.CheckIn) || bookingRangeDate(b) || HI;
+  return HI;
+}
+function sortByStatusRule(list: BookingItem[], status: PayStatus): BookingItem[] {
+  if (status === 'Batal') {
+    // Batal → paling baru diubah/dibuat di atas (arsip).
+    return [...list].sort((a, b) => bookingCreatedKey(b).localeCompare(bookingCreatedKey(a)));
+  }
+  return [...list].sort((a, b) => {
+    const ka = bookingSortKey(a, status), kb = bookingSortKey(b, status);
+    if (ka !== kb) return ka.localeCompare(kb); // menaik (paling awal / paling lama DP dulu)
+    return bookingCreatedKey(b).localeCompare(bookingCreatedKey(a)); // tie-break: terbaru dulu
+  });
+}
+// Urutan seksi saat tab "Semua" — yang perlu ditagih di atas, arsip di bawah.
+const SECTION_ORDER: PayStatus[] = ['DP', 'Belum Bayar', 'Lunas', 'Batal'];
+
 export default function BookingPage() {
   return (
     <Suspense fallback={null}>
@@ -128,9 +166,10 @@ function BookingPageInner() {
   const [periode, setPeriode] = useState<string>('semua');
   const [cari, setCari] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
-  // Filter rentang tanggal — basis Tgl Masuk (check-in) atau Tgl Bayar.
+  // Filter rentang tanggal — basis dipilih: Masuk / DP / Lunas / Keluar.
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [dateBasis, setDateBasis] = useState<DateBasis>('masuk');
 
   // Add / edit flow
   const [showFlow, setShowFlow] = useState(false);
@@ -267,11 +306,10 @@ function BookingPageInner() {
     if (tab !== 'semua') {
       list = list.filter((b) => mapPayStatus(b) === (tab as PayStatus));
     }
-    // 3) Filter RENTANG TANGGAL — pakai "tanggal keisi": check-in kalau ada, kalau
-    //    belum (mis. DP) pakai tanggal DP/pembayaran. Jadi booking DP tetap muncul.
+    // 3) Filter RENTANG TANGGAL — basis dipilih owner (Masuk / DP / Lunas / Keluar).
     if (dateFrom || dateTo) {
       list = list.filter((b) => {
-        const d = bookingRangeDate(b);
+        const d = bookingBasisDate(b, dateBasis);
         if (!d) return false;
         if (dateFrom && d < dateFrom) return false;
         if (dateTo && d > dateTo) return false;
@@ -286,9 +324,9 @@ function BookingPageInner() {
           b.Nama_Customer.toLowerCase().includes(q) || b.Nama_Kamar.toLowerCase().includes(q),
       );
     }
-    // 5) Urutkan TERBARU DIBUAT PALING ATAS.
-    return [...list].sort((a, b) => bookingCreatedKey(b).localeCompare(bookingCreatedKey(a)));
-  }, [allBookings, layanan, periode, tab, cari, dateFrom, dateTo]);
+    // Urutan final ditentukan per-status saat render (lihat sortByStatusRule).
+    return list;
+  }, [allBookings, layanan, periode, tab, cari, dateFrom, dateTo, dateBasis]);
 
   // Ringkasan untuk laporan penjaga (mengikuti filter aktif).
   const summary = useMemo(() => {
@@ -639,7 +677,7 @@ function BookingPageInner() {
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2.5 mb-4">
+      <div className="grid grid-cols-2 gap-2.5 mb-2.5">
         <label className="text-caption font-semibold text-kk-ink">
           Dari
           <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="kk-input mt-1" />
@@ -648,6 +686,26 @@ function BookingPageInner() {
           Sampai
           <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="kk-input mt-1" />
         </label>
+      </div>
+      {/* Basis tanggal rentang — DP / Lunas / Keluar / Masuk */}
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <span className="text-caption font-semibold text-kk-ink">Berdasarkan:</span>
+        {([
+          { id: 'masuk', label: '📅 Masuk' },
+          { id: 'dp', label: '💵 DP' },
+          { id: 'lunas', label: '✅ Lunas' },
+          { id: 'keluar', label: '🚪 Keluar' },
+        ] as { id: DateBasis; label: string }[]).map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setDateBasis(o.id)}
+            className={`min-h-[38px] px-3.5 rounded-kk-pill font-body font-semibold text-[14px] border-2 ${
+              dateBasis === o.id ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
 
       {/* Ringkasan laporan (mengikuti filter aktif) */}
@@ -669,22 +727,37 @@ function BookingPageInner() {
         </KkCard>
       )}
 
-      {/* List — grid 2 kolom biar lebih banyak & jelas keliatan */}
+      {/* List — grid 2 kolom. Tab "Semua" → dikelompokkan per status (DP, Belum
+          Bayar, Lunas, Batal) dengan garis pembatas biar gampang disisir. */}
       {filtered.length === 0 ? (
         <KkCard className="text-center text-body text-kk-ink py-7">
           {cari || tab !== 'semua' || layanan !== 'semua'
             ? 'Tidak ada penyewa di kategori ini.'
             : 'Belum ada booking. Tekan tombol Tambah Penyewa di atas untuk mencatat penyewa pertama Anda.'}
         </KkCard>
+      ) : tab === 'semua' ? (
+        SECTION_ORDER.map((s) => {
+          const items = sortByStatusRule(filtered.filter((b) => mapPayStatus(b) === s), s);
+          if (!items.length) return null;
+          return (
+            <div key={s} className="mb-5">
+              <div className="flex items-center gap-2 mb-2.5">
+                <BayarBadge status={s} />
+                <span className="text-caption font-semibold text-kk-ink">{items.length} penyewa</span>
+                <div className="flex-1 h-px bg-kk-mauve" />
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 items-start">
+                {items.map((b) => (
+                  <BookingCard key={b.BookingID} booking={b} fas={bookingFas?.[b.BookingID]} onClick={() => openDetail(b)} />
+                ))}
+              </div>
+            </div>
+          );
+        })
       ) : (
         <div className="grid grid-cols-2 gap-2.5 items-start">
-          {filtered.map((b) => (
-            <BookingCard
-              key={b.BookingID}
-              booking={b}
-              fas={bookingFas?.[b.BookingID]}
-              onClick={() => openDetail(b)}
-            />
+          {sortByStatusRule(filtered, tab as PayStatus).map((b) => (
+            <BookingCard key={b.BookingID} booking={b} fas={bookingFas?.[b.BookingID]} onClick={() => openDetail(b)} />
           ))}
         </div>
       )}
