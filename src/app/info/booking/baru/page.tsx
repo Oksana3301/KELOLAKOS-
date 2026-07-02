@@ -294,7 +294,7 @@ export default function BookingBaruPage() {
   if (done) {
     const facNames = fasilitas.filter((f) => selFac.includes(f.id) && !isExtraBed(f)).map((f) => f.nama);
     const detail: BookingDoneDetail = {
-      nama, jenis: 'baru', layanan,
+      nama, waCustomer: normWa(wa), jenis: 'baru', layanan,
       kamar: selectedKeys.join(', '), roomCount,
       durasi: perMalam ? `${Math.max(1, nights)} malam` : durasi,
       checkIn: isKost ? (kostLockTanggal ? '' : mulai) : mulai,
