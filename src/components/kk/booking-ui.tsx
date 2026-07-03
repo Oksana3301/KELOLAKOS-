@@ -782,14 +782,22 @@ export function BookingFlow({
   const availablePakets = useMemo<PaketKind[]>(() => {
     if (!chosen) return [];
     const lay = String(chosen.room.Layanan_Default || '').toUpperCase();
-    if (lay.includes('KOS')) return ['6bulan', 'setahun'];
+    let base: PaketKind[];
+    if (lay.includes('KOS')) base = ['6bulan', 'setahun'];
     // Penginapan: harian/mingguan/bulanan + tahunan (tahun memang DISEMBUNYIKAN
     // hanya di /info publik, tapi tetap tersedia untuk owner di /booking).
-    if (lay.includes('INAP') || lay.includes('PENGINAP')) return ['harian', 'mingguan', 'bulanan', 'setahun'];
-    return (Object.keys(chosen.paketPrices) as PaketKind[]).sort(
-      (a, b) => PAKET_META[a].order - PAKET_META[b].order,
-    );
-  }, [chosen]);
+    else if (lay.includes('INAP') || lay.includes('PENGINAP')) base = ['harian', 'mingguan', 'bulanan', 'setahun'];
+    else base = (Object.keys(chosen.paketPrices) as PaketKind[]).sort((a, b) => PAKET_META[a].order - PAKET_META[b].order);
+    // Saat EDIT: pastikan periode ASLI booking TETAP jadi opsi supaya tidak
+    // dipaksa ganti sendiri (mis. kost "Bulanan"/"12 Bulan" → "6 Bulan").
+    const editKind = isEdit && editBooking
+      ? (classifyPaket(editBooking.Paket || '') || classifyPaket(editBooking.Durasi || ''))
+      : null;
+    if (editKind && !base.includes(editKind)) {
+      base = [...base, editKind].sort((a, b) => PAKET_META[a].order - PAKET_META[b].order);
+    }
+    return base;
+  }, [chosen, isEdit, editBooking]);
 
   // Saat kamar/paket berubah, pastikan paketKind selalu VALID (ada di availablePakets).
   // Kost → default "Per 6 Bulan" · Penginapan → default "Per Hari".
@@ -1101,8 +1109,14 @@ export function BookingFlow({
         // satu backend hiccup. Nama & harga punya >1 penulis (editPendingBooking &
         // submitBookingEdit), jadi gagal TOTAL hanya bila keduanya sama-sama gagal.
         const softErr: string[] = [];
-        let editPendingOk = !chosen; // tanpa kamar → tak ada yang ditulis di langkah ini
+        let editPendingOk = false; // true HANYA bila penulisan kolom kamar/identitas sukses
         let submitEditOk = false;
+        if (!chosen) softErr.push('kamar tak terdeteksi — kamar/periode/orang tidak diperbarui');
+        // JANGAN blank tanggal tersimpan: kost DP/Belum-Bayar punya effCheckIn/Out
+        // kosong (tanggal di-set saat pelunasan). Fallback ke tanggal tersimpan.
+        const dISO = (v?: string) => { const d = v ? new Date(v) : null; return d && !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : ''; };
+        const sendCheckIn = effCheckIn || dISO(editBooking.CheckIn);
+        const sendCheckOut = effCheckOut || dISO(editBooking.CheckOut);
         if (chosen) {
           try {
             await api.editPendingBooking({
@@ -1115,7 +1129,7 @@ export function BookingFlow({
               layanan: chosen.room.Layanan_Default,
               durasi: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
               jumlahOrang,
-              tglMulai: effCheckIn,
+              tglMulai: sendCheckIn || undefined, // kosong → jangan blank tanggal tersimpan
               // Bukti: kirim SEMUA file (multi) → backend simpan & nempel ke BookingID
               // ini (append ke Bukti_URLs). Cukup buktiFiles (tak dobel-upload).
               buktiFiles: bukti.length ? bukti : undefined,
@@ -1138,8 +1152,8 @@ export function BookingFlow({
             bookingId: editBooking.BookingID,
             customerName: nama.trim(),
             whatsapp: hp ? waPhone(hp) : '',
-            checkIn: effCheckIn,
-            checkOut: effCheckOut,
+            checkIn: sendCheckIn,
+            checkOut: sendCheckOut,
             hargaKamar: hargaKamarEff,
             extraCharge: editBooking.Extra_Charge,
             diskon: editBooking.Diskon,
@@ -1164,11 +1178,18 @@ export function BookingFlow({
           // menimpanya kembali ke check-in lama. Fallback: check-in tersimpan.
           const keepDate = effCheckIn
             || (editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : undefined);
+          // JANGAN re-stamp tanggal bayar tiap edit → itu merusak tanggal DP/
+          // pelunasan tercatat. Pakai tanggal dari form (prefill dari tersimpan),
+          // fallback ke Tgl_Pembayaran tersimpan; "now" hanya bila benar2 kosong.
+          const keepTglBayar =
+            (tglBayar ? new Date(tglBayar).toISOString() : '')
+            || (editBooking.Tgl_Pembayaran ? new Date(String(editBooking.Tgl_Pembayaran)).toISOString() : '')
+            || new Date().toISOString();
           // Non-fatal: bila confirmBooking gagal (mis. backend belum deploy),
           // data & total tetap tersimpan — jangan gagalkan seluruh edit.
           try {
             await api.confirmBooking(editBooking.BookingID, payStatus, {
-              total, dibayar, tglPelunasan: keepDate, tglBayar: new Date().toISOString(),
+              total, dibayar, tglPelunasan: keepDate, tglBayar: keepTglBayar,
             });
           } catch (e) {
             softErr.push('uang/tanggal: ' + ((e as Error)?.message || String(e)));

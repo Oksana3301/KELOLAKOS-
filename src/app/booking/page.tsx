@@ -392,12 +392,18 @@ function BookingPageInner() {
             Paket: db.Paket || prev.Paket,
             Durasi: db.Durasi || prev.Durasi,
             Jumlah_Periode: db.Jumlah_Periode || prev.Jumlah_Periode,
+            Jumlah_Orang: db.Jumlah_Orang || prev.Jumlah_Orang,
             Layanan: db.Layanan || prev.Layanan,
             Tipe_Kamar: db.Tipe_Kamar || prev.Tipe_Kamar,
             Nama_Kamar: db.Nama_Kamar || prev.Nama_Kamar,
             Gedung: db.Gedung || prev.Gedung,
             RoomID: db.RoomID || prev.RoomID,
             Harga_Kamar: db.Harga_Kamar || prev.Harga_Kamar,
+            // Tanggal & WA: kalau detail tak mengirimnya, JANGAN sampai prefill Ubah
+            // mereset tanggal masuk ke hari ini / mengosongkan WA lalu tersimpan.
+            CheckIn: db.CheckIn || prev.CheckIn,
+            CheckOut: db.CheckOut || prev.CheckOut,
+            WhatsApp: db.WhatsApp || prev.WhatsApp,
           };
         });
         setDetailPayments(d.payments || []);
