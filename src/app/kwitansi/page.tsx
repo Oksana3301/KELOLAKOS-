@@ -5,10 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type BookingItem } from '@/lib/api';
 import { kwitansiApi, type KwitansiSettings } from '@/lib/api-v2';
 import { toast } from 'sonner';
-import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
+import { ScreenHead, KkButton, KkCard, BayarBadge } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { mapPayStatus } from '@/components/kk/status';
+import { mapPayStatus, rupiah } from '@/components/kk/status';
 import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 import { InvoiceDocument } from '@/components/invoice/InvoiceDocument';
 import { ALL_ROOMS, roomKey } from '@/lib/building-layout';
@@ -94,6 +94,7 @@ export default function InvoicePage() {
   const [showQR, setShowQR] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState('');
+  const [cariTenant, setCariTenant] = useState('');
   const [seedKey, setSeedKey] = useState('penginapan-harian');
   const [manualInv, setManualInv] = useState<Invoice>(() => JSON.parse(JSON.stringify(SEED_SCENARIOS['penginapan-harian'])));
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -103,7 +104,9 @@ export default function InvoicePage() {
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [docH, setDocH] = useState(1600);
 
-  const { data: initialData } = useQuery({ queryKey: ['initial-data'], queryFn: api.getInitialData });
+  // FATAL kalau stale: invoice/kuitansi HARUS ikut status booking terkini →
+  // selalu ambil data segar saat halaman Invoice dibuka.
+  const { data: initialData } = useQuery({ queryKey: ['initial-data'], queryFn: api.getInitialData, staleTime: 0, refetchOnMount: 'always' });
   const { data: settings } = useQuery({ queryKey: ['kwitansi-settings'], queryFn: kwitansiApi.get });
 
   // Apply saved default variant once settings load.
@@ -147,6 +150,8 @@ export default function InvoicePage() {
     queryKey: ['booking-detail', selectedId],
     queryFn: () => api.getBookingDetail(selectedId),
     enabled: mode === 'booking' && !!selectedId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const invoice: Invoice = useMemo(() => {
@@ -337,16 +342,57 @@ export default function InvoicePage() {
             <p className="text-body text-kk-navy m-0">Belum ada penyewa yang membayar. Catat pembayaran dulu di menu Booking, atau pakai mode "Isi manual".</p>
           </KkCard>
         ) : (
-          <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 mt-3">
-            {tenants.map((b) => {
-              const on = b.BookingID === selectedId;
+          <div className="mt-3">
+            <input
+              value={cariTenant}
+              onChange={(e) => setCariTenant(e.target.value)}
+              placeholder="Cari nama / kamar…"
+              className="kk-input mb-2.5"
+            />
+            <p className="text-caption text-kk-ink mb-2">
+              Pilih booking di bawah. <b className="text-kk-navy">Lunas → Kuitansi</b>, <b className="text-kk-navy">DP/Belum Bayar → Invoice</b> (sesuai status terkini).
+            </p>
+            {(() => {
+              const q = cariTenant.trim().toLowerCase();
+              const list = q
+                ? tenants.filter((b) => (b.Nama_Customer || '').toLowerCase().includes(q) || (b.Nama_Kamar || '').toLowerCase().includes(q))
+                : tenants;
+              if (list.length === 0) return <p className="text-caption text-kk-ink py-3 text-center">Tidak ada yang cocok dengan &quot;{cariTenant}&quot;.</p>;
               return (
-                <button key={b.BookingID} onClick={() => setSelectedId(b.BookingID)}
-                  className={'flex-shrink-0 min-h-[44px] px-4 rounded-[12px] font-body font-semibold text-[15px] whitespace-nowrap border-2 ' + (on ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy')}>
-                  {b.Nama_Customer || '(tanpa nama)'}
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[340px] overflow-y-auto -mx-1 px-1">
+                  {list.map((b) => {
+                    const on = b.BookingID === selectedId;
+                    const st = mapPayStatus(b);
+                    const total = Number(b.Harga_Total_Net) || 0;
+                    const sisa = b.Sisa_Bayar != null ? Number(b.Sisa_Bayar) : Math.max(total - (Number(b.Net_Diterima ?? b.Total_Bayar) || 0), 0);
+                    const doc = st === 'Lunas' ? '🧾 Kuitansi' : st === 'Batal' ? '🚫 Batal' : '📄 Invoice';
+                    return (
+                      <button
+                        key={b.BookingID}
+                        onClick={() => setSelectedId(b.BookingID)}
+                        className={'text-left rounded-kk-card p-3 border-2 transition-colors ' + (on ? 'border-kk-navy bg-kk-navy/5' : 'border-kk-mauve bg-white')}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-heading font-bold text-[15px] text-kk-navy truncate">
+                              {on ? '✓ ' : ''}{b.Nama_Customer || '(tanpa nama)'}
+                            </div>
+                            <div className="text-[12.5px] text-kk-ink truncate">{b.Nama_Kamar}{b.Gedung ? ' · ' + b.Gedung : ''}</div>
+                          </div>
+                          <BayarBadge status={st} />
+                        </div>
+                        <div className="flex items-baseline justify-between mt-1.5 pt-1.5 border-t border-kk-mauve-soft">
+                          <span className="text-[12px] font-semibold text-kk-navy">{doc}</span>
+                          <span className="text-[12.5px] text-kk-ink">
+                            {st === 'Lunas' ? rupiah(total) : sisa > 0 ? <>Sisa <b className="text-kk-orange">{rupiah(sisa)}</b></> : rupiah(total)}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               );
-            })}
+            })()}
           </div>
         )
       ) : (
