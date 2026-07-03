@@ -64,10 +64,18 @@ export function PendingConfirmations() {
   const [edit, setEdit] = useState<BookingFullData | null>(null);
 
   const confirm = useMutation({
-    mutationFn: (v: { id: string; status: 'DP' | 'Lunas'; total: number; dibayar: number; b: BookingFullData }) =>
+    mutationFn: (v: { id: string; status: 'DP' | 'Lunas'; total: number; dibayar: number; b: BookingFullData; email?: string }) =>
       // Simpan WAKTU konfirmasi (saat ini) → dipakai akurat di pesan/invoice WhatsApp.
       api.confirmBooking(v.id, v.status, { total: v.total, dibayar: v.dibayar, tglBayar: new Date().toISOString() }),
     onSuccess: (_r, v) => {
+      // Simpan email customer (bila diisi) lalu AUTO-kirim invoice(DP)/kuitansi(Lunas)
+      // ke email-nya. Graceful: kalau backend email belum deploy, diabaikan diam2.
+      if (v.email && v.email.includes('@')) {
+        api.setBookingEmail({ bookingId: v.id, email: v.email })
+          .then(() => api.sendBookingDoc({ bookingId: v.id, kind: v.status === 'Lunas' ? 'kwitansi' : 'invoice' }))
+          .then((r) => { if (r?.ok) toast.success('📧 ' + (v.status === 'Lunas' ? 'Kuitansi' : 'Invoice') + ' dikirim ke email customer'); })
+          .catch(() => { /* backend email belum deploy → lewati */ });
+      }
       const inv = bookingToInvoice(
         { ...v.b, Harga_Total_Net: v.total, Net_Diterima: v.dibayar, Sisa_Bayar: Math.max(0, v.total - v.dibayar) },
         undefined,
@@ -164,8 +172,8 @@ export function PendingConfirmations() {
           busy={busy}
           onClose={() => setSel(null)}
           onEdit={() => { setEdit(sel); setSel(null); }}
-          onConfirm={(s, total, dibayar) => {
-            confirm.mutate({ id: sel.BookingID, status: s, total, dibayar, b: sel });
+          onConfirm={(s, total, dibayar, email) => {
+            confirm.mutate({ id: sel.BookingID, status: s, total, dibayar, b: sel, email });
           }}
           onReject={() => { if (window.confirm(`Tolak booking ${sel.Nama_Customer}?`)) reject.mutate(sel.BookingID); }}
         />
@@ -196,11 +204,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
   b: BookingFullData; busy: boolean; onClose: () => void; onEdit: () => void;
-  onConfirm: (s: 'DP' | 'Lunas', total: number, dibayar: number) => void; onReject: () => void;
+  onConfirm: (s: 'DP' | 'Lunas', total: number, dibayar: number, email: string) => void; onReject: () => void;
 }) {
   const p = parseCatatan(b.Catatan);
   const orang = safeOrang(b, p);
   const layanan = String(b.Layanan).toUpperCase() === 'KOS' ? 'Kost' : 'Penginapan';
+  // Email customer → auto-kirim invoice/kuitansi + reminder pelunasan.
+  const [email, setEmail] = useState(String(b.Email || ''));
 
   // Nominal BISA dikoreksi sebelum Terima — inilah yang tercatat (Harga_Total_Net,
   // Net_Diterima, Sisa_Bayar) & muncul persis di invoice. Default dari catatan /info.
@@ -249,6 +259,14 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
           {b.tag_perpanjangan ? <Row label="Perpanjangan dari" value={b.tag_perpanjangan} /> : null}
         </div>
 
+        {/* Email customer (opsional) — invoice/kuitansi & reminder pelunasan otomatis */}
+        <label className="block mb-4">
+          <span className="block text-[13px] font-semibold text-kk-navy mb-1.5">✉️ Email customer (opsional)</span>
+          <input className="kk-input" type="email" inputMode="email" placeholder="nama@email.com"
+            value={email} onChange={(e) => setEmail(e.target.value)} />
+          <span className="block text-[12px] text-kk-ink mt-1">Kalau diisi: invoice/kuitansi & reminder pelunasan dikirim otomatis ke email ini.</span>
+        </label>
+
         {/* Biaya — BISA dikoreksi sebelum Terima (inilah yang masuk ke invoice) */}
         <div className="rounded-kk-card border-2 border-kk-mint p-4 mb-5" style={{ background: '#EEF6F0' }}>
           <p className="text-[12px] text-kk-ink mt-0 mb-3">
@@ -277,10 +295,10 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
 
         {/* Aksi — DP pakai nominal DP diterima; Lunas = dibayar penuh */}
         <div className="grid grid-cols-2 gap-2">
-          <KkButton variant="success" onClick={() => onConfirm('DP', totalNum, dpNum)} disabled={busy || totalNum <= 0 || dpNum <= 0}>
+          <KkButton variant="success" onClick={() => onConfirm('DP', totalNum, dpNum, email.trim())} disabled={busy || totalNum <= 0 || dpNum <= 0}>
             Terima · DP
           </KkButton>
-          <KkButton variant="success" onClick={() => onConfirm('Lunas', totalNum, totalNum)} disabled={busy || totalNum <= 0}>
+          <KkButton variant="success" onClick={() => onConfirm('Lunas', totalNum, totalNum, email.trim())} disabled={busy || totalNum <= 0}>
             Terima · Lunas
           </KkButton>
         </div>
