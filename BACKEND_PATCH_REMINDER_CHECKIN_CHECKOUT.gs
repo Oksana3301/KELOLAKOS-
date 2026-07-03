@@ -61,9 +61,22 @@ function _remWaUrl_(raw, text) {
   var p = _remWa_(raw), t = encodeURIComponent(text);
   return p ? ('https://wa.me/' + p + '?text=' + t) : ('https://wa.me/?text=' + t);
 }
+// Cari sheet booking secara robust: pakai SHEETS.BOOKINGS bila ada, lalu nama di
+// REM_CFG, lalu auto-deteksi sheet mana pun yang punya kolom "BookingID".
+function _remSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  try { if (typeof SHEETS !== 'undefined' && SHEETS && SHEETS.BOOKINGS) { var s = ss.getSheetByName(SHEETS.BOOKINGS); if (s) return s; } } catch (e) {}
+  var s2 = ss.getSheetByName(REM_CFG.bookingSheet); if (s2) return s2;
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    var lc = all[i].getLastColumn(); if (lc < 1) continue;
+    var H = all[i].getRange(1, 1, 1, lc).getValues()[0].map(function (h) { return String(h); });
+    if (H.indexOf('BookingID') >= 0) return all[i];
+  }
+  throw new Error('Sheet booking tak ketemu (tak ada sheet dgn kolom BookingID). Set REM_CFG.bookingSheet manual. Sheet yang ada: ' + all.map(function (x) { return x.getName(); }).join(', '));
+}
 function _remRows_() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(REM_CFG.bookingSheet);
-  if (!sh) throw new Error('Sheet "' + REM_CFG.bookingSheet + '" tidak ada — cek REM_CFG.bookingSheet.');
+  var sh = _remSheet_();
   var data = sh.getDataRange().getValues();
   if (data.length < 2) return [];
   var H = data[0].map(function (h) { return String(h); });
