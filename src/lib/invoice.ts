@@ -209,9 +209,21 @@ export function bookingToInvoice(
     }
   }
 
+  // REKONSILIASI ke kolom uang RESMI (Net_Diterima). Saat DP→Lunas lewat Ubah /
+  // konfirmasi, Net_Diterima & Sisa_Bayar di-update TAPI record pembayaran belum
+  // tentu bertambah. Tanpa ini, invoice ikut record lama (masih DP) → status
+  // invoice/kuitansi SALAH (FATAL: user dikirimi invoice DP padahal sudah lunas).
+  const netOfficial = Number(b.Net_Diterima || 0);
+  const recordedPaid = pays.reduce((s, p) => s + p.amount, 0);
+  if (netOfficial > recordedPaid + 1) {
+    pays.push({ label: 'Pelunasan', amount: Math.round(netOfficial - recordedPaid) });
+  }
+
   const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0);
   const totalPaid = pays.reduce((s, p) => s + p.amount, 0);
-  const balance = Math.max(0, subtotal - totalPaid);
+  // Sisa RESMI (kolom booking) jadi acuan bila ada; jangan cuma andalkan record.
+  const sisaOfficial = (b.Sisa_Bayar === undefined || b.Sisa_Bayar === null) ? null : Number(b.Sisa_Bayar);
+  const balance = sisaOfficial != null ? Math.max(0, sisaOfficial) : Math.max(0, subtotal - totalPaid);
   const tag = balance > 0 ? 'TAGIHAN DP' : pays.length > 1 ? 'PELUNASAN' : undefined;
 
   // Check-out: bila tersimpan kosong / ≤ check-in (data kost lama salah), hitung
