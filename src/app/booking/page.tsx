@@ -379,11 +379,25 @@ function BookingPageInner() {
         // diisi getBookingRaw (cegah preview "muncul lalu hilang"/race).
         setDetail((prev) => {
           if (!prev || prev.BookingID !== bookingId) return prev;
+          const db = d.booking as BookingFullData;
           return {
-            ...d.booking,
-            Bukti_Bayar: d.booking.Bukti_Bayar || prev.Bukti_Bayar,
-            Bukti_URLs: d.booking.Bukti_URLs || prev.Bukti_URLs,
-            Tgl_Pembayaran: d.booking.Tgl_Pembayaran || prev.Tgl_Pembayaran,
+            ...db,
+            Bukti_Bayar: db.Bukti_Bayar || prev.Bukti_Bayar,
+            Bukti_URLs: db.Bukti_URLs || prev.Bukti_URLs,
+            Tgl_Pembayaran: db.Tgl_Pembayaran || prev.Tgl_Pembayaran,
+            // PERTAHANKAN kolom penting untuk EDIT (periode/kamar/harga). Kalau
+            // getBookingDetail tak mengembalikannya, JANGAN sampai hilang —
+            // ambil dari data list (prev), biar prefill Ubah tetap benar
+            // (mis. periode "1 Tahun" tidak berubah jadi "6 Bulan" sendiri).
+            Paket: db.Paket || prev.Paket,
+            Durasi: db.Durasi || prev.Durasi,
+            Jumlah_Periode: db.Jumlah_Periode || prev.Jumlah_Periode,
+            Layanan: db.Layanan || prev.Layanan,
+            Tipe_Kamar: db.Tipe_Kamar || prev.Tipe_Kamar,
+            Nama_Kamar: db.Nama_Kamar || prev.Nama_Kamar,
+            Gedung: db.Gedung || prev.Gedung,
+            RoomID: db.RoomID || prev.RoomID,
+            Harga_Kamar: db.Harga_Kamar || prev.Harga_Kamar,
           };
         });
         setDetailPayments(d.payments || []);

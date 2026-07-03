@@ -613,8 +613,12 @@ export function BookingFlow({
       setHp(String(editBooking.WhatsApp || ''));
       setRoomId(editBooking.RoomID || '');
       setLama(editBooking.Jumlah_Periode || 1);
-      setBelumTahu(isBelumTahuPaket(editBooking.Paket));
-      setPaketKind(classifyPaket(editBooking.Paket || '') || 'bulanan');
+      // Periode ASLI booking → jangan sampai berubah sendiri. Baca dari Paket,
+      // fallback ke Durasi (kadang periode tersimpan di salah satunya).
+      setBelumTahu(isBelumTahuPaket(editBooking.Paket) || isBelumTahuPaket(editBooking.Durasi));
+      setPaketKind(
+        classifyPaket(editBooking.Paket || '') || classifyPaket(editBooking.Durasi || '') || 'bulanan',
+      );
       setMasuk(
         editBooking.CheckIn ? new Date(editBooking.CheckIn).toISOString().split('T')[0] : TODAY(),
       );
@@ -793,8 +797,14 @@ export function BookingFlow({
     if (!chosen) return;
     if (!availablePakets.includes(paketKind)) {
       const lay = String(chosen.room.Layanan_Default || '').toUpperCase();
+      // Saat EDIT: JANGAN turunkan periode asli booking (mis. "Setahun" → "6 Bulan")
+      // hanya karena timing effect. Pakai periode asli booking dulu bila valid.
+      const fromBooking = isEdit && editBooking
+        ? (classifyPaket(editBooking.Paket || '') || classifyPaket(editBooking.Durasi || ''))
+        : null;
       let next: PaketKind;
-      if (lay.includes('KOS')) next = '6bulan';
+      if (fromBooking && availablePakets.includes(fromBooking)) next = fromBooking;
+      else if (lay.includes('KOS')) next = '6bulan';
       else if (lay.includes('INAP') || lay.includes('PENGINAP')) next = 'harian';
       else if (chosen.primaryKind && availablePakets.includes(chosen.primaryKind)) next = chosen.primaryKind;
       else next = availablePakets[0] || 'bulanan';
@@ -1087,23 +1097,34 @@ export function BookingFlow({
         // 1) Kolom kamar/tipe/identitas (yang TIDAK disentuh submitBookingEdit) —
         //    supaya ganti kamar/tipe ikut tersimpan. Aman: hanya set kolom,
         //    status pembayaran tetap. Pakai aksi editPendingBooking (by BookingID).
+        // Kumpulkan error per-langkah; JANGAN gagalkan SELURUH edit hanya karena
+        // satu backend hiccup. Nama & harga punya >1 penulis (editPendingBooking &
+        // submitBookingEdit), jadi gagal TOTAL hanya bila keduanya sama-sama gagal.
+        const softErr: string[] = [];
+        let editPendingOk = !chosen; // tanpa kamar → tak ada yang ditulis di langkah ini
+        let submitEditOk = false;
         if (chosen) {
-          await api.editPendingBooking({
-            bookingId: editBooking.BookingID,
-            nama: nama.trim(),
-            whatsapp: hp ? waPhone(hp) : undefined,
-            roomId: chosen.room.RoomID,
-            kamar: `${chosen.room.Nama_Kamar}${chosen.room.Gedung ? ' — ' + chosen.room.Gedung : ''}`,
-            tipe: chosen.room.Tipe_Kamar,
-            layanan: chosen.room.Layanan_Default,
-            durasi: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
-            jumlahOrang,
-            tglMulai: effCheckIn,
-            // Bukti: kirim SEMUA file (multi) → backend simpan & nempel ke BookingID
-            // ini (append ke Bukti_URLs). Cukup buktiFiles (tak dobel-upload).
-            buktiFiles: bukti.length ? bukti : undefined,
-            hapusBukti: hapusBukti || undefined,
-          });
+          try {
+            await api.editPendingBooking({
+              bookingId: editBooking.BookingID,
+              nama: nama.trim(),
+              whatsapp: hp ? waPhone(hp) : undefined,
+              roomId: chosen.room.RoomID,
+              kamar: `${chosen.room.Nama_Kamar}${chosen.room.Gedung ? ' — ' + chosen.room.Gedung : ''}`,
+              tipe: chosen.room.Tipe_Kamar,
+              layanan: chosen.room.Layanan_Default,
+              durasi: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
+              jumlahOrang,
+              tglMulai: effCheckIn,
+              // Bukti: kirim SEMUA file (multi) → backend simpan & nempel ke BookingID
+              // ini (append ke Bukti_URLs). Cukup buktiFiles (tak dobel-upload).
+              buktiFiles: bukti.length ? bukti : undefined,
+              hapusBukti: hapusBukti || undefined,
+            });
+            editPendingOk = true;
+          } catch (e) {
+            softErr.push('data kamar/identitas: ' + ((e as Error)?.message || String(e)));
+          }
         }
         // 2) Harga (IKUT tipe kamar + paket terpilih) + total + tanggal + fasilitas.
         //    NON-FATAL: kalau submitBookingEdit backend bermasalah (mis. belum
@@ -1128,8 +1149,9 @@ export function BookingFlow({
             isEkstra: editBooking.Is_Ekstra === 'YA',
             fasilitasIds: Array.from(selFas),
           });
+          submitEditOk = true;
         } catch (e) {
-          console.warn('submitBookingEdit dilewati (backend belum siap):', e);
+          softErr.push('harga/fasilitas: ' + ((e as Error)?.message || String(e)));
         }
         // 3) OTORITATIF: tulis kolom uang (Total, Dibayar, SISA) lewat confirmBooking
         //    supaya SISA = total − dibayar selalu benar (submitBookingEdit lama bisa
@@ -1149,9 +1171,15 @@ export function BookingFlow({
               total, dibayar, tglPelunasan: keepDate, tglBayar: new Date().toISOString(),
             });
           } catch (e) {
-            console.warn('confirmBooking (perbaikan sisa) gagal:', e);
+            softErr.push('uang/tanggal: ' + ((e as Error)?.message || String(e)));
           }
         }
+        // Gagal TOTAL hanya bila dua penulis utama gagal → benar-benar tak tersimpan.
+        if (!editPendingOk && !submitEditOk) {
+          throw new Error(softErr.join(' · ') || 'Perubahan gagal disimpan.');
+        }
+        // Sebagian gagal tapi inti tersimpan → beri tahu owner supaya cek ulang.
+        if (softErr.length) toast('⚠️ Sebagian belum tersimpan: ' + softErr.join(' · '));
         return editRes;
       }
       if (!chosen) throw new Error('Kamar belum dipilih');
