@@ -47,10 +47,22 @@ function _custRp_(n) {
   while (s.length > 3) { out = '.' + s.slice(-3) + out; s = s.slice(0, -3); }
   return 'Rp' + (n < 0 ? '-' : '') + s + out;
 }
+// Cari sheet booking robust: SHEETS.BOOKINGS → CUST_CFG.bookingSheet → auto-deteksi
+// sheet mana pun yang punya kolom "BookingID".
+function _custSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  try { if (typeof SHEETS !== 'undefined' && SHEETS && SHEETS.BOOKINGS) { var s = ss.getSheetByName(SHEETS.BOOKINGS); if (s) return s; } } catch (e) {}
+  var s2 = ss.getSheetByName(CUST_CFG.bookingSheet); if (s2) return s2;
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    var lc = all[i].getLastColumn(); if (lc < 1) continue;
+    var H = all[i].getRange(1, 1, 1, lc).getValues()[0].map(function (h) { return String(h); });
+    if (H.indexOf('BookingID') >= 0) return all[i];
+  }
+  throw new Error('Sheet booking tak ketemu (tak ada sheet dgn kolom BookingID). Set CUST_CFG.bookingSheet manual. Sheet yang ada: ' + all.map(function (x) { return x.getName(); }).join(', '));
+}
 function _custRows_() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUST_CFG.bookingSheet);
-  if (!sh) throw new Error('Sheet "' + CUST_CFG.bookingSheet + '" tidak ada.');
-  var data = sh.getDataRange().getValues();
+  var data = _custSheet_().getDataRange().getValues();
   if (data.length < 2) return [];
   var H = data[0].map(function (h) { return String(h); });
   return data.slice(1).map(function (r) { var o = {}; H.forEach(function (h, i) { o[h] = r[i]; }); return o; });
@@ -91,14 +103,13 @@ function _custRekening_(isKost) {
   };
 }
 function ensureBookingEmailCol_() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUST_CFG.bookingSheet);
-  if (!sh) throw new Error('Sheet booking tak ada');
+  var sh = _custSheet_();
   var H = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(String);
   if (H.indexOf('Email') < 0) sh.getRange(1, H.length + 1).setValue('Email');
   return 'OK — kolom Email siap.';
 }
 function _custSetCol_(id, col, val) {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUST_CFG.bookingSheet);
+  var sh = _custSheet_();
   var data = sh.getDataRange().getValues(), H = data[0].map(String);
   var idCol = H.indexOf('BookingID'); if (idCol < 0) throw new Error('Kolom BookingID tak ada');
   var c = H.indexOf(col); if (c < 0) { sh.getRange(1, H.length + 1).setValue(col); c = H.length; }
