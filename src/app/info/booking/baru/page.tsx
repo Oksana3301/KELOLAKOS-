@@ -38,6 +38,7 @@ const ORDER: Record<string, number> = { kosong: 0, dp: 1, terisi: 2, perbaikan: 
 export default function BookingBaruPage() {
   const [nama, setNama] = useState('');
   const [wa, setWa] = useState('');
+  const [email, setEmail] = useState('');
   const [waErr, setWaErr] = useState('');
   const [layanan, setLayanan] = useState<'KOS' | 'PENGINAPAN'>('KOS');
   const [kamar, setKamar] = useState(''); // KOST: kamar tunggal
@@ -270,7 +271,7 @@ export default function BookingBaruPage() {
         roomEstimasi > 0 ? `[RINC u=${rincUnit} q=${rincQty} a=${addonForRoom}]` : '',
       ].filter(Boolean).join(' — ');
       const res = await submitBookingRequest({
-        jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), layanan, kamar: roomKeyOf(r),
+        jenis: 'baru', nama: nama.trim(), whatsapp: normWa(wa), email: email.trim() || undefined, layanan, kamar: roomKeyOf(r),
         durasi: perMalam ? `${Math.max(1, nights)} malam` : durasi,
         // Kost dgn kunci tanggal → tanggal di-set admin saat konfirmasi (lunas).
         tglMulai: kostLockTanggal ? '' : mulai, bayar, catatan: catat, jumlahOrang: orang,
@@ -343,6 +344,9 @@ export default function BookingBaruPage() {
         </THField>
         <THField label="Nomor WhatsApp" error={waErr || undefined} hint="Untuk konfirmasi booking">
           <THInput inputMode="numeric" placeholder="Contoh: 6281234567890" value={wa} onChange={(e) => setWa(e.target.value)} />
+        </THField>
+        <THField label="Email (opsional)" hint="Untuk kirim invoice, kuitansi & reminder pelunasan otomatis">
+          <THInput type="email" inputMode="email" placeholder="nama@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
         </THField>
 
         {/* 1) Layanan */}

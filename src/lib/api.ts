@@ -145,7 +145,7 @@ export interface BookingItem {
   Diskon: number; Harga_Total_Net: number; Total_Bayar: number;
   Refund_Total: number; Net_Diterima: number; Sisa_Bayar: number;
   Kelebihan_Bayar: number; DP_Hangus: number; Is_Closed: string; Label: string;
-  Bukti_Bayar?: string; Tgl_Pembayaran?: string;
+  Bukti_Bayar?: string; Tgl_Pembayaran?: string; Email?: string;
   // Jejak waktu: Created_At (saat dibuat) & Updated_At (tiap diubah). Timestamp =
   // kolom lama utk booking dari /info. Dipakai utk urutan "terbaru" & tampil di detail.
   Created_At?: string; Updated_At?: string; Timestamp?: string;
@@ -219,6 +219,7 @@ export interface BookingRequestPayload {
   jumlahOrang?: number;
   bukti?: BuktiFile;        // bukti transfer
   dpAmount?: number;        // nominal DP (kalau bayar DP)
+  email?: string;          // email customer (untuk invoice/kuitansi/reminder)
 }
 
 /** Info pembayaran publik (rekening + QR per layanan) dari Pengaturan Invoice. */
@@ -526,6 +527,13 @@ export const api = {
 
   getBookingDetail: (bookingId: string) =>
     callApi<BookingDetail>('getBookingDetail', { bookingId, booking_id: bookingId }),
+  // Simpan email customer (untuk invoice/kuitansi/reminder). Graceful: no-op bila
+  // backend BACKEND_PATCH_CUSTOMER_EMAIL.gs belum di-deploy.
+  setBookingEmail: (data: { bookingId: string; email: string }) =>
+    callApi<{ ok: boolean }>('setBookingEmail', { bookingId: data.bookingId, booking_id: data.bookingId, email: data.email }),
+  // Kirim invoice (DP) / kuitansi (Lunas) / reminder ke email customer.
+  sendBookingDoc: (data: { bookingId: string; kind?: 'invoice' | 'kwitansi' | 'reminder' }) =>
+    callApi<{ ok: boolean; to?: string; skipped?: boolean }>('sendBookingDoc', { bookingId: data.bookingId, booking_id: data.bookingId, kind: data.kind }),
   // Ringkasan fasilitas per booking (untuk badge di kartu daftar /booking).
   // Backend: BACKEND_PATCH_BOOKING_FASILITAS_LIST.gs (action getBookingFasilitas).
   getBookingFasilitas: () =>
