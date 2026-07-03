@@ -260,6 +260,8 @@ export interface SubmitBookingEditPayload {
   checkIn?: string; checkOut?: string; hargaKamar?: number;
   extraCharge?: number; diskon?: number; hargaTotal?: number;
   catatan?: string; extraRequest?: string; isEkstra?: boolean; fasilitasIds?: string[];
+  // Periode & jumlah — supaya ganti periode/lama sewa/orang ikut tersimpan.
+  paket?: string; durasi?: string; jumlahPeriode?: number; jumlahOrang?: number;
 }
 
 /** Ubah data booking (pending atau aktif) — kolom data, tanpa ubah status bayar. */
@@ -454,6 +456,12 @@ export const api = {
       extra_request: data.extraRequest,
       is_ekstra: data.isEkstra,
       fasilitas_ids: data.fasilitasIds,
+      // Periode & jumlah (ganti periode/lama sewa/orang ikut tersimpan).
+      paket: data.paket,
+      paket_durasi: data.paket,
+      durasi: data.durasi,
+      jumlah_periode: data.jumlahPeriode,
+      jumlah_orang: data.jumlahOrang,
     }),
   submitBookingDelete: (bookingId: string) =>
     callApi<{ message?: string; removed?: { payments: number; refunds: number; fees: number } }>(

@@ -1154,6 +1154,11 @@ export function BookingFlow({
             whatsapp: hp ? waPhone(hp) : '',
             checkIn: sendCheckIn,
             checkOut: sendCheckOut,
+            // Periode & jumlah → ikut tersimpan (backend submitBookingEdit_fixed_).
+            paket: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
+            durasi: belumTahu ? PERIODE_BELUM_TAHU : PAKET_BACKEND[customDate ? 'harian' : paketKind],
+            jumlahPeriode: lamaEff,
+            jumlahOrang,
             hargaKamar: hargaKamarEff,
             extraCharge: editBooking.Extra_Charge,
             diskon: editBooking.Diskon,
