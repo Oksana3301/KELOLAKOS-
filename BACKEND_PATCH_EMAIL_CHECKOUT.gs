@@ -42,10 +42,24 @@ function _checkoutHtml_(b) {
     '<div style="text-align:center;margin-top:12px"><a href="' + extendUrl + '" style="display:inline-block;background:linear-gradient(135deg,#1FAF55,#178A43);color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px">Perpanjang via WhatsApp →</a></div>' +
   '</div>';
 
-  // Jalur 2 — Checkout (USULAN copy; tanpa deposit)
+  // Jalur 2 — Checkout (tanpa deposit)
   var checkout = '<div style="background:#FAF6EC;border:1px solid #E7DCC4;border-radius:12px;padding:14px 16px;margin:6px 0">' +
     '<div style="color:#8A6A24;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Kalau tidak lanjut (checkout)</div>' +
-    '<div style="color:#5A5446;font-size:13px;line-height:1.7">• Mohon kosongkan kamar paling lambat tanggal <b>' + berakhir + '</b>.<br>• Kembalikan kunci ke penjaga (Bang Mezi).<br>• Tinggalkan kamar dalam kondisi bersih ya 🌸</div>' +
+    '<div style="color:#5A5446;font-size:13px;line-height:1.7">' +
+      '• Mohon kosongkan kamar paling lambat tanggal <b>' + berakhir + '</b>.<br>' +
+      '• Pastikan <b>semua barang sudah dibawa</b> — hati-hati, jangan ada yang tertinggal.<br>' +
+      '• Kembalikan kunci ke penjaga (Bang Mezi).<br>' +
+      '• Tinggalkan kamar dalam kondisi bersih &amp; tetap jaga ketertiban ya 🌸' +
+    '</div>' +
+  '</div>';
+
+  // Kesan & pesan — ajakan feedback (link dari config, fallback link resmi).
+  var s = (typeof _custSettings_ === 'function') ? _custSettings_() : {};
+  var fbLink = String(s.link_feedback || '').trim() || 'https://tinyurl.com/feedbacktophillspdg';
+  var feedback = '<div style="background:#FBF3E0;border:1px solid #E7D3A0;border-radius:12px;padding:16px;margin:16px 0;text-align:center">' +
+    '<div style="color:#8A6A24;font-size:13px;font-weight:bold;margin-bottom:6px">💛 Tetap ingat Top Hills ya!</div>' +
+    '<div style="color:#5A5446;font-size:13px;line-height:1.6">Terima kasih sudah tinggal bersama kami. Boleh dong bagikan kesan &amp; pesan kamu tentang Top Hills — masukanmu sangat berarti 🌸</div>' +
+    '<div style="margin-top:12px"><a href="' + fbLink + '" style="display:inline-block;background:linear-gradient(135deg,#B98C34,#8A6A24);color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px">Beri Kesan &amp; Pesan →</a></div>' +
   '</div>';
 
   return '<div style="margin:0;padding:0;background:#F2EADA">' +
@@ -59,7 +73,7 @@ function _checkoutHtml_(b) {
         '<div style="padding:26px 28px;font-family:Arial,Helvetica,sans-serif">' +
           '<p style="color:#3E2F1C;font-size:15px;line-height:1.55;margin:0 0 16px">Halo Kak <b>' + nama + '</b> 🌸<br>Sekadar mengingatkan dengan lembut, masa sewa kost kamu akan berakhir <b>± 30 hari lagi</b>. Berikut detailnya:</p>' +
           '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + detail + '</table>' +
-          perpanjang + checkout +
+          perpanjang + checkout + feedback +
         '</div>' +
         '<div style="background:#FAF6EC;border-top:1px solid #E7DCC4;padding:20px 28px;text-align:center;font-family:Arial,sans-serif">' +
           '<div style="color:#8A6A24;font-size:11px;font-weight:bold;letter-spacing:1px;margin-bottom:8px">BUTUH BANTUAN?</div>' +
@@ -79,7 +93,13 @@ function sendCheckoutEmail_(b) {
   }
   var wa = String((b && b.WhatsApp) || '').trim();
   if (wa && typeof _fonnteSend_ === 'function') {
-    var msg = '🗓️ Halo Kak ' + String(b.Nama_Customer || '') + ', masa sewa kost kamu (kamar ' + String(b.Nama_Kamar || '') + ') akan berakhir ± 30 hari lagi (' + (b.CheckOut ? _custTglID_(b.CheckOut) : '-') + ').\nMau lanjut? Balas pesan ini untuk *perpanjang* & amankan kamar 🌸\nHelpdesk: ' + _custKontak_().helpdesk;
+    var sCfg = (typeof _custSettings_ === 'function') ? _custSettings_() : {};
+    var fb = String(sCfg.link_feedback || '').trim() || 'https://tinyurl.com/feedbacktophillspdg';
+    var msg = '🗓️ Halo Kak ' + String(b.Nama_Customer || '') + ', masa sewa kost kamu (kamar ' + String(b.Nama_Kamar || '') + ') akan berakhir ± 30 hari lagi (' + (b.CheckOut ? _custTglID_(b.CheckOut) : '-') + ').\n' +
+      'Mau lanjut? Balas pesan ini untuk *perpanjang* & amankan kamar 🌸\n' +
+      'Kalau checkout: pastikan semua barang dibawa (jangan ada yang tertinggal) & kembalikan kunci ke Bang Mezi.\n' +
+      'Kesan & pesan untuk Top Hills: ' + fb + '\n' +
+      'Helpdesk: ' + _custKontak_().helpdesk;
     try { var r = _fonnteSend_(wa, msg); out.wa = !!(r && r.ok); } catch (e) { out.waErr = String(e); }
   }
   out.ok = out.email || out.wa;
