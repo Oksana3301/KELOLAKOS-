@@ -482,7 +482,9 @@ function BookingPageInner() {
       const total = Number(v.b.Harga_Total_Net) || 0;
       const prevDibayar = Number(v.b.Net_Diterima ?? v.b.Total_Bayar) || 0;
       const newDibayar = prevDibayar + Number(v.nominal || 0);
-      if (total > 0 && (String(v.jenis).toUpperCase() === 'PELUNASAN' || newDibayar >= total)) {
+      // Kuitansi HANYA bila benar-benar LUNAS (jangan cuma karena jenis 'PELUNASAN'
+      // — pelunasan parsial tetap ada sisa → itu invoice, bukan kuitansi).
+      if (total > 0 && newDibayar >= total) {
         const inv = bookingToInvoice(
           { ...v.b, Harga_Total_Net: total, Net_Diterima: newDibayar, Sisa_Bayar: Math.max(0, total - newDibayar) },
           undefined,

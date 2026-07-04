@@ -8,13 +8,13 @@ import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard, BayarBadge } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { mapPayStatus, rupiah } from '@/components/kk/status';
+import { mapPayStatus, rupiah, type PayStatus } from '@/components/kk/status';
 import { downloadAsPNG, copyAsPNGToClipboard } from '@/lib/image-export';
 import { InvoiceDocument } from '@/components/invoice/InvoiceDocument';
 import { ALL_ROOMS, roomKey } from '@/lib/building-layout';
 import { JAM_NOTE } from '@/lib/booking-rules';
 import {
-  bookingToInvoice, digitsOnly, deriveInvoice, rp, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
+  bookingToInvoice, bookingPaidInfo, digitsOnly, deriveInvoice, rp, DEFAULT_IDENTITY, SEED_SCENARIOS, SCENARIO_LABELS,
   type Invoice, type InvoiceIdentity, type Layanan,
 } from '@/lib/invoice';
 
@@ -85,6 +85,20 @@ const HELP = {
 
 const PREVIEW_W = 520;
 
+// Status EFEKTIF & jenis dokumen sebuah booking — dihitung dari kolom uang
+// (bookingPaidInfo), SAMA seperti dokumen yang di-generate → kartu tak pernah
+// bohong (mis. label "Kuitansi" tapi dokumennya masih invoice).
+function bookingDocMeta(b: BookingItem): { eff: PayStatus; doc: string; sisa: number; total: number } {
+  const st0 = mapPayStatus(b);
+  const info = bookingPaidInfo(b);
+  const eff: PayStatus = st0 === 'Batal' ? 'Batal' : info.fullyPaid ? 'Lunas' : info.paid > 0 ? 'DP' : 'Belum Bayar';
+  const doc = eff === 'Lunas' ? '🧾 Kuitansi' : eff === 'Batal' ? '🚫 Batal' : '📄 Invoice';
+  return { eff, doc, sisa: info.sisa, total: info.total };
+}
+function isKostBooking(b: BookingItem): boolean {
+  return String(b.Layanan || '').toUpperCase().includes('KOS');
+}
+
 export default function InvoicePage() {
   const qc = useQueryClient();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -95,6 +109,8 @@ export default function InvoicePage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [cariTenant, setCariTenant] = useState('');
+  const [svcTab, setSvcTab] = useState<'semua' | 'kost' | 'penginapan'>('semua');
+  const [pickerOpen, setPickerOpen] = useState(true);
   const [seedKey, setSeedKey] = useState('penginapan-harian');
   const [manualInv, setManualInv] = useState<Invoice>(() => JSON.parse(JSON.stringify(SEED_SCENARIOS['penginapan-harian'])));
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -343,70 +359,90 @@ export default function InvoicePage() {
           </KkCard>
         ) : (
           <div className="mt-3">
-            <input
-              value={cariTenant}
-              onChange={(e) => setCariTenant(e.target.value)}
-              placeholder="Cari nama / kamar…"
-              className="kk-input mb-2.5"
-            />
-            <p className="text-caption text-kk-ink mb-2">
-              Pilih booking di bawah. <b className="text-kk-navy">Lunas → Kuitansi</b>, <b className="text-kk-navy">DP/Belum Bayar → Invoice</b> (sesuai status terkini).
-            </p>
-            {(() => {
-              const q = cariTenant.trim().toLowerCase();
-              const list = q
-                ? tenants.filter((b) => (b.Nama_Customer || '').toLowerCase().includes(q) || (b.Nama_Kamar || '').toLowerCase().includes(q))
-                : tenants;
-              if (list.length === 0) return <p className="text-caption text-kk-ink py-3 text-center">Tidak ada yang cocok dengan &quot;{cariTenant}&quot;.</p>;
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[340px] overflow-y-auto -mx-1 px-1">
-                  {list.map((b) => {
-                    const on = b.BookingID === selectedId;
-                    const st = mapPayStatus(b);
-                    const total = Number(b.Harga_Total_Net) || 0;
-                    const sisa = b.Sisa_Bayar != null ? Number(b.Sisa_Bayar) : Math.max(total - (Number(b.Net_Diterima ?? b.Total_Bayar) || 0), 0);
-                    const doc = st === 'Lunas' ? '🧾 Kuitansi' : st === 'Batal' ? '🚫 Batal' : '📄 Invoice';
-                    return (
-                      <button
-                        key={b.BookingID}
-                        onClick={() => setSelectedId(b.BookingID)}
-                        className={'text-left rounded-kk-card p-3 border-2 transition-colors ' + (on ? 'border-kk-navy bg-kk-navy/5' : 'border-kk-mauve bg-white')}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="font-heading font-bold text-[15px] text-kk-navy truncate">
-                              {on ? '✓ ' : ''}{b.Nama_Customer || '(tanpa nama)'}
+            {/* Tab layanan — PISAH Kost & Penginapan biar tidak nyampur */}
+            <div className="flex gap-2 mb-2.5">
+              {([['semua', 'Semua'], ['kost', '🏠 Kost'], ['penginapan', '🏨 Penginapan']] as const).map(([id, label]) => {
+                const n = id === 'semua' ? tenants.length : tenants.filter((b) => isKostBooking(b) === (id === 'kost')).length;
+                const on = svcTab === id;
+                return (
+                  <button key={id} onClick={() => { setSvcTab(id); setPickerOpen(true); }}
+                    className={'flex-1 min-h-[42px] px-2 rounded-kk-pill font-body font-semibold text-[14px] border-2 ' + (on ? 'border-kk-navy bg-kk-navy text-white' : 'border-kk-mauve bg-white text-kk-navy')}>
+                    {label} <span className={on ? 'text-white/80' : 'text-kk-ink'}>{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedBooking && !pickerOpen ? (
+              (() => {
+                const m = bookingDocMeta(selectedBooking);
+                return (
+                  <div className="flex items-center justify-between gap-3 rounded-kk-card border-2 border-kk-navy p-3">
+                    <div className="min-w-0">
+                      <div className="font-heading font-bold text-[15px] text-kk-navy truncate">{selectedBooking.Nama_Customer || '(tanpa nama)'}</div>
+                      <div className="text-[12.5px] text-kk-ink truncate">{selectedBooking.Nama_Kamar}{selectedBooking.Gedung ? ' · ' + selectedBooking.Gedung : ''} · <b className="text-kk-navy">{m.doc}</b></div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <BayarBadge status={m.eff} />
+                      <button onClick={() => setPickerOpen(true)} className="min-h-[40px] px-3 rounded-kk-pill text-[13px] font-semibold border-2 border-kk-mauve bg-white text-kk-navy">Ganti</button>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <>
+                <input value={cariTenant} onChange={(e) => setCariTenant(e.target.value)} placeholder="Cari nama / kamar…" className="kk-input mb-2.5" />
+                {(() => {
+                  const q = cariTenant.trim().toLowerCase();
+                  const list = tenants
+                    .filter((b) => svcTab === 'semua' || isKostBooking(b) === (svcTab === 'kost'))
+                    .filter((b) => !q || (b.Nama_Customer || '').toLowerCase().includes(q) || (b.Nama_Kamar || '').toLowerCase().includes(q));
+                  if (list.length === 0) return <p className="text-caption text-kk-ink py-3 text-center">Tidak ada booking {svcTab !== 'semua' ? svcTab : ''} yang cocok.</p>;
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto -mx-1 px-1">
+                      {list.map((b) => {
+                        const on = b.BookingID === selectedId;
+                        const m = bookingDocMeta(b);
+                        return (
+                          <button key={b.BookingID}
+                            onClick={() => { setSelectedId(b.BookingID); setPickerOpen(false); }}
+                            className={'text-left rounded-kk-card p-3 border-2 transition-colors ' + (on ? 'border-kk-navy bg-kk-navy/5' : 'border-kk-mauve bg-white')}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-heading font-bold text-[15px] text-kk-navy truncate">{on ? '✓ ' : ''}{b.Nama_Customer || '(tanpa nama)'}</div>
+                                <div className="text-[12.5px] text-kk-ink truncate">{b.Nama_Kamar}{b.Gedung ? ' · ' + b.Gedung : ''}</div>
+                              </div>
+                              <BayarBadge status={m.eff} />
                             </div>
-                            <div className="text-[12.5px] text-kk-ink truncate">{b.Nama_Kamar}{b.Gedung ? ' · ' + b.Gedung : ''}</div>
-                          </div>
-                          <BayarBadge status={st} />
-                        </div>
-                        <div className="flex items-baseline justify-between mt-1.5 pt-1.5 border-t border-kk-mauve-soft">
-                          <span className="text-[12px] font-semibold text-kk-navy">{doc}</span>
-                          <span className="text-[12.5px] text-kk-ink">
-                            {st === 'Lunas' ? rupiah(total) : sisa > 0 ? <>Sisa <b className="text-kk-orange">{rupiah(sisa)}</b></> : rupiah(total)}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+                            <div className="flex items-baseline justify-between mt-1.5 pt-1.5 border-t border-kk-mauve-soft">
+                              <span className="text-[12px] font-semibold text-kk-navy">{m.doc}</span>
+                              <span className="text-[12.5px] text-kk-ink">{m.eff === 'Lunas' ? rupiah(m.total) : m.sisa > 0 ? <>Sisa <b className="text-kk-orange">{rupiah(m.sisa)}</b></> : rupiah(m.total)}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
           </div>
         )
       ) : (
         <ManualEditor seedKey={seedKey} setSeedKey={setSeedKey} inv={manualInv} setInv={setManualInv} />
       )}
 
-      {/* Tampilan & opsi */}
-      <div className="mt-5 grid sm:grid-cols-2 gap-3">
-        <SegRow label="Tampilan" options={[{ v: 'krem', l: 'Krem Klasik' }, { v: 'pita', l: 'Pita Emas' }]} value={variant} onChange={(v) => setVariant(v as 'krem' | 'pita')} />
-        <div className="flex gap-2 items-end">
-          <Toggle label="Stempel" on={showStamp} onClick={() => setShowStamp((s) => !s)} />
-          <Toggle label="QR" on={showQR} onClick={() => setShowQR((s) => !s)} />
+      {/* Tampilan & opsi — collapsible biar PREVIEW langsung kelihatan tanpa scroll jauh */}
+      <details className="mt-4 rounded-kk-card border border-kk-mauve bg-white">
+        <summary className="cursor-pointer select-none px-4 py-2.5 font-heading font-bold text-[14px] text-kk-navy">⚙️ Tampilan invoice (variant · stempel · QR)</summary>
+        <div className="px-4 pb-4 grid sm:grid-cols-2 gap-3">
+          <SegRow label="Tampilan" options={[{ v: 'krem', l: 'Krem Klasik' }, { v: 'pita', l: 'Pita Emas' }]} value={variant} onChange={(v) => setVariant(v as 'krem' | 'pita')} />
+          <div className="flex gap-2 items-end">
+            <Toggle label="Stempel" on={showStamp} onClick={() => setShowStamp((s) => !s)} />
+            <Toggle label="QR" on={showQR} onClick={() => setShowQR((s) => !s)} />
+          </div>
         </div>
-      </div>
+      </details>
 
       <div className="mt-4 text-center text-caption text-kk-ink">
         Rekening & QR dipakai: <b className="text-kk-navy">{layanan === 'kost' ? 'Kost' : 'Penginapan'}</b>
