@@ -51,13 +51,21 @@ function _bookingConfirmHtml_(b) {
     (p.estimasi > 0 ? row('Estimasi', rp(p.estimasi)) : '') +
     (p.dp > 0 ? row('DP dibayar', rp(p.dp), '#178A43') : '');
 
+  // KOST: tidak ada batas 1×24 jam untuk pelunasan → ajakan lunasi sebelum menempati.
+  // PENGINAPAN: verifikasi pembayaran maks 1×24 jam (slot diamankan).
+  var amankanNote = isKost
+    ? 'Slot kamu kami amankan dengan DP. Untuk menempati kamar, mohon sudah <b>melunasi semua pembayaran</b> ya 🌸'
+    : 'Slot kamu kami amankan. Mohon selesaikan pembayaran maks <b>1×24 jam</b>.';
+  var langkah3 = isKost
+    ? 'Untuk menempati kamar, mohon sudah melunasi semua pembayaran ya 🌸'
+    : 'Booking aktif setelah diverifikasi admin (maks 1×24 jam).';
   var statusBlock = '<div style="text-align:center;background:#FBF3E0;border:1px solid #E7D3A0;border-radius:12px;padding:14px;margin:18px 0">' +
     '<div style="color:#8A6A24;font-size:16px;font-weight:bold">⏳ Menunggu Konfirmasi</div>' +
-    '<div style="color:#8A7A5A;font-size:12px;margin-top:3px">Slot kamu kami amankan. Mohon selesaikan pembayaran maks <b>1×24 jam</b>.</div></div>';
+    '<div style="color:#8A7A5A;font-size:12px;margin-top:3px">' + amankanNote + '</div></div>';
 
   var langkah = '<div style="background:#FAF6EC;border:1px solid #E7DCC4;border-radius:12px;padding:14px 16px;margin:6px 0">' +
     '<div style="color:#8A6A24;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Langkah selanjutnya</div>' +
-    '<div style="color:#5A5446;font-size:13px;line-height:1.7">1. Transfer ke rekening di bawah.<br>2. Kirim bukti transfer via WhatsApp admin.<br>3. Booking aktif setelah diverifikasi admin (maks 1×24 jam).</div>' +
+    '<div style="color:#5A5446;font-size:13px;line-height:1.7">1. Transfer ke rekening di bawah.<br>2. Kirim bukti transfer via WhatsApp admin.<br>3. ' + langkah3 + '</div>' +
     '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #EDE3CE">' +
       '<div style="color:#3E2F1C;font-size:15px;font-weight:bold">🏦 ' + rek.bank + '</div>' +
       '<div style="color:#3E2F1C;font-size:20px;font-weight:bold;letter-spacing:1px;margin:2px 0">' + rek.no + '</div>' +

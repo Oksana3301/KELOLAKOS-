@@ -89,8 +89,15 @@ function _custBayar_(b) {
   var lunas = total > 0 && sisa <= 0 && dibayar > 0;
   return { total: total, dibayar: dibayar, sisa: sisa, lunas: lunas, refund: refund };
 }
+// Deteksi fasilitas AC (KOST) dari segmen "Fasilitas: ..." di Catatan / kolom Fasilitas_IDs.
+function _custHasAc_(b) {
+  var m = String(b.Catatan || '').match(/Fasilitas:\s*([^—\n]+)/i);
+  var fas = (m ? m[1] : '') + ' ' + String(b.Fasilitas_IDs || '') + ' ' + String(b.Fasilitas || '');
+  return /\bAC\b/i.test(fas) || /air\s*condition/i.test(fas);
+}
 function _custKamar_(b) {
-  return String(b.Nama_Kamar || '-') + (b.Gedung ? (' · ' + b.Gedung) : '') + (b.Tipe_Kamar ? (' (' + b.Tipe_Kamar + ')') : '');
+  var ac = (_custIsKost_(b) && _custHasAc_(b)) ? ' - AC' : '';   // kost + AC → "12A - AC"
+  return String(b.Nama_Kamar || '-') + ac + (b.Gedung ? (' · ' + b.Gedung) : '') + (b.Tipe_Kamar ? (' (' + b.Tipe_Kamar + ')') : '');
 }
 function _custSettings_() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUST_CFG.settingsSheet);
