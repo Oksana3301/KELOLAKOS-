@@ -27,74 +27,72 @@ function _bookingConfirmSubject_(b) {
 }
 
 function _bookingConfirmHtml_(b) {
-  var isKost = (typeof _custIsKost_ === 'function') ? _custIsKost_(b) : String(b.Layanan || '').toUpperCase().indexOf('KOS') >= 0;
-  var rek = (typeof _custRekening_ === 'function') ? _custRekening_(isKost) : { bank: '-', no: '-', atasNama: '-' };
-  var kontak = (typeof _custKontak_ === 'function') ? _custKontak_() : { helpdesk: '0811-6646-615', mezi: '0838-4161-4871' };
-  var rp = (typeof _custRp_ === 'function') ? _custRp_ : function (n) { return 'Rp' + (Number(n) || 0); };
-  var tgl = (typeof _custTglID_ === 'function') ? _custTglID_ : function (v) { return String(v || '-'); };
-  var kamar = (typeof _custKamar_ === 'function') ? _custKamar_(b) : String(b.Nama_Kamar || '-');
-  var nama = String(b.Nama_Customer || 'Kak');
-  var p = _custParseCatatan_(b.Catatan);
-  var periode = b.Paket || b.Durasi || '-';
-  // KOST kunci-tanggal: tanggal masuk di-set saat pelunasan. Penginapan: tampil tanggal.
-  var tglMasuk = b.CheckIn ? tgl(b.CheckIn) : (isKost ? 'di-set saat konfirmasi (pelunasan)' : '-');
+  var isKost = _custIsKost_(b);
+  var rek = _custRekening_(isKost), kontak = _custKontak_();
+  var nama = _thFirstName_(b), nomorKamar = String(b.Nama_Kamar || '-');
+  var p = _custParseCatatan_(b.Catatan), noDoc = String(b.BookingID || '');
+  var durasiText = b.Paket || b.Durasi || '-';
+  var roomTitle = isKost ? ('Kost Putri — Kamar ' + nomorKamar + (_custHasAc_(b) ? ' · AC' : ''))
+    : ('Penginapan' + (b.Tipe_Kamar ? (' · ' + b.Tipe_Kamar) : ''));
+  var subParts = [];
+  if (b.Nama_Customer) subParts.push(String(b.Nama_Customer));
+  if (b.Gedung) subParts.push(String(b.Gedung));
+  if (b.CheckIn) subParts.push('Check-in ' + _custTglID_(b.CheckIn));
+  else if (isKost) subParts.push('Check-in saat pelunasan');
+  var roomSub = subParts.join(' · ');
+  var pills = (!isKost && _custHasAc_(b)) ? ['AC'] : null;
 
-  function row(k, v, color) {
-    return '<tr><td style="padding:9px 0;color:#8A7A5A;font-size:13px;border-bottom:1px solid #EDE3CE">' + k + '</td>' +
-      '<td align="right" style="padding:9px 0;color:' + (color || '#3E2F1C') + ';font-size:13px;font-weight:bold;border-bottom:1px solid #EDE3CE">' + v + '</td></tr>';
+  // Rincian (angka belum final → Estimasi/DP dari Catatan bila ada).
+  var rowsArr = [];
+  rowsArr.push([isKost ? 'Nama Penghuni' : 'Nama Tamu', String(b.Nama_Customer || '-')]);
+  rowsArr.push(['Check-in', b.CheckIn ? _custTglID_(b.CheckIn) : (isKost ? 'Saat pelunasan' : '-')]);
+  if (!isKost && b.CheckOut) rowsArr.push(['Check-out', _custTglID_(b.CheckOut)]);
+  rowsArr.push([isKost ? 'Paket Sewa' : 'Durasi', durasiText]);
+  if (Number(b.Jumlah_Orang) > 1) rowsArr.push(['Jumlah orang', String(b.Jumlah_Orang)]);
+  var totalArr = null;
+  if (p.estimasi > 0 && p.dp > 0) {
+    rowsArr.push(['Estimasi Total', _custRp_(p.estimasi)]);
+    rowsArr.push(['DP dibayar', _custRp_(p.dp), '#5C7A4C']);
+    totalArr = ['Sisa Tagihan', _custRp_(Math.max(0, p.estimasi - p.dp)), '#B0632F'];
+  } else if (p.estimasi > 0) {
+    totalArr = ['Estimasi Total', _custRp_(p.estimasi), '#3A2E1F'];
+  } else if (p.dp > 0) {
+    rowsArr.push(['DP dibayar', _custRp_(p.dp), '#5C7A4C']);
   }
-  var detail = row('Kode Booking', String(b.BookingID || '-')) +
-    row('Kamar', kamar) + row('Layanan', isKost ? 'Kost Putri' : 'Penginapan') +
-    row('Periode', periode) + row('Tanggal masuk', tglMasuk) +
-    (b.CheckOut && !isKost ? row('Check-out', tgl(b.CheckOut)) : '') +
-    (Number(b.Jumlah_Orang) > 1 ? row('Jumlah orang', String(b.Jumlah_Orang)) : '') +
-    (p.estimasi > 0 ? row('Estimasi', rp(p.estimasi)) : '') +
-    (p.dp > 0 ? row('DP dibayar', rp(p.dp), '#178A43') : '');
 
-  // KOST: tidak ada batas 1×24 jam untuk pelunasan → ajakan lunasi sebelum menempati.
-  // PENGINAPAN: verifikasi pembayaran maks 1×24 jam (slot diamankan).
-  var amankanNote = isKost
-    ? 'Slot kamu kami amankan dengan DP. Untuk menempati kamar, mohon sudah <b>melunasi semua pembayaran</b> ya 🌸'
-    : 'Slot kamu kami amankan. Mohon selesaikan pembayaran maks <b>1×24 jam</b>.';
-  var langkah3 = isKost
-    ? 'Untuk menempati kamar, mohon sudah melunasi semua pembayaran ya 🌸'
-    : 'Booking aktif setelah diverifikasi admin (maks 1×24 jam).';
-  var statusBlock = '<div style="text-align:center;background:#FBF3E0;border:1px solid #E7D3A0;border-radius:12px;padding:14px;margin:18px 0">' +
-    '<div style="color:#8A6A24;font-size:16px;font-weight:bold">⏳ Menunggu Konfirmasi</div>' +
-    '<div style="color:#8A7A5A;font-size:12px;margin-top:3px">' + amankanNote + '</div></div>';
+  // KOST: tak ada batas 1×24 jam pelunasan → lunasi sebelum menempati.
+  // PENGINAPAN: selesaikan pembayaran maks 1×24 jam (slot diamankan).
+  var payLine = isKost
+    ? ('Transfer ke ' + rek.bank + ' ' + rek.no + ' a.n ' + rek.atasNama + '. Jika ingin menempati kamar, diharapkan sudah melunasi semua pembayaran.')
+    : ('Transfer ' + (p.dp > 0 ? 'sisa ' : '') + 'ke ' + rek.bank + ' ' + rek.no + ' a.n ' + rek.atasNama + ', maksimal 1×24 jam agar slot tetap aman.');
+  var step3 = isKost
+    ? 'Datang di tanggal check-in, Bang Mezi bantu tunjukkan kamarmu.'
+    : 'Booking aktif setelah diverifikasi admin. Datang mulai 13.00 WIB, Bang Mezi bantu tunjukkan kamarmu.';
 
-  var langkah = '<div style="background:#FAF6EC;border:1px solid #E7DCC4;border-radius:12px;padding:14px 16px;margin:6px 0">' +
-    '<div style="color:#8A6A24;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Langkah selanjutnya</div>' +
-    '<div style="color:#5A5446;font-size:13px;line-height:1.7">1. Transfer ke rekening di bawah.<br>2. Kirim bukti transfer via WhatsApp admin.<br>3. ' + langkah3 + '</div>' +
-    '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #EDE3CE">' +
-      '<div style="color:#3E2F1C;font-size:15px;font-weight:bold">🏦 ' + rek.bank + '</div>' +
-      '<div style="color:#3E2F1C;font-size:20px;font-weight:bold;letter-spacing:1px;margin:2px 0">' + rek.no + '</div>' +
-      '<div style="color:#8A7A5A;font-size:13px">a.n. ' + rek.atasNama + '</div>' +
-    '</div></div>';
+  var waUrl = _thWaUrl_(kontak.helpdesk, 'Halo Top Hills 🌸, saya ' + String(b.Nama_Customer || '') + (noDoc ? (' (kode ' + noDoc + ')') : '') + '. Mau konfirmasi pembayaran booking saya.');
 
-  var jam = isKost ? '' : '<p style="color:#A99C7E;font-size:12px;text-align:center;margin:12px 0 0">⏰ Check-in mulai 13.00 WIB · Check-out maksimal 12.00 WIB</p>';
+  var body = _thDivider_('DETAIL BOOKING') +
+    _thRoomCard_(nomorKamar, roomTitle, roomSub, pills, false) +
+    _thRows_(rowsArr, totalArr) +
+    _thDivider_('LANGKAH SELANJUTNYA') +
+    _thSteps_([
+      ['Lunasi pembayaran', payLine],
+      ['Kirim bukti transfer via WA', 'Ke Helpdesk ' + kontak.helpdesk + (noDoc ? (' dengan kode ' + noDoc) : '') + '.'],
+      ['Check-in & terima kunci', step3]
+    ]);
+  if (!isKost) body += _thNote_('⏰', 'Check-in mulai <b>13.00 WIB</b> · Check-out maksimal <b>12.00 WIB</b>. Lewat jam check-out bisa dihitung tambah 1 malam ya 🙏');
+  body += _thNote_('📄', 'Invoice resmi akan dikirim otomatis setelah admin mengonfirmasi pembayaran kamu.') +
+    _thCta_('Konfirmasi Pembayaran via WA', 'Atau balas email ini kalau ada yang mau ditanyakan', waUrl);
 
-  return '<div style="margin:0;padding:0;background:#F2EADA">' +
-    '<div style="max-width:600px;margin:0 auto;padding:24px 12px;font-family:Georgia,\'Times New Roman\',serif">' +
-      '<div style="background:#ffffff;border:1px solid #E7DCC4;border-radius:18px;overflow:hidden">' +
-        '<div style="background:#8A6A24;background:linear-gradient(135deg,#B98C34,#8A6A24);padding:26px 28px;text-align:center">' +
-          '<div style="color:#FBF7EC;font-size:12px;letter-spacing:4px;font-weight:bold;font-family:Arial,sans-serif">TOP HILLS</div>' +
-          '<div style="color:#ffffff;font-size:22px;font-style:italic;margin-top:6px">Booking Diterima</div>' +
-          '<div style="color:#F3E6C8;font-size:12px;margin-top:4px;font-family:Arial,sans-serif">' + _custFmt_(new Date(), 'd MMMM yyyy') + '  ·  ' + String(b.BookingID || '') + '</div>' +
-        '</div>' +
-        '<div style="padding:26px 28px;font-family:Arial,Helvetica,sans-serif">' +
-          '<p style="color:#3E2F1C;font-size:15px;line-height:1.5;margin:0 0 16px">Halo Kak <b>' + nama + '</b> 🌸<br>Terima kasih! Booking kamu di Top Hills sudah kami terima. Berikut detailnya:</p>' +
-          '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + detail + '</table>' +
-          statusBlock + langkah + jam +
-          '<p style="color:#A99C7E;font-size:12px;text-align:center;margin:14px 0 0">📄 Invoice resmi akan dikirim otomatis setelah admin mengonfirmasi pembayaran kamu.</p>' +
-        '</div>' +
-        '<div style="background:#FAF6EC;border-top:1px solid #E7DCC4;padding:20px 28px;text-align:center;font-family:Arial,sans-serif">' +
-          '<div style="color:#8A6A24;font-size:11px;font-weight:bold;letter-spacing:1px;margin-bottom:8px">BUTUH BANTUAN?</div>' +
-          '<div style="color:#5A5446;font-size:13px;line-height:1.7">💬 Helpdesk Top Hills: <b>' + kontak.helpdesk + '</b><br>💬 Bang Mezi (penjaga): <b>' + kontak.mezi + '</b></div>' +
-          '<div style="color:#A99C7E;font-size:11px;margin-top:14px">Top Hills — Kost Putri &amp; Penginapan · Terima kasih 🌸</div>' +
-        '</div>' +
-      '</div>' +
-    '</div></div>';
+  var headline = isKost ? ('Kamarmu sudah kami siapkan, ' + nama + '.') : ('Booking kamu sudah kami amankan, ' + nama + '.');
+  var sub = isKost
+    ? 'Terima kasih sudah memilih Top Hills sebagai rumah barumu. Slot kamarmu aman — tinggal selesaikan pembayaran. Berikut detailnya.'
+    : 'Terima kasih sudah memilih Top Hills. Slot kamarmu aman — tinggal selesaikan pembayaran ya. Berikut detailnya.';
+
+  return _thShell_('Booking kamu sudah kami terima' + (nomorKamar !== '-' ? (' — kamar ' + nomorKamar + ' menunggu 🏡') : ' 🏡'),
+    _thHero_({ pill: 'BOOKING DITERIMA', headline: headline, sub: sub, box: { label: 'KODE BOOKING', value: noDoc || '-' } }) +
+    _thBodyWrap_(body) +
+    _thFooter_(isKost ? 'Selamat datang di rumah baru, ya.' : 'Sampai ketemu di Top Hills, ya.', 'Konfirmasi booking' + (noDoc ? (' · ' + noDoc) : '')));
 }
 
 // Kirim email konfirmasi booking ke customer (+ WA via Fonnte bila terpasang).
