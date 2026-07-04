@@ -107,6 +107,11 @@ function _custRekening_(isKost) {
     atasNama: t(isKost ? s.inv_kost_account_name : s.inv_png_account_name) || t(s.inv_account_name) || '-',
   };
 }
+// Kontak follow-up untuk customer: Helpdesk (dari Pengaturan) + Bang Mezi (penjaga).
+function _custKontak_() {
+  var s = _custSettings_(), t = function (v) { return String(v == null ? '' : v).trim(); };
+  return { helpdesk: t(s.inv_wa_resmi) || '0811-6646-615', mezi: '0838-4161-4871' };
+}
 function ensureBookingEmailCol_() {
   var sh = _custSheet_();
   var H = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(String);
@@ -168,6 +173,9 @@ function _custDocHtml_(b, mode) {
       (pay.refund > 0 ? _custTr_('↩️ Refund', '-' + _custRp_(pay.refund)) : '') +
     '</table>' +
     '<p>' + statusLine + '</p>' + rekBox + jam +
+    '<div style="border-top:1px solid #eee;margin-top:14px;padding-top:10px;color:#888;font-size:12px">' +
+      '<b>Butuh bantuan?</b><br>💬 Helpdesk Top Hills: ' + _custKontak_().helpdesk + '<br>💬 Bang Mezi (penjaga): ' + _custKontak_().mezi +
+    '</div>' +
     '<p style="color:#888;font-size:12px">Setelah transfer, kirim bukti ke WhatsApp admin ya 🙏 — ' + CUST_CFG.bisnis + '</p>' +
     '</div>';
 }
