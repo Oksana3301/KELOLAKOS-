@@ -185,14 +185,22 @@ function sendBookingDocToCustomer_(data) {
   data = data || {};
   var b = _custFindById_(String(data.bookingId || data.booking_id || '').trim());
   if (!b) return { ok: false, error: 'booking tak ditemukan' };
-  var email = String(b.Email || data.email || '').trim();
-  if (!email || email.indexOf('@') < 0) return { ok: false, skipped: true, reason: 'email customer kosong' };
   var pay = _custBayar_(b), kind = String(data.kind || '').toLowerCase();
   var mode = (kind === 'kwitansi' || kind === 'invoice' || kind === 'reminder') ? kind : (pay.lunas ? 'kwitansi' : 'invoice');
-  try {
-    MailApp.sendEmail({ to: email, subject: _custSubject_(b, mode), htmlBody: _custDocHtml_(b, mode) });
-    return { ok: true, to: email, mode: mode };
-  } catch (e) { return { ok: false, error: String(e) }; }
+  var out = { ok: false, mode: mode, email: false, wa: false };
+  // 1) EMAIL (kalau customer isi email)
+  var email = String(b.Email || data.email || '').trim();
+  if (email && email.indexOf('@') >= 0) {
+    try { MailApp.sendEmail({ to: email, subject: _custSubject_(b, mode), htmlBody: _custDocHtml_(b, mode) }); out.email = true; out.to = email; }
+    catch (e) { out.emailErr = String(e); }
+  }
+  // 2) WHATSAPP via Fonnte (kalau ada nomor & gateway BACKEND_PATCH_FONNTE_WA.gs terpasang)
+  var wa = String(b.WhatsApp || '').trim();
+  if (wa && typeof _fonnteSend_ === 'function') {
+    try { var r = _fonnteSend_(wa, _fonnteCustomerText_(b, mode)); out.wa = !!(r && r.ok); } catch (e) { out.waErr = String(e); }
+  }
+  out.ok = out.email || out.wa;
+  return out;
 }
 
 /* ---------- Reminder pelunasan (harian) ---------- */
