@@ -176,30 +176,29 @@ export function buildBookingWaText(d?: BookingDoneDetail): string {
 }
 
 // Layar sukses setelah submit booking publik (Baru / Perpanjang).
-// Kirim konfirmasi BERURUTAN: ① Bang Mezi (Penjaga) dulu, lalu ② Admin/Helpdesk.
-// Kedua tombol memuat pesan detail booking yang sama supaya gampang dicek.
+// Customer-first: konfirmasi + ringkasan + kontak (Helpdesk & Bang Mezi).
+// Tombol utama membuka WhatsApp berisi detail booking = arsip buat customer &
+// sekaligus notif ke Top Hills. Invoice/kuitansi resmi menyusul setelah admin
+// mengonfirmasi (otomatis via email & WhatsApp).
 export function BookingDone({ nama, demo, detail, waMezi, waResmi }: {
   nama?: string; demo?: boolean; detail?: BookingDoneDetail;
   waMezi?: string; waResmi?: string;
 }) {
   const MEZI = (waMezi || '').replace(/[^0-9]/g, '') || '6283841614871';   // Penjaga (Bang Mezi)
   const ADMIN = (waResmi || '').replace(/[^0-9]/g, '') || '628116646615';  // Helpdesk / Admin
-  const msg = encodeURIComponent(buildBookingWaText(detail ? { ...detail, nama: detail.nama || nama } : undefined));
-  const linkMezi = `https://wa.me/${MEZI}?text=${msg}`;
-  const linkAdmin = `https://wa.me/${ADMIN}?text=${msg}`;
+  const custNama = detail?.nama || nama;
+  const disp = (n: string) => n.replace(/^62/, '0');
+  const msg = encodeURIComponent(buildBookingWaText(detail ? { ...detail, nama: custNama } : undefined));
+  const linkKonfirmasi = `https://wa.me/${ADMIN}?text=${msg}`;
+  const bantuan = (to: string) => `https://wa.me/${to}?text=${encodeURIComponent(`Halo Top Hills 🌸, saya ${custNama || ''} butuh bantuan soal booking saya.`)}`;
 
-  // Auto-buka WA berurutan: Bang Mezi dulu, lalu Admin (biar owner selalu ikut
-  // dikabari — penjaga kadang lupa). Best-effort: browser bisa memblokir popup
-  // tanpa gesture → tombol ①/② di bawah tetap jadi cadangan yang pasti jalan.
+  // Auto-buka WA konfirmasi ke Top Hills (thread berisi detail booking = arsip
+  // untuk customer + notif admin). Best-effort; tombol di bawah cadangan.
   const firedRef = useRef(false);
   useEffect(() => {
     if (firedRef.current) return;
     firedRef.current = true;
-    try { window.open(linkMezi, '_blank', 'noopener'); } catch { /* diblokir → pakai tombol */ }
-    const t = setTimeout(() => {
-      try { window.open(linkAdmin, '_blank', 'noopener'); } catch { /* diblokir → pakai tombol */ }
-    }, 1600);
-    return () => clearTimeout(t);
+    try { window.open(linkKonfirmasi, '_blank', 'noopener'); } catch { /* diblokir → pakai tombol */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -221,19 +220,16 @@ export function BookingDone({ nama, demo, detail, waMezi, waResmi }: {
   return (
     <div className="text-center pt-3">
       <div className="text-[56px] leading-none">✅</div>
-      <h1 style={{ fontFamily: TH_SERIF, color: TH.brown }} className="text-[28px] font-bold mt-2 mb-2">Permintaan Terkirim!</h1>
-      <p className="text-[14.5px] leading-relaxed mb-3" style={{ color: TH.brownSoft }}>
-        Bukti bayarmu sudah kami terima. WhatsApp akan <b style={{ color: TH.brown }}>terbuka otomatis</b> —
-        <b style={{ color: TH.brown }}> ① Bang Mezi</b> dulu, lalu <b style={{ color: TH.brown }}>② Admin</b>. Kalau ada yang
-        tidak terbuka (diblokir browser), tinggal tap tombolnya di bawah ya 🌸
+      <h1 style={{ fontFamily: TH_SERIF, color: TH.brown }} className="text-[27px] font-bold mt-2 mb-2">Booking Berhasil Terkirim!</h1>
+      <p className="text-[14.5px] leading-relaxed mb-4" style={{ color: TH.brownSoft }}>
+        Terima kasih{custNama ? <> Kak <b style={{ color: TH.brown }}>{custNama}</b></> : ''} 🌸 — booking kamu sudah kami terima
+        &amp; sedang <b style={{ color: TH.brown }}>menunggu konfirmasi admin</b> (maks 1×24 jam).
       </p>
 
-      {/* Ringkasan booking di layar (biar jelas apa yang dikirim ke WA) */}
+      {/* Ringkasan booking */}
       {rows.length > 0 && (
         <div className="rounded-[16px] p-4 text-left mb-4" style={{ background: '#fff', border: `1px solid ${TH.border}` }}>
-          <div className="text-[12px] font-bold mb-2" style={{ color: TH.gold }}>
-            RINGKASAN BOOKING{(detail?.nama || nama) ? ` · ${detail?.nama || nama}` : ''}
-          </div>
+          <div className="text-[12px] font-bold mb-2" style={{ color: TH.gold }}>RINGKASAN BOOKING KAMU</div>
           <div className="space-y-1.5">
             {rows.map(([k, v]) => (
               <div key={k} className="flex items-start gap-3 text-[13px]">
@@ -245,28 +241,39 @@ export function BookingDone({ nama, demo, detail, waMezi, waResmi }: {
         </div>
       )}
 
-      <p className="text-[13px] leading-relaxed mb-4" style={{ color: TH.brownSoft }}>
-        Booking aktif <b style={{ color: TH.brown }}>setelah pembayaran dikonfirmasi admin</b> (maks 1×24 jam).
-      </p>
       {demo && (
         <div className="text-[11.5px] rounded-full px-3 py-1.5 inline-block mb-4" style={{ background: '#FBF1D8', color: '#8A6A24', border: '1px solid #E7D3A0' }}>
           ⚙️ Mode demo — backend submit belum di-deploy
         </div>
       )}
-      <div className="space-y-3 mt-2">
-        {/* ① Bang Mezi (Penjaga) — chat duluan di sini */}
-        <a href={linkMezi} target="_blank" rel="noopener noreferrer"
+
+      <div className="space-y-3 mt-1">
+        {/* Utama: kirim konfirmasi (WhatsApp) — thread arsip customer + notif admin */}
+        <a href={linkKonfirmasi} target="_blank" rel="noopener noreferrer"
           className="inline-flex w-full items-center justify-center gap-2.5 rounded-[16px] font-bold text-[16px] no-underline min-h-[58px] px-5"
           style={{ background: 'linear-gradient(135deg,#1FAF55,#178A43)', color: '#fff', boxShadow: '0 10px 26px rgba(23,138,67,0.32)' }}>
-          ① 💬 Konfirmasi ke Bang Mezi (Penjaga)
+          💬 Kirim Konfirmasi ke Top Hills (WhatsApp)
         </a>
-        {/* ② Admin / Helpdesk Top Hills */}
-        <a href={linkAdmin} target="_blank" rel="noopener noreferrer"
-          className="inline-flex w-full items-center justify-center gap-2.5 rounded-[16px] font-bold text-[15px] no-underline min-h-[52px] px-5"
-          style={{ background: '#fff', color: '#178A43', border: '1.5px solid #178A43' }}>
-          ② Lalu teruskan ke Admin Top Hills
-        </a>
-        <p className="text-[12px]" style={{ color: TH.brownSoft }}>Bang Mezi (penjaga) dulu, lalu Admin · 0811-6646-615</p>
+        <p className="text-[12.5px] leading-relaxed" style={{ color: TH.brownSoft }}>
+          📄 <b style={{ color: TH.brown }}>Invoice/kuitansi resmi</b> dikirim otomatis (email &amp; WhatsApp) setelah admin mengonfirmasi.
+        </p>
+
+        {/* Kontak untuk lanjut — Helpdesk & Bang Mezi */}
+        <div className="rounded-[16px] p-4 text-left" style={{ background: '#fff', border: `1px solid ${TH.border}` }}>
+          <div className="text-[12px] font-bold mb-2.5" style={{ color: TH.gold }}>BUTUH BANTUAN? HUBUNGI</div>
+          <a href={bantuan(ADMIN)} target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-between gap-2 no-underline rounded-[12px] px-3 py-2.5 mb-2"
+            style={{ background: TH.cream, border: `1px solid ${TH.border}` }}>
+            <span className="text-[13.5px] font-bold" style={{ color: TH.brown }}>💬 Helpdesk Top Hills</span>
+            <span className="text-[13px] font-semibold" style={{ color: '#178A43' }}>{disp(ADMIN)}</span>
+          </a>
+          <a href={bantuan(MEZI)} target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-between gap-2 no-underline rounded-[12px] px-3 py-2.5"
+            style={{ background: TH.cream, border: `1px solid ${TH.border}` }}>
+            <span className="text-[13.5px] font-bold" style={{ color: TH.brown }}>💬 Bang Mezi (Penjaga)</span>
+            <span className="text-[13px] font-semibold" style={{ color: '#178A43' }}>{disp(MEZI)}</span>
+          </a>
+        </div>
 
         {/* Pintu lembut ke Rumah Penghuni — aktif setelah jadi penghuni Top Hills */}
         <div className="rounded-[16px] p-4 text-left mt-1" style={{ background: 'linear-gradient(135deg,#FCF8F0,#F3E8CF)', border: `1px solid ${TH.border}` }}>

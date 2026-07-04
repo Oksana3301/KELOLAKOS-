@@ -77,6 +77,11 @@ export function buildInvoiceWaText(inv: Invoice, id: InvoiceIdentity): string {
 
   if (!isKost) L.push(`⏰ ${JAM_NOTE}`);
   if (!fullyPaid) L.push('Setelah transfer, kirim buktinya ke chat ini ya 🙏');
+  // Kontak untuk follow-up (Helpdesk dari Pengaturan; Bang Mezi penjaga).
+  L.push('');
+  L.push('*Butuh bantuan?*');
+  if (id.waResmi) L.push(`💬 Helpdesk Top Hills: ${id.waResmi}`);
+  L.push('💬 Bang Mezi (penjaga): 0838-4161-4871');
   L.push('Terima kasih 🌸 — Top Hills');
   return L.join('\n');
 }
