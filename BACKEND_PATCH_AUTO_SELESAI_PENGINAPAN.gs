@@ -1,46 +1,60 @@
 /*******************************************************************
  * BACKEND_PATCH_AUTO_SELESAI_PENGINAPAN.gs — Top Hills
  * =================================================================
- * Auto-tutup booking PENGINAPAN yang masih DP TAPI tanggal masuk (CheckIn)
- * SUDAH LEWAT (< hari ini) → Status_Booking = 'SELESAI'.
+ * Auto-tutup booking PENGINAPAN yang masih DP TAPI JAM CHECKOUT SUDAH LEWAT
+ * → Status_Booking = 'SELESAI'.
  *
- * KHUSUS PENGINAPAN (bukan kost). Alasan: penginapan set CheckIn di depan,
- * jadi tanggal masuk yang sudah lewat = booking lama. Kost CheckIn di-set saat
- * pelunasan, jadi aturan ini TIDAK relevan untuk kost (sengaja dikecualikan).
+ * Patokan waktu: CheckOut (tanggal) + jam 12.00 WIB (GMT+7). Kalau "sekarang"
+ * sudah melewati momen itu, tamu dianggap sudah checkout → booking ditutup.
+ *   • CheckOut tanggalnya < hari ini      → pasti lewat → tutup.
+ *   • CheckOut = hari ini & jam >= 12.00  → lewat → tutup.
+ *   • CheckOut = hari ini tapi belum jam 12.00, atau CheckOut nanti → BIARKAN.
  *
- * DEFINISI:
- *   • "DP"    = ada pembayaran sebagian tapi belum lunas (net-of-refund:
- *               dibayar > 0 DAN sisa > 0). Lunas / Belum Bayar / total 0 → dilewati.
- *   • "Lewat" = CheckIn (tanggal saja, tanpa jam) < HARI INI. Booking yang
- *               check-in HARI INI TIDAK disentuh (tamu baru masuk hari ini).
+ * KENAPA: penginapan sering masih ke-record "DP" walau tamunya sudah lunas &
+ * sudah selesai nginep (pelunasan manual belum sempat dicatat). Booking begini
+ * numpuk di dashboard. Auto-SELESAI merapikan tanpa kamu harus ingat manual.
  *
- * AMAN:
- *   • Cuma menulis kolom Status_Booking (+ catatan audit). Kolom uang TIDAK
- *     diubah — status DP-nya tetap kelihatan, cuma booking-nya "ditutup".
- *   • Idempoten: skip yang sudah SELESAI/CANCEL/BATAL/DITOLAK/MENUNGGU.
- *   • Edit via script tidak memicu onEdit → tidak menyenggol updateBookingFinancials_.
+ * KHUSUS PENGINAPAN (kost dikecualikan). "DP" = ada bayaran sebagian tapi belum
+ * lunas (net-of-refund). Lunas / Belum Bayar / total 0 → dilewati.
+ *
+ * TIDAK MENGUNCI apa pun: owner/penjaga tetap bisa edit booking SELESAI
+ * (ubah ke Lunas, betulkan data, dll). Fungsi ini cuma menulis Status_Booking
+ * (+ catatan audit). Kolom uang TIDAK diubah — status DP-nya tetap kelihatan.
+ *
+ * AMAN: idempoten (skip yang sudah SELESAI/CANCEL/BATAL/DITOLAK/MENUNGGU) &
+ * edit via script tidak memicu onEdit → tidak menyenggol updateBookingFinancials_.
  *
  * ┌───────────────────────────────────────────────────────────────┐
  * │ CARA PAKAI:                                                    │
  * │ 1) Paste sebagai .gs BARU. Save.                              │
  * │ 2) PREVIEW dulu (TANPA mengubah apa pun):                     │
- * │      Run `previewAutoSelesaiPenginapan` → cek Logs, lihat     │
- * │      daftar booking yang AKAN di-SELESAI-kan.                 │
- * │ 3) Kalau daftarnya sudah benar:                              │
- * │      Run `autoSelesaiPenginapanDP` → ubah status jadi SELESAI.│
- * │ 4) (opsional) Run `setupAutoSelesaiTrigger` → jalan otomatis  │
- * │      tiap hari 01:00 untuk booking yang tgl masuknya lewat.   │
+ * │      Run `previewAutoSelesaiPenginapan` → cek Logs.           │
+ * │ 3) Kalau daftarnya benar: Run `autoSelesaiPenginapanDP`.      │
+ * │ 4) (opsional) Run `setupAutoSelesaiTrigger` → tiap hari 13.00.│
  * └───────────────────────────────────────────────────────────────┘
  *******************************************************************/
 
-var AUTOSEL_CFG = { bookingSheet: 'Booking', closedStatus: 'SELESAI' };
+var AUTOSEL_CFG = { bookingSheet: 'Booking', closedStatus: 'SELESAI', tz: 'GMT+7', checkoutHour: 12 };
 
-function _asTz_() { return Session.getScriptTimeZone() || 'GMT+7'; }
-function _asTodayISO_() { return Utilities.formatDate(new Date(), _asTz_(), 'yyyy-MM-dd'); }
 function _asISO_(v) {
   if (v == null || v === '') return '';
   var d = (v instanceof Date) ? v : new Date(String(v));
-  return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, _asTz_(), 'yyyy-MM-dd');
+  return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, AUTOSEL_CFG.tz, 'yyyy-MM-dd');
+}
+// "Sekarang" dalam WIB: tanggal + jam (0-23).
+function _asNowParts_() {
+  var now = new Date();
+  return {
+    iso: Utilities.formatDate(now, AUTOSEL_CFG.tz, 'yyyy-MM-dd'),
+    hour: Number(Utilities.formatDate(now, AUTOSEL_CFG.tz, 'H'))
+  };
+}
+// true kalau momen checkout (tanggal coISO + jam 12.00 WIB) sudah lewat dari sekarang.
+function _asPastCheckout_(coISO, now) {
+  if (!coISO) return false;
+  if (coISO < now.iso) return true;                                   // checkout sudah hari-hari lalu
+  if (coISO === now.iso && now.hour >= AUTOSEL_CFG.checkoutHour) return true; // hari ini & lewat jam 12
+  return false;                                                       // belum jam 12 hari ini, atau nanti
 }
 
 // Sheet booking robust: SHEETS.BOOKINGS → cfg → auto-deteksi kolom BookingID.
@@ -88,30 +102,30 @@ function _autoSelesai_(dryRun) {
   if (data.length < 2) return { ok: true, total: 0, changed: 0, list: [] };
   var H = data[0].map(function (h) { return String(h); });
   var cStatus = H.indexOf('Status_Booking');
-  var cCheckIn = H.indexOf('CheckIn');
+  var cCheckOut = H.indexOf('CheckOut');
   var cLayanan = H.indexOf('Layanan');
   var cCatatan = H.indexOf('Catatan');
   var cId = H.indexOf('BookingID');
   var cNama = H.indexOf('Nama_Customer');
   var cKamar = H.indexOf('Nama_Kamar');
-  if (cStatus < 0 || cCheckIn < 0 || cLayanan < 0) {
-    throw new Error('Kolom wajib tak ada (butuh Status_Booking, CheckIn, Layanan).');
+  if (cStatus < 0 || cCheckOut < 0 || cLayanan < 0) {
+    throw new Error('Kolom wajib tak ada (butuh Status_Booking, CheckOut, Layanan).');
   }
-  var todayISO = _asTodayISO_();
+  var now = _asNowParts_();
   var list = [], changed = 0;
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    if (!_asIsPenginapan_(row[cLayanan])) continue;   // penginapan saja
-    if (_asIsClosed_(row[cStatus])) continue;          // skip yang sudah tutup / pending
-    var ciISO = _asISO_(row[cCheckIn]);
-    if (!ciISO || ciISO >= todayISO) continue;         // CheckIn WAJIB < hari ini (bukan hari ini/nanti)
-    if (!_asIsDP_(row, H)) continue;                   // WAJIB DP (belum lunas, ada bayaran)
+    if (!_asIsPenginapan_(row[cLayanan])) continue;         // penginapan saja
+    if (_asIsClosed_(row[cStatus])) continue;                // skip yang sudah tutup / pending
+    var coISO = _asISO_(row[cCheckOut]);
+    if (!_asPastCheckout_(coISO, now)) continue;             // checkout WAJIB sudah lewat (12.00 WIB)
+    if (!_asIsDP_(row, H)) continue;                         // WAJIB DP (belum lunas, ada bayaran)
     var info = {
       row: i + 1,
       bookingId: cId >= 0 ? String(row[cId] || '') : '',
       nama: cNama >= 0 ? String(row[cNama] || '') : '',
       kamar: cKamar >= 0 ? String(row[cKamar] || '') : '',
-      checkIn: ciISO,
+      checkOut: coISO,
       statusLama: String(row[cStatus] || '')
     };
     list.push(info);
@@ -119,15 +133,15 @@ function _autoSelesai_(dryRun) {
       sh.getRange(i + 1, cStatus + 1).setValue(AUTOSEL_CFG.closedStatus);
       if (cCatatan >= 0) {
         var old = String(row[cCatatan] || '');
-        var note = '[auto-SELESAI: DP lewat tgl masuk ' + ciISO + ']';
+        var note = '[auto-SELESAI: DP, checkout ' + coISO + ' sudah lewat]';
         sh.getRange(i + 1, cCatatan + 1).setValue([old, note].filter(Boolean).join(' | '));
       }
       changed++;
     }
   }
-  Logger.log((dryRun ? 'PREVIEW (tidak mengubah)' : 'APPLIED') + ' — kandidat: ' + list.length + ' booking penginapan DP lewat tgl masuk.');
+  Logger.log((dryRun ? 'PREVIEW (tidak mengubah)' : 'APPLIED') + ' — kandidat: ' + list.length + ' booking penginapan DP yang checkout-nya sudah lewat.');
   list.forEach(function (x) {
-    Logger.log('  • ' + (x.bookingId || '(no id)') + ' · ' + x.nama + ' · ' + x.kamar + ' · masuk ' + x.checkIn + ' · status lama: ' + x.statusLama);
+    Logger.log('  • ' + (x.bookingId || '(no id)') + ' · ' + x.nama + ' · ' + x.kamar + ' · checkout ' + x.checkOut + ' · status lama: ' + x.statusLama);
   });
   return { ok: true, total: list.length, changed: changed, list: list };
 }
@@ -138,11 +152,11 @@ function previewAutoSelesaiPenginapan() { return _autoSelesai_(true); }
 // APPLY — ubah Status_Booking → SELESAI untuk yang memenuhi syarat.
 function autoSelesaiPenginapanDP() { return _autoSelesai_(false); }
 
-// Trigger harian 01:00 — tutup booking penginapan DP yang tgl masuknya sudah lewat.
+// Trigger harian 13.00 WIB — tutup penginapan DP yang checkout-nya (12.00) sudah lewat.
 function setupAutoSelesaiTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'autoSelesaiPenginapanDP') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('autoSelesaiPenginapanDP').timeBased().everyDays(1).atHour(1).inTimezone(_asTz_()).create();
-  return 'OK — auto-SELESAI penginapan DP jalan tiap hari 01:00.';
+  ScriptApp.newTrigger('autoSelesaiPenginapanDP').timeBased().everyDays(1).atHour(13).inTimezone(AUTOSEL_CFG.tz).create();
+  return 'OK — auto-SELESAI penginapan DP jalan tiap hari 13.00 WIB.';
 }
