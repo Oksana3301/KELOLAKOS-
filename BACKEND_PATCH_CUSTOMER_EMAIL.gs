@@ -89,8 +89,15 @@ function _custBayar_(b) {
   var lunas = total > 0 && sisa <= 0 && dibayar > 0;
   return { total: total, dibayar: dibayar, sisa: sisa, lunas: lunas, refund: refund };
 }
+// Deteksi fasilitas AC (KOST) dari segmen "Fasilitas: ..." di Catatan / kolom Fasilitas_IDs.
+function _custHasAc_(b) {
+  var m = String(b.Catatan || '').match(/Fasilitas:\s*([^—\n]+)/i);
+  var fas = (m ? m[1] : '') + ' ' + String(b.Fasilitas_IDs || '') + ' ' + String(b.Fasilitas || '');
+  return /\bAC\b/i.test(fas) || /air\s*condition/i.test(fas);
+}
 function _custKamar_(b) {
-  return String(b.Nama_Kamar || '-') + (b.Gedung ? (' · ' + b.Gedung) : '') + (b.Tipe_Kamar ? (' (' + b.Tipe_Kamar + ')') : '');
+  var ac = (_custIsKost_(b) && _custHasAc_(b)) ? ' - AC' : '';   // kost + AC → "12A - AC"
+  return String(b.Nama_Kamar || '-') + ac + (b.Gedung ? (' · ' + b.Gedung) : '') + (b.Tipe_Kamar ? (' (' + b.Tipe_Kamar + ')') : '');
 }
 function _custSettings_() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUST_CFG.settingsSheet);
@@ -101,10 +108,14 @@ function _custSettings_() {
 }
 function _custRekening_(isKost) {
   var s = _custSettings_(), t = function (v) { return String(v == null ? '' : v).trim(); };
+  // Fallback = rekening RESMI Top Hills (dipakai bila config Pengaturan belum diisi).
+  var def = isKost
+    ? { bank: 'BCA', no: '0320839912', atasNama: 'Azhar Latif' }          // KOST
+    : { bank: 'BCA', no: '0321548473', atasNama: 'Atika Dewi Suryani' };  // PENGINAPAN
   return {
-    bank: t(isKost ? s.inv_kost_bank_name : s.inv_png_bank_name) || t(s.inv_bank_name) || '-',
-    no: t(isKost ? s.inv_kost_account_no : s.inv_png_account_no) || t(s.inv_account_no) || '-',
-    atasNama: t(isKost ? s.inv_kost_account_name : s.inv_png_account_name) || t(s.inv_account_name) || '-',
+    bank: t(isKost ? s.inv_kost_bank_name : s.inv_png_bank_name) || t(s.inv_bank_name) || def.bank,
+    no: t(isKost ? s.inv_kost_account_no : s.inv_png_account_no) || t(s.inv_account_no) || def.no,
+    atasNama: t(isKost ? s.inv_kost_account_name : s.inv_png_account_name) || t(s.inv_account_name) || def.atasNama,
   };
 }
 // Kontak follow-up untuk customer: Helpdesk (dari Pengaturan) + Bang Mezi (penjaga).
