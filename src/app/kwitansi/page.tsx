@@ -37,10 +37,14 @@ function resolveIdentity(s: KwitansiSettings | undefined, layanan: Layanan): Inv
   const accName = isKost ? s?.inv_kost_account_name : s?.inv_png_account_name;
   // QRIS hanya untuk PENGINAPAN. Kost = tanpa QR (transfer manual).
   const qr = isKost ? '' : (s?.inv_png_qris_base64 || s?.inv_qris_base64);
+  // Fallback rekening RESMI per layanan (bila Pengaturan belum diisi).
+  const def = isKost
+    ? { bank: 'BCA', no: '0320839912', name: 'Azhar Latif' }
+    : { bank: 'BCA', no: '0321548473', name: 'Atika Dewi Suryani' };
   return {
-    bankName: t(bank) || t(s?.inv_bank_name) || DEFAULT_IDENTITY.bankName,
-    accountNo: t(acc) || t(s?.inv_account_no) || DEFAULT_IDENTITY.accountNo,
-    accountName: t(accName) || t(s?.inv_account_name) || DEFAULT_IDENTITY.accountName,
+    bankName: t(bank) || t(s?.inv_bank_name) || def.bank,
+    accountNo: t(acc) || t(s?.inv_account_no) || def.no,
+    accountName: t(accName) || t(s?.inv_account_name) || def.name,
     waResmi: t(s?.inv_wa_resmi) || DEFAULT_IDENTITY.waResmi,
     ownerName: t(s?.inv_owner_name) || t(s?.sig_name) || DEFAULT_IDENTITY.ownerName,
     ownerTitle: t(s?.inv_owner_title) || t(s?.sig_title) || DEFAULT_IDENTITY.ownerTitle,

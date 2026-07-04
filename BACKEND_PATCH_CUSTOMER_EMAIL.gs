@@ -108,10 +108,14 @@ function _custSettings_() {
 }
 function _custRekening_(isKost) {
   var s = _custSettings_(), t = function (v) { return String(v == null ? '' : v).trim(); };
+  // Fallback = rekening RESMI Top Hills (dipakai bila config Pengaturan belum diisi).
+  var def = isKost
+    ? { bank: 'BCA', no: '0320839912', atasNama: 'Azhar Latif' }          // KOST
+    : { bank: 'BCA', no: '0321548473', atasNama: 'Atika Dewi Suryani' };  // PENGINAPAN
   return {
-    bank: t(isKost ? s.inv_kost_bank_name : s.inv_png_bank_name) || t(s.inv_bank_name) || '-',
-    no: t(isKost ? s.inv_kost_account_no : s.inv_png_account_no) || t(s.inv_account_no) || '-',
-    atasNama: t(isKost ? s.inv_kost_account_name : s.inv_png_account_name) || t(s.inv_account_name) || '-',
+    bank: t(isKost ? s.inv_kost_bank_name : s.inv_png_bank_name) || t(s.inv_bank_name) || def.bank,
+    no: t(isKost ? s.inv_kost_account_no : s.inv_png_account_no) || t(s.inv_account_no) || def.no,
+    atasNama: t(isKost ? s.inv_kost_account_name : s.inv_png_account_name) || t(s.inv_account_name) || def.atasNama,
   };
 }
 // Kontak follow-up untuk customer: Helpdesk (dari Pengaturan) + Bang Mezi (penjaga).
