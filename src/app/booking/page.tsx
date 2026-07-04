@@ -493,6 +493,10 @@ function BookingPageInner() {
         toast.success('🧾 Kuitansi pelunasan dibuka di WhatsApp', {
           action: { label: 'Buka WA', onClick: () => window.open(url, '_blank', 'noopener') },
         });
+        // Auto email KUITANSI ke customer (bila email tersimpan). Graceful.
+        api.sendBookingDoc({ bookingId: v.b.BookingID, kind: 'kwitansi' })
+          .then((r) => { if (r?.ok) toast.success('📧 Kuitansi dikirim ke email customer'); })
+          .catch(() => { /* backend email belum deploy → lewati */ });
       }
     },
     onError: (e) => toast.error('Gagal mencatat: ' + (e as Error).message),
