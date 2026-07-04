@@ -148,36 +148,65 @@ function _custSubject_(b, mode) {
   if (mode === 'reminder') return '⏰ Reminder Pelunasan ' + CUST_CFG.bisnis + ' — ' + nama;
   return '🧾 Invoice ' + CUST_CFG.bisnis + ' — ' + nama;
 }
+// Email PROFESIONAL & branded (Top Hills). Table-based → aman di Gmail/Outlook.
 function _custDocHtml_(b, mode) {
-  var isKost = _custIsKost_(b), pay = _custBayar_(b), rek = _custRekening_(isKost);
+  var isKost = _custIsKost_(b), pay = _custBayar_(b), rek = _custRekening_(isKost), kontak = _custKontak_();
   var nama = String(b.Nama_Customer || 'Kak'), kamar = _custKamar_(b);
   var periode = b.CheckIn ? (_custTglID_(b.CheckIn) + (b.CheckOut ? (' – ' + _custTglID_(b.CheckOut)) : '')) : (b.Paket || b.Durasi || '-');
-  var judul, intro, statusLine, rekTitle;
-  if (mode === 'kwitansi') { judul = '🧾 KUITANSI PELUNASAN'; intro = 'Pembayaranmu sudah <b>LUNAS</b>. Terima kasih! Berikut kuitansinya:'; statusLine = '<b style="color:#178A43">Status: LUNAS ✓</b>'; rekTitle = 'Rekening (arsip)'; }
-  else if (mode === 'reminder') { judul = '⏰ REMINDER PELUNASAN'; intro = 'Mengingatkan pelunasan booking Top Hills ya 🙏 Berikut rinciannya:'; statusLine = '<b style="color:#c0392b">💰 Sisa tagihan: ' + _custRp_(pay.sisa) + '</b>'; rekTitle = 'Silakan lunasi ke rekening'; }
-  else { judul = '🧾 INVOICE / TAGIHAN'; intro = 'Terima kasih sudah booking. Berikut rincian & tagihannya:'; statusLine = '<b style="color:#c0392b">💰 Sisa tagihan: ' + _custRp_(pay.sisa) + '</b>'; rekTitle = 'Silakan lunasi sisa ke rekening'; }
-  var jam = isKost ? '' : '<p style="color:#888;font-size:12px">⏰ Check-in mulai 13.00 WIB · Check-out maksimal 12.00 WIB</p>';
-  var rekBox = (mode === 'kwitansi')
-    ? '<p style="color:#888;font-size:13px">Rekening: ' + rek.bank + ' · ' + rek.no + ' (a.n. ' + rek.atasNama + ')</p>'
-    : '<div style="background:#FBF3E0;border:1px solid #E7D3A0;border-radius:8px;padding:10px 12px;margin:8px 0"><b>' + rekTitle + ':</b><br>🏦 ' + rek.bank + '<br>No. Rek: <b>' + rek.no + '</b> (a.n. ' + rek.atasNama + ')</div>';
-  return '<div style="font-family:Arial,Helvetica,sans-serif;color:#0C0A09;max-width:600px">' +
-    '<h2 style="margin:0 0 2px">' + judul + ' — ' + CUST_CFG.bisnis + '</h2>' +
-    '<div style="color:#888;margin-bottom:10px">' + _custFmt_(new Date(), 'd MMM yyyy') + ' · ' + String(b.BookingID || '') + '</div>' +
-    '<p>Halo Kak <b>' + nama + '</b> 🌸<br>' + intro + '</p>' +
-    '<table style="border-collapse:collapse;font-size:14px;margin:8px 0">' +
-      _custTr_('🏠 Kamar', kamar) +
-      _custTr_('🛏️ Layanan', isKost ? 'Kost Putri' : 'Penginapan') +
-      _custTr_('📅 Periode', periode) +
-      _custTr_('💰 Total', _custRp_(pay.total)) +
-      _custTr_('✅ Sudah dibayar', _custRp_(pay.dibayar)) +
-      (pay.refund > 0 ? _custTr_('↩️ Refund', '-' + _custRp_(pay.refund)) : '') +
-    '</table>' +
-    '<p>' + statusLine + '</p>' + rekBox + jam +
-    '<div style="border-top:1px solid #eee;margin-top:14px;padding-top:10px;color:#888;font-size:12px">' +
-      '<b>Butuh bantuan?</b><br>💬 Helpdesk Top Hills: ' + _custKontak_().helpdesk + '<br>💬 Bang Mezi (penjaga): ' + _custKontak_().mezi +
-    '</div>' +
-    '<p style="color:#888;font-size:12px">Setelah transfer, kirim bukti ke WhatsApp admin ya 🙏 — ' + CUST_CFG.bisnis + '</p>' +
-    '</div>';
+  var isLunas = (mode === 'kwitansi') || pay.lunas;
+
+  var judul, intro;
+  if (mode === 'kwitansi') { judul = 'KUITANSI PELUNASAN'; intro = 'Pembayaranmu sudah <b>LUNAS</b>. Terima kasih sudah mempercayai Top Hills 🌸'; }
+  else if (mode === 'reminder') { judul = 'REMINDER PELUNASAN'; intro = 'Ini pengingat lembut untuk melunasi sisa pembayaran booking kamu ya 🙏'; }
+  else { judul = 'INVOICE / TAGIHAN'; intro = 'Terima kasih sudah booking di Top Hills. Berikut rincian & tagihannya:'; }
+
+  function row(k, v, color) {
+    return '<tr><td style="padding:9px 0;color:#8A7A5A;font-size:13px;border-bottom:1px solid #EDE3CE">' + k + '</td>' +
+      '<td align="right" style="padding:9px 0;color:' + (color || '#3E2F1C') + ';font-size:13px;font-weight:bold;border-bottom:1px solid #EDE3CE">' + v + '</td></tr>';
+  }
+  var detail = row('Kamar', kamar) + row('Layanan', isKost ? 'Kost Putri' : 'Penginapan') + row('Periode', periode) +
+    row('Total', _custRp_(pay.total)) + row('Sudah dibayar', _custRp_(pay.dibayar), '#178A43') +
+    (pay.refund > 0 ? row('Refund', '- ' + _custRp_(pay.refund), '#C0392B') : '');
+
+  var statusBlock = isLunas
+    ? '<div style="text-align:center;background:#E9F7EE;border:1px solid #BFE6CE;border-radius:12px;padding:16px;margin:18px 0">' +
+        '<div style="color:#178A43;font-size:19px;font-weight:bold">✓ LUNAS</div>' +
+        '<div style="color:#5A7A65;font-size:12px;margin-top:3px">Pembayaran diterima penuh — ' + _custRp_(pay.total) + '</div></div>'
+    : '<div style="text-align:center;background:#FDECEC;border:1px solid #F3C4C4;border-radius:12px;padding:16px;margin:18px 0">' +
+        '<div style="color:#B07A5A;font-size:11px;letter-spacing:1px;text-transform:uppercase">Sisa Tagihan</div>' +
+        '<div style="color:#C0392B;font-size:26px;font-weight:bold;margin-top:3px">' + _custRp_(pay.sisa) + '</div></div>';
+
+  var rekBlock = isLunas
+    ? '<p style="color:#A99C7E;font-size:12px;text-align:center;margin:6px 0 0">Rekening pembayaran: ' + rek.bank + ' · ' + rek.no + ' (a.n. ' + rek.atasNama + ')</p>'
+    : '<div style="background:#FBF3E0;border:1px solid #E7D3A0;border-radius:12px;padding:14px 16px;margin:6px 0">' +
+        '<div style="color:#8A6A24;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">💳 Silakan lunasi ke rekening</div>' +
+        '<div style="color:#3E2F1C;font-size:15px;font-weight:bold">' + rek.bank + '</div>' +
+        '<div style="color:#3E2F1C;font-size:20px;font-weight:bold;letter-spacing:1px;margin:2px 0">' + rek.no + '</div>' +
+        '<div style="color:#8A7A5A;font-size:13px">a.n. ' + rek.atasNama + '</div>' +
+        '<div style="color:#8A7A5A;font-size:12px;margin-top:8px">Setelah transfer, mohon kirim bukti ke WhatsApp admin ya 🙏</div></div>';
+
+  var jam = isKost ? '' : '<p style="color:#A99C7E;font-size:12px;text-align:center;margin:12px 0 0">⏰ Check-in mulai 13.00 WIB · Check-out maksimal 12.00 WIB</p>';
+
+  return '<div style="margin:0;padding:0;background:#F2EADA">' +
+    '<div style="max-width:600px;margin:0 auto;padding:24px 12px;font-family:\'Segoe UI\',Arial,Helvetica,sans-serif">' +
+      '<div style="background:#ffffff;border:1px solid #E7DCC4;border-radius:18px;overflow:hidden">' +
+        '<div style="background:#8A6A24;background:linear-gradient(135deg,#B98C34,#8A6A24);padding:26px 28px;text-align:center">' +
+          '<div style="color:#FBF7EC;font-size:12px;letter-spacing:4px;font-weight:bold">TOP HILLS</div>' +
+          '<div style="color:#ffffff;font-size:21px;font-weight:bold;letter-spacing:1px;margin-top:6px">' + judul + '</div>' +
+          '<div style="color:#F3E6C8;font-size:12px;margin-top:4px">' + _custFmt_(new Date(), 'd MMMM yyyy') + '  ·  ' + String(b.BookingID || '') + '</div>' +
+        '</div>' +
+        '<div style="padding:26px 28px">' +
+          '<p style="color:#3E2F1C;font-size:15px;line-height:1.5;margin:0 0 16px">Halo Kak <b>' + nama + '</b> 🌸<br>' + intro + '</p>' +
+          '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + detail + '</table>' +
+          statusBlock + rekBlock + jam +
+        '</div>' +
+        '<div style="background:#FAF6EC;border-top:1px solid #E7DCC4;padding:20px 28px;text-align:center">' +
+          '<div style="color:#8A6A24;font-size:11px;font-weight:bold;letter-spacing:1px;margin-bottom:8px">BUTUH BANTUAN?</div>' +
+          '<div style="color:#5A5446;font-size:13px;line-height:1.7">💬 Helpdesk Top Hills: <b>' + kontak.helpdesk + '</b><br>💬 Bang Mezi (penjaga): <b>' + kontak.mezi + '</b></div>' +
+          '<div style="color:#A99C7E;font-size:11px;margin-top:14px">Top Hills — Kost Putri &amp; Penginapan · Terima kasih 🌸</div>' +
+        '</div>' +
+      '</div>' +
+    '</div></div>';
 }
 
 /* ---------- ACTION: kirim invoice/kuitansi ke customer ---------- */
