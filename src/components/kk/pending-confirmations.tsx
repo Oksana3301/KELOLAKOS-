@@ -68,12 +68,15 @@ export function PendingConfirmations() {
       // Simpan WAKTU konfirmasi (saat ini) → dipakai akurat di pesan/invoice WhatsApp.
       api.confirmBooking(v.id, v.status, { total: v.total, dibayar: v.dibayar, tglBayar: new Date().toISOString() }),
     onSuccess: (_r, v) => {
+      // Status EFEKTIF dari nominal: kalau dibayar >= total → Lunas (walau tombol
+      // "Terima · DP" ditekan dgn DP = total). Semua dokumen ikut ini biar konsisten.
+      const effStatus: 'DP' | 'Lunas' = v.dibayar >= v.total && v.total > 0 ? 'Lunas' : v.status;
       // Simpan email customer (bila diisi) lalu AUTO-kirim invoice(DP)/kuitansi(Lunas)
       // ke email-nya. Graceful: kalau backend email belum deploy, diabaikan diam2.
       if (v.email && v.email.includes('@')) {
         api.setBookingEmail({ bookingId: v.id, email: v.email })
-          .then(() => api.sendBookingDoc({ bookingId: v.id, kind: v.status === 'Lunas' ? 'kwitansi' : 'invoice' }))
-          .then((r) => { if (r?.ok) toast.success('📧 ' + (v.status === 'Lunas' ? 'Kuitansi' : 'Invoice') + ' dikirim ke email customer'); })
+          .then(() => api.sendBookingDoc({ bookingId: v.id, kind: effStatus === 'Lunas' ? 'kwitansi' : 'invoice' }))
+          .then((r) => { if (r?.ok) toast.success('📧 ' + (effStatus === 'Lunas' ? 'Kuitansi' : 'Invoice') + ' dikirim ke email customer'); })
           .catch(() => { /* backend email belum deploy → lewati */ });
       }
       const inv = bookingToInvoice(
@@ -84,7 +87,7 @@ export function PendingConfirmations() {
       // 1) CUSTOMER: DP → INVOICE (sisa + rekening), Lunas → KUITANSI (sisa 0).
       const custUrl = invoiceWaUrl(buildInvoiceWaText(inv, identity), v.b.WhatsApp);
       // 2) INTERNAL (Mezi + Admin/owner): recap booking dikonfirmasi + bukti.
-      const recap = buildBookingInternalWaText(v.b, { status: v.status, total: v.total, dibayar: v.dibayar });
+      const recap = buildBookingInternalWaText(v.b, { status: effStatus, total: v.total, dibayar: v.dibayar });
       const meziUrl = invoiceWaUrl(recap, MEZI_WA);
       const adminUrl = invoiceWaUrl(recap, identity.waResmi || '628116646615');
       if (typeof window !== 'undefined') {
@@ -94,7 +97,7 @@ export function PendingConfirmations() {
         setTimeout(() => { try { window.open(meziUrl, '_blank', 'noopener'); } catch { /* diblokir */ } }, 1400);
         setTimeout(() => { try { window.open(adminUrl, '_blank', 'noopener'); } catch { /* diblokir */ } }, 2600);
       }
-      const jenis = v.status === 'Lunas' ? 'Kuitansi pelunasan' : 'Invoice';
+      const jenis = effStatus === 'Lunas' ? 'Kuitansi pelunasan' : 'Invoice';
       toast.success(`✓ Diterima — ${jenis} ke customer + recap ke Mezi & Admin`, {
         action: { label: 'Buka Invoice', onClick: () => window.open(custUrl, '_blank', 'noopener') },
       });
@@ -295,7 +298,7 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
 
         {/* Aksi — DP pakai nominal DP diterima; Lunas = dibayar penuh */}
         <div className="grid grid-cols-2 gap-2">
-          <KkButton variant="success" onClick={() => onConfirm('DP', totalNum, dpNum, email.trim())} disabled={busy || totalNum <= 0 || dpNum <= 0}>
+          <KkButton variant="success" onClick={() => onConfirm('DP', totalNum, dpNum, email.trim())} disabled={busy || totalNum <= 0 || dpNum <= 0 || dpNum >= totalNum}>
             Terima · DP
           </KkButton>
           <KkButton variant="success" onClick={() => onConfirm('Lunas', totalNum, totalNum, email.trim())} disabled={busy || totalNum <= 0}>

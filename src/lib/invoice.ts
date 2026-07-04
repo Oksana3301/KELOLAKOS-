@@ -52,6 +52,23 @@ export function deriveInvoice(inv: Invoice) {
   return { subtotal, totalPaid, balance, fullyPaid: balance === 0 };
 }
 
+// SUMBER KEBENARAN status bayar dari kolom uang booking (bukan record pembayaran
+// / bukan Status_Bayar yang bisa basi). Dipakai bersama oleh kartu selector,
+// bookingToInvoice, dan penentuan Invoice-vs-Kuitansi supaya SELALU konsisten.
+// paid = net-of-refund: Net_Diterima bila terisi, else Total_Bayar − Refund_Total.
+export function bookingPaidInfo(b: {
+  Harga_Total_Net?: number; Net_Diterima?: number; Total_Bayar?: number; Refund_Total?: number;
+}): { total: number; paid: number; sisa: number; fullyPaid: boolean } {
+  const total = Number(b.Harga_Total_Net || 0);
+  const refund = Number(b.Refund_Total || 0);
+  const net = b.Net_Diterima as number | undefined | null | '';
+  const paid = (net === undefined || net === null || (net as unknown) === '')
+    ? Math.max(0, Number(b.Total_Bayar || 0) - refund)
+    : Number(b.Net_Diterima || 0);
+  const sisa = Math.max(0, total - paid);
+  return { total, paid, sisa, fullyPaid: total > 0 && sisa <= 0 && paid > 0 };
+}
+
 // ── 5 contoh skenario (kasus nyata) ──────────────────────────────────────────
 export const SEED_SCENARIOS: Record<string, Invoice> = {
   'penginapan-harian': {
@@ -213,7 +230,7 @@ export function bookingToInvoice(
   // konfirmasi, Net_Diterima & Sisa_Bayar di-update TAPI record pembayaran belum
   // tentu bertambah. Tanpa ini, invoice ikut record lama (masih DP) → status
   // invoice/kuitansi SALAH (FATAL: user dikirimi invoice DP padahal sudah lunas).
-  const netOfficial = Number(b.Net_Diterima || 0);
+  const netOfficial = bookingPaidInfo(b).paid; // net-of-refund
   const recordedPaid = pays.reduce((s, p) => s + p.amount, 0);
   if (netOfficial > recordedPaid + 1) {
     pays.push({ label: 'Pelunasan', amount: Math.round(netOfficial - recordedPaid) });
@@ -221,9 +238,9 @@ export function bookingToInvoice(
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0);
   const totalPaid = pays.reduce((s, p) => s + p.amount, 0);
-  // Sisa RESMI (kolom booking) jadi acuan bila ada; jangan cuma andalkan record.
-  const sisaOfficial = (b.Sisa_Bayar === undefined || b.Sisa_Bayar === null) ? null : Number(b.Sisa_Bayar);
-  const balance = sisaOfficial != null ? Math.max(0, sisaOfficial) : Math.max(0, subtotal - totalPaid);
+  // Balance dari perhitungan yang SAMA dgn deriveInvoice (subtotal − dibayar) →
+  // tag pill & stempel LUNAS tak pernah kontradiksi di dokumen yang sama.
+  const balance = Math.max(0, subtotal - totalPaid);
   const tag = balance > 0 ? 'TAGIHAN DP' : pays.length > 1 ? 'PELUNASAN' : undefined;
 
   // Check-out: bila tersimpan kosong / ≤ check-in (data kost lama salah), hitung

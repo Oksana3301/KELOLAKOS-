@@ -78,11 +78,16 @@ function _custActive_(b) {
   return !(s.indexOf('BATAL') >= 0 || s.indexOf('CANCEL') >= 0 || s.indexOf('TOLAK') >= 0 || s.indexOf('REJECT') >= 0 || s.indexOf('MENUNGGU') >= 0);
 }
 function _custBayar_(b) {
-  var total = Number(b.Harga_Total_Net || 0), dibayar = Number(b.Net_Diterima || b.Total_Bayar || 0);
-  var sisaRaw = b.Sisa_Bayar, sisa = (sisaRaw === '' || sisaRaw == null) ? Math.max(total - dibayar, 0) : Number(sisaRaw);
-  var st = String(b.Status_Bayar || '').toUpperCase();
-  var lunas = st.indexOf('LUNAS') >= 0 || (total > 0 && sisa <= 0 && dibayar > 0);
-  return { total: total, dibayar: dibayar, sisa: sisa, lunas: lunas };
+  var total = Number(b.Harga_Total_Net || 0);
+  var refund = Number(b.Refund_Total || 0);
+  var net = b.Net_Diterima;
+  // dibayar = net-of-refund: Net_Diterima bila terisi (pakai ?? bukan ||, supaya 0
+  // tidak jatuh ke Total_Bayar KOTOR), else Total_Bayar − Refund.
+  var dibayar = (net === '' || net === null || net === undefined) ? Math.max(0, Number(b.Total_Bayar || 0) - refund) : Number(net || 0);
+  var sisa = Math.max(0, total - dibayar);
+  // LUNAS murni dari uang (bukan Status_Bayar yang bisa basi / refund-blind).
+  var lunas = total > 0 && sisa <= 0 && dibayar > 0;
+  return { total: total, dibayar: dibayar, sisa: sisa, lunas: lunas, refund: refund };
 }
 function _custKamar_(b) {
   return String(b.Nama_Kamar || '-') + (b.Gedung ? (' · ' + b.Gedung) : '') + (b.Tipe_Kamar ? (' (' + b.Tipe_Kamar + ')') : '');
@@ -160,6 +165,7 @@ function _custDocHtml_(b, mode) {
       _custTr_('📅 Periode', periode) +
       _custTr_('💰 Total', _custRp_(pay.total)) +
       _custTr_('✅ Sudah dibayar', _custRp_(pay.dibayar)) +
+      (pay.refund > 0 ? _custTr_('↩️ Refund', '-' + _custRp_(pay.refund)) : '') +
     '</table>' +
     '<p>' + statusLine + '</p>' + rekBox + jam +
     '<p style="color:#888;font-size:12px">Setelah transfer, kirim bukti ke WhatsApp admin ya 🙏 — ' + CUST_CFG.bisnis + '</p>' +
@@ -189,7 +195,8 @@ function _remindPelunasan_(force) {
   rows.forEach(function (b) {
     if (!_custActive_(b)) return;
     var email = String(b.Email || '').trim(); if (!email || email.indexOf('@') < 0) return;
-    var pay = _custBayar_(b); if (pay.lunas || pay.sisa <= 0) return; // sudah lunas → skip
+    var pay = _custBayar_(b); if (pay.lunas || pay.sisa <= 0) return;
+    if (pay.refund > 0) return; // ada refund → jangan tagih pelunasan (bisa salah tagih) // sudah lunas → skip
     var milestones = [];
     if (_custIsKost_(b)) {
       var dpISO = _custISO_(b.Tgl_Pembayaran); if (!dpISO) return;
