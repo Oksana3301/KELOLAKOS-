@@ -298,7 +298,7 @@ function PendingDetailSheet({ b, busy, onClose, onEdit, onConfirm, onReject }: {
 
         {/* Aksi — DP pakai nominal DP diterima; Lunas = dibayar penuh */}
         <div className="grid grid-cols-2 gap-2">
-          <KkButton variant="success" onClick={() => onConfirm('DP', totalNum, dpNum, email.trim())} disabled={busy || totalNum <= 0 || dpNum <= 0}>
+          <KkButton variant="success" onClick={() => onConfirm('DP', totalNum, dpNum, email.trim())} disabled={busy || totalNum <= 0 || dpNum <= 0 || dpNum >= totalNum}>
             Terima · DP
           </KkButton>
           <KkButton variant="success" onClick={() => onConfirm('Lunas', totalNum, totalNum, email.trim())} disabled={busy || totalNum <= 0}>
