@@ -2311,6 +2311,8 @@ export function BookingDetail({
   onCancel,
   onRefund,
   onTagih,
+  onKirimCustomer,
+  kirimLoading,
   onDelete,
   onDeletePayment,
   deletingPaymentId,
@@ -2325,6 +2327,8 @@ export function BookingDetail({
   onCancel: () => void;
   onRefund?: () => void;
   onTagih?: () => void;
+  onKirimCustomer?: () => void;
+  kirimLoading?: boolean;
   onDelete: () => void;
   onDeletePayment?: (paymentId: string) => void;
   deletingPaymentId?: string | null;
@@ -2334,6 +2338,8 @@ export function BookingDetail({
   const sisa = booking.Sisa_Bayar ?? 0;
   const dibayar = booking.Net_Diterima ?? 0;
   const router = useRouter();
+  // Jejak notif manual ke customer (diisi backend kirimKeCustomerManual) → badge "sudah dikirim".
+  const notifSudahDikirim = !!(booking.Notif_Email_At || booking.Notif_WA_At);
 
   // Tanggal DP & pelunasan dari riwayat pembayaran (fallback: Tgl_Pembayaran booking).
   const isKostBk = String(booking.Layanan || '').toUpperCase().includes('KOS');
@@ -2554,13 +2560,33 @@ export function BookingDetail({
             {/* 📤 Kirim ke penyewa / penjaga */}
             <div className="flex flex-col gap-2.5">
               <div className="text-caption font-bold text-kk-ink uppercase tracking-wide">📤 Kirim</div>
+              {/* Kirim Email + WA branded langsung dari sistem (manual, anti-spam via flag). */}
+              {onKirimCustomer && (booking.WhatsApp || booking.Email) && (
+                <>
+                  <KkButton variant="success" size="lg" block onClick={onKirimCustomer} disabled={kirimLoading}>
+                    <KkIcon name="kirim" size={22} strokeWidth={2.2} />{' '}
+                    {kirimLoading ? 'Mengirim…' : (notifSudahDikirim ? 'Kirim Ulang ke Customer' : 'Kirim ke Customer (Email + WA)')}
+                  </KkButton>
+                  {notifSudahDikirim && (
+                    <div className="text-caption text-kk-ink bg-kk-mint-soft rounded-kk-card px-3 py-2 leading-snug">
+                      <span className="font-semibold text-kk-navy">✅ Sudah dikirim</span>
+                      {booking.Notif_Email_At && (
+                        <div>📧 Email: {booking.Notif_Email_Info || booking.Notif_Email_At}</div>
+                      )}
+                      {booking.Notif_WA_At && (
+                        <div>💬 WA: {booking.Notif_WA_Info || booking.Notif_WA_At}</div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
               <KkButton
                 variant="primary"
                 size="lg"
                 block
                 onClick={() => { onClose(); router.push(`/kwitansi?booking=${encodeURIComponent(booking.BookingID)}`); }}
               >
-                <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Kirim Invoice ke penyewa
+                <KkIcon name="kirim" size={22} strokeWidth={2.2} /> Buat Invoice / Kwitansi (PNG)
               </KkButton>
               <KkButton variant="secondary" block onClick={kabariMezi}>
                 <KkIcon name="kirim" size={20} strokeWidth={2.2} /> Kabari Mezi (penjaga)

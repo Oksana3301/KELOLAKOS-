@@ -432,6 +432,11 @@ function BookingPageInner() {
                 Created_At: raw.Created_At || prev.Created_At,
                 Updated_At: raw.Updated_At || prev.Updated_At,
                 Timestamp: raw.Timestamp || prev.Timestamp,
+                // Jejak notif ke customer → biar badge "sudah dikirim" muncul di detail.
+                Notif_Email_At: raw.Notif_Email_At || prev.Notif_Email_At,
+                Notif_Email_Info: raw.Notif_Email_Info || prev.Notif_Email_Info,
+                Notif_WA_At: raw.Notif_WA_At || prev.Notif_WA_At,
+                Notif_WA_Info: raw.Notif_WA_Info || prev.Notif_WA_Info,
               }
             : prev,
         );
@@ -502,6 +507,34 @@ function BookingPageInner() {
       }
     },
     onError: (e) => toast.error('Gagal mencatat: ' + (e as Error).message),
+  });
+
+  // Kirim MANUAL Email + WA ke customer (tombol di detail). Anti-spam: kalau sudah
+  // pernah dikirim, backend balas alreadySent → tampilkan toast "kirim ulang?".
+  const kirimMutation = useMutation({
+    mutationFn: (v: { bookingId: string; force?: boolean }) =>
+      api.kirimKeCustomerManual({ bookingId: v.bookingId, force: v.force }),
+    onSuccess: (r, v) => {
+      if (r.alreadySent) {
+        toast('Sudah pernah dikirim ke customer', {
+          description: [r.email?.info, r.wa?.info].filter(Boolean).join(' · ') || undefined,
+          action: { label: 'Kirim ulang', onClick: () => kirimMutation.mutate({ bookingId: v.bookingId, force: true }) },
+        });
+        return;
+      }
+      const okParts: string[] = [];
+      if (r.email?.status === 'OK') okParts.push('📧 Email');
+      if (r.wa?.status === 'OK') okParts.push('💬 WA');
+      const failParts: string[] = [];
+      if (r.email?.status === 'GAGAL') failParts.push('Email');
+      if (r.wa?.status === 'GAGAL') failParts.push('WA');
+      if (okParts.length) toast.success('Terkirim ke customer: ' + okParts.join(' + '));
+      if (failParts.length) toast.error('Gagal: ' + failParts.join(' + ') + '. Cek kolom Notif di sheet.');
+      if (!okParts.length && !failParts.length) toast.info('Customer tidak punya email/WA — tidak ada yang dikirim.');
+      invalidateAll(v.bookingId);
+      if (detailIdRef.current === v.bookingId) refreshDetail(v.bookingId);
+    },
+    onError: (e) => toast.error('Gagal kirim: ' + (e as Error).message),
   });
 
   const cancelMutation = useMutation({
@@ -838,6 +871,8 @@ function BookingPageInner() {
           onCancel={() => setCancelTarget(detail)}
           onRefund={() => setRefundTarget(detail)}
           onTagih={() => setTagihTarget(detail)}
+          onKirimCustomer={() => kirimMutation.mutate({ bookingId: detail.BookingID })}
+          kirimLoading={kirimMutation.isPending}
           onDelete={() => setDeleteTarget(detail)}
           onDeletePayment={handleDeletePayment}
         />
