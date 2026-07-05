@@ -32,55 +32,39 @@ function _welcomeSubject_(b) {
 function _welcomeHtml_(b) {
   var isKost = _custIsKost_(b);
   var kontak = _custKontak_(), grup = _custWaGrup_();
-  var nama = String(b.Nama_Customer || 'Kak'), kamar = _custKamar_(b);
-  var masuk = b.CheckIn ? _custTglID_(b.CheckIn) : '-';
+  var nama = _thFirstName_(b), nomorKamar = String(b.Nama_Kamar || '-');
   var keluar = b.CheckOut ? _custTglID_(b.CheckOut) : '';
+  var roomTitle = isKost ? ('Kost Putri — Kamar ' + nomorKamar + (_custHasAc_(b) ? ' · AC' : ''))
+    : ('Penginapan' + (b.Tipe_Kamar ? (' · ' + b.Tipe_Kamar) : ''));
+  var subParts = [];
+  if (b.Gedung) subParts.push(String(b.Gedung));
+  if (b.CheckIn) subParts.push('Check-in ' + _custTglID_(b.CheckIn));
+  var roomSub = subParts.join(' · ');
+  var pills = (!isKost && _custHasAc_(b)) ? ['AC'] : null;
 
-  function row(k, v) {
-    return '<tr><td style="padding:9px 0;color:#8A7A5A;font-size:13px;border-bottom:1px solid #EDE3CE">' + k + '</td>' +
-      '<td align="right" style="padding:9px 0;color:#3E2F1C;font-size:13px;font-weight:bold;border-bottom:1px solid #EDE3CE">' + v + '</td></tr>';
+  var body = _thDivider_('KAMARMU') + _thRoomCard_(nomorKamar, roomTitle, roomSub, pills, false);
+  if (isKost) {
+    body += _thDivider_('GABUNG GRUP PENGHUNI') +
+      _thNote_('💬', 'Biar nggak ketinggalan info penting (jadwal, pengumuman, kendala air/listrik, dll), yuk masuk grup WA penghuni. Di grup juga boleh banget tanya-tanya atau lapor kendala 😊') +
+      _thNote_('📖', 'Aturan rumah lengkap ada di grup WA penghuni — singkatnya: saling jaga, tamu lapor, tenang setelah jam 22.00.') +
+      _thCta_('Gabung Grup WA Penghuni', 'Kenalan sama tetangga barumu 🌸', grup);
+  } else {
+    body += _thDivider_('JAM CHECK-OUT') +
+      _thNote_('⏰', 'Check-out maksimal <b>12.00 WIB' + (keluar ? (' · ' + keluar) : '') + '</b>. Lewat dari jam check-out bisa dihitung tambah 1 malam ya 🙏') +
+      _thCta_('Chat Helpdesk', 'Butuh bantuan selama menginap? WA ' + kontak.helpdesk, _thWaUrl_(kontak.helpdesk, 'Halo Top Hills 🌸, saya ' + String(b.Nama_Customer || '') + ' (kamar ' + nomorKamar + '). Mau tanya sesuatu.'));
   }
-  var detail = row('Kamar', kamar) + row('Layanan', isKost ? 'Kost Putri' : 'Penginapan') + row('Tanggal masuk', masuk) +
-    (keluar && !isKost ? row('Check-out', keluar) : '');
 
-  var judul = isKost ? 'Selamat Bergabung' : 'Selamat Datang';
-  var intro = isKost
-    ? 'Halo Kak <b>' + nama + '</b>, selamat bergabung di Top Hills! 🎉 Kamu resmi jadi penghuni kamar <b>' + String(b.Nama_Kamar || '') + '</b>. Semoga betah ya 🌸'
-    : 'Halo Kak <b>' + nama + '</b>, selamat datang di Top Hills! 🌸 Semoga nyaman selama menginap di kamar <b>' + String(b.Nama_Kamar || '') + '</b>.';
+  var headline = isKost ? ('Selamat datang di rumah, ' + nama + '.') : ('Selamat datang, ' + nama + '.');
+  var sub = isKost
+    ? 'Mulai hari ini, kamar ' + nomorKamar + ' resmi jadi milikmu. Semoga betah, semoga banyak cerita baik dimulai dari sini.'
+    : 'Semoga nyaman selama menginap di Top Hills. Kalau butuh apa-apa, Bang Mezi & Helpdesk siap bantu kapan saja.';
+  var pre = isKost ? ('Kunci kamar ' + nomorKamar + ' sudah di tanganmu — selamat datang di rumah 🏡')
+    : ('Selamat datang di Top Hills — kamar ' + nomorKamar + ' 🌸');
 
-  // KOST: ajakan join grup WA penghuni. PENGINAPAN: tonjolkan jam check-out.
-  var blok = isKost
-    ? '<div style="background:#E9F7EE;border:1px solid #BFE6CE;border-radius:12px;padding:16px;margin:16px 0">' +
-        '<div style="color:#178A43;font-size:13px;font-weight:bold;margin-bottom:6px">💬 Gabung Grup WhatsApp Penghuni</div>' +
-        '<div style="color:#3E5A48;font-size:13px;line-height:1.6">Biar nggak ketinggalan info penting (jadwal, pengumuman, kendala air/listrik, dll), yuk masuk grup WA penghuni. Di grup juga boleh banget tanya-tanya atau lapor kendala 😊</div>' +
-        '<div style="text-align:center;margin-top:12px"><a href="' + grup + '" style="display:inline-block;background:linear-gradient(135deg,#1FAF55,#178A43);color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px">Gabung Grup Penghuni →</a></div>' +
-      '</div>'
-    : '<div style="background:#FBF3E0;border:1px solid #E7D3A0;border-radius:12px;padding:16px;margin:16px 0;text-align:center">' +
-        '<div style="color:#8A6A24;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:bold">Jam Check-out</div>' +
-        '<div style="color:#3E2F1C;font-size:18px;font-weight:bold;margin-top:3px">Maksimal 12.00 WIB' + (keluar ? ' · ' + keluar : '') + '</div>' +
-        '<div style="color:#8A7A5A;font-size:12px;margin-top:4px">Lewat dari jam check-out bisa dihitung tambah 1 malam ya 🙏</div>' +
-      '</div>';
-
-  return '<div style="margin:0;padding:0;background:#F2EADA">' +
-    '<div style="max-width:600px;margin:0 auto;padding:24px 12px;font-family:Georgia,\'Times New Roman\',serif">' +
-      '<div style="background:#ffffff;border:1px solid #E7DCC4;border-radius:18px;overflow:hidden">' +
-        '<div style="background:#8A6A24;background:linear-gradient(135deg,#B98C34,#8A6A24);padding:26px 28px;text-align:center">' +
-          '<div style="color:#FBF7EC;font-size:12px;letter-spacing:4px;font-weight:bold;font-family:Arial,sans-serif">TOP HILLS</div>' +
-          '<div style="color:#ffffff;font-size:23px;font-style:italic;margin-top:6px">' + judul + '</div>' +
-          '<div style="color:#F3E6C8;font-size:12px;margin-top:4px;font-family:Arial,sans-serif">' + _custFmt_(new Date(), 'd MMMM yyyy') + '</div>' +
-        '</div>' +
-        '<div style="padding:26px 28px;font-family:Arial,Helvetica,sans-serif">' +
-          '<p style="color:#3E2F1C;font-size:15px;line-height:1.55;margin:0 0 16px">' + intro + '</p>' +
-          '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + detail + '</table>' +
-          blok +
-        '</div>' +
-        '<div style="background:#FAF6EC;border-top:1px solid #E7DCC4;padding:20px 28px;text-align:center;font-family:Arial,sans-serif">' +
-          '<div style="color:#8A6A24;font-size:11px;font-weight:bold;letter-spacing:1px;margin-bottom:8px">BUTUH BANTUAN?</div>' +
-          '<div style="color:#5A5446;font-size:13px;line-height:1.7">💬 Helpdesk Top Hills: <b>' + kontak.helpdesk + '</b><br>💬 Bang Mezi (penjaga): <b>' + kontak.mezi + '</b></div>' +
-          '<div style="color:#A99C7E;font-size:11px;margin-top:14px">Top Hills — Kost Putri &amp; Penginapan · Sampai ketemu 🌸</div>' +
-        '</div>' +
-      '</div>' +
-    '</div></div>';
+  return _thShell_(pre,
+    _thHero_({ pill: 'SELAMAT DATANG', headline: headline, sub: sub }) +
+    _thBodyWrap_(body) +
+    _thFooter_(isKost ? 'Selamat menempati rumah barumu, ya.' : 'Selamat beristirahat di Top Hills, ya.', 'Welcome check-in · Kamar ' + nomorKamar));
 }
 
 function sendWelcomeEmail_(b) {

@@ -159,65 +159,234 @@ function _custSubject_(b, mode) {
   if (mode === 'reminder') return '⏰ Reminder Pelunasan ' + CUST_CFG.bisnis + ' — ' + nama;
   return '🧾 Invoice ' + CUST_CFG.bisnis + ' — ' + nama;
 }
-// Email PROFESIONAL & branded (Top Hills). Table-based → aman di Gmail/Outlook.
+/* ===================================================================
+ * TEMA EMAIL "TOP HILLS" — dark hero + serif display + gold + room card.
+ * Dipakai SEMUA email (invoice/kwitansi/reminder, konfirmasi booking,
+ * welcome, checkout) supaya desainnya SATU bahasa & konsisten.
+ * Table-based (aman Gmail/Outlook). Web-font (Cormorant Garamond / Inter)
+ * otomatis fallback ke Georgia (serif) & Arial (body) di email client.
+ * =================================================================== */
+var TH_BODY = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif";
+var TH_DISPLAY = "'Cormorant Garamond',Georgia,'Times New Roman',serif";
+
+function _thFirstName_(b) {
+  var n = String((b && (b.Nama_Customer || b.Nama)) || '').trim();
+  return n ? n.split(/\s+/)[0] : 'Kak';
+}
+// Email resmi footer (dari config inv_email_resmi; fallback email bisnis Top Hills).
+function _thEmailResmi_() {
+  var s = (typeof _custSettings_ === 'function') ? _custSettings_() : {};
+  var t = String((s && s.inv_email_resmi) || '').trim();
+  return t || 'kostputritophills@gmail.com';
+}
+function _thWaUrl_(phone, text) {
+  var p = String(phone || '').replace(/[^0-9]/g, '');
+  if (p.indexOf('0') === 0) p = '62' + p.slice(1);
+  else if (p.indexOf('8') === 0) p = '62' + p;
+  return 'https://wa.me/' + p + (text ? ('?text=' + encodeURIComponent(text)) : '');
+}
+// No kwitansi: TH/{KOST|PNG}/{tahun}-{4 digit akhir BookingID}.
+function _thKwitansiNo_(b, isKost) {
+  var id = String(b.BookingID || ''), last4 = (id.replace(/[^0-9]/g, '').slice(-4) || '0000');
+  var iso = _custISO_(b.CheckIn), yr = iso ? _custFmt_(new Date(iso + 'T00:00:00'), 'yyyy') : _custFmt_(new Date(), 'yyyy');
+  return 'TH/' + (isKost ? 'KOST' : 'PNG') + '/' + yr + '-' + last4;
+}
+
+function _thWordmark_() {
+  return '<div style="font-family:' + TH_BODY + ';font-size:13px;letter-spacing:6px;font-weight:700;color:#DDBE7F">TOP HILLS</div>' +
+    '<div style="font-family:' + TH_BODY + ';font-size:10px;letter-spacing:3px;color:#C9BCA2;margin-top:6px">KOST PUTRI &amp; PENGINAPAN</div>';
+}
+
+// Hero gelap. o = {pill, pillColor, pillBorder, headline, sub, box:{label,value,vc,lc,hint}, icon}
+function _thHero_(o) {
+  o = o || {};
+  var box = '';
+  if (o.box) {
+    var x = o.box;
+    box = '<tr><td align="center" style="padding-top:26px"><table cellpadding="0" cellspacing="0" role="presentation"><tr><td align="center" style="padding:14px 28px;background:rgba(201,168,106,.14);border:1px dashed rgba(201,168,106,.6);border-radius:14px">' +
+      '<div style="font-family:' + TH_BODY + ';font-size:11px;font-weight:700;letter-spacing:2px;color:' + (x.lc || '#A9956A') + '">' + x.label + '</div>' +
+      '<div style="font-family:' + TH_DISPLAY + ';font-size:26px;font-weight:700;letter-spacing:3px;color:' + (x.vc || '#DDBE7F') + ';margin-top:6px">' + x.value + '</div>' +
+      (x.hint ? '<div style="font-family:' + TH_BODY + ';font-size:12px;color:#C9BCA2;margin-top:5px">' + x.hint + '</div>' : '') +
+      '</td></tr></table></td></tr>';
+  }
+  var icon = o.icon ? ('<tr><td align="center" style="padding-top:24px"><table cellpadding="0" cellspacing="0" role="presentation"><tr>' +
+    '<td width="64" height="64" align="center" valign="middle" style="width:64px;height:64px;background:rgba(122,159,101,.18);border:1px solid rgba(122,159,101,.55);border-radius:99px;font-size:30px;color:#9FBE8B">' + o.icon + '</td>' +
+    '</tr></table></td></tr>') : '';
+  return '<tr><td align="center" style="background:#2E2416;background:linear-gradient(165deg,#2E2416 0%,#3A2E1F 55%,#463823 100%);padding:44px 40px 40px">' +
+    '<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td align="center">' + _thWordmark_() + '</td></tr>' + icon +
+    '<tr><td align="center" style="padding-top:22px"><span style="display:inline-block;padding:7px 18px;border:1px solid ' + (o.pillBorder || 'rgba(201,168,106,.55)') + ';border-radius:999px;font-family:' + TH_BODY + ';font-size:12px;font-weight:600;letter-spacing:2.2px;color:' + (o.pillColor || '#DDBE7F') + '">' + o.pill + '</span></td></tr>' +
+    '<tr><td align="center" style="padding-top:20px"><div style="font-family:' + TH_DISPLAY + ';font-style:italic;font-weight:600;font-size:38px;line-height:1.15;color:#F5EDE0">' + o.headline + '</div></td></tr>' +
+    '<tr><td align="center" style="padding-top:14px"><div style="font-family:' + TH_BODY + ';font-size:15px;line-height:1.6;color:#C9BCA2;max-width:430px">' + o.sub + '</div></td></tr>' +
+    box + '</table></td></tr>';
+}
+
+function _thDivider_(label) {
+  return '<tr><td style="padding:34px 44px 0"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>' +
+    '<td style="height:1px;background:#D8C9A8;line-height:1px;font-size:0">&nbsp;</td>' +
+    '<td style="padding:0 14px;white-space:nowrap;font-family:' + TH_BODY + ';font-size:11px;font-weight:700;letter-spacing:2.4px;color:#A9956A">' + label + '</td>' +
+    '<td style="height:1px;background:#D8C9A8;line-height:1px;font-size:0">&nbsp;</td>' +
+    '</tr></table></td></tr>';
+}
+
+function _thRoomCard_(number, title, subtitle, pills, badge) {
+  var chips = '';
+  if (pills && pills.length) {
+    for (var i = 0; i < pills.length; i++)
+      chips += '<span style="display:inline-block;padding:4px 11px;margin:3px 5px 0 0;background:#F4EFE3;border:1px solid rgba(201,168,106,.4);border-radius:999px;font-family:' + TH_BODY + ';font-size:11.5px;font-weight:600;color:#6E5F45">' + pills[i] + '</span>';
+    chips = '<div style="margin-top:8px">' + chips + '</div>';
+  }
+  var bdg = badge ? ('<div style="margin-top:8px"><span style="display:inline-block;padding:4px 12px;background:rgba(122,159,101,.15);border:1px solid rgba(122,159,101,.4);border-radius:999px;font-family:' + TH_BODY + ';font-size:11.5px;font-weight:700;color:#5C7A4C">&#10003; LUNAS</span></div>') : '';
+  return '<tr><td style="padding:24px 44px 0"><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border:1px solid rgba(58,46,31,.08);border-radius:18px;overflow:hidden"><tr>' +
+    '<td width="110" valign="middle" align="center" style="width:110px;background:#3A2E1F;background:linear-gradient(160deg,#3A2E1F,#54432A);padding:22px 8px">' +
+    '<div style="font-family:' + TH_BODY + ';font-size:11px;font-weight:700;letter-spacing:1.8px;color:#A9956A">KAMAR</div>' +
+    '<div style="font-family:' + TH_DISPLAY + ';font-weight:700;font-size:38px;color:#DDBE7F;line-height:1.1;margin-top:2px">' + number + '</div></td>' +
+    '<td valign="middle" style="padding:18px 22px">' +
+    '<div style="font-family:' + TH_BODY + ';font-size:16px;font-weight:700;color:#3A2E1F">' + title + '</div>' +
+    '<div style="font-family:' + TH_BODY + ';font-size:13px;color:#8A7F6B;margin-top:4px">' + subtitle + '</div>' + chips + bdg +
+    '</td></tr></table></td></tr>';
+}
+
+// rows = [[label, value, (color?)], ...]; total = [label, value, (color?)] atau null.
+function _thRows_(rows, total) {
+  var r = '';
+  for (var i = 0; i < rows.length; i++) {
+    var vc = rows[i][2] || '#3A2E1F';
+    r += '<tr><td style="padding:13px 0;border-bottom:1px solid rgba(58,46,31,.07);font-family:' + TH_BODY + ';font-size:13.5px;color:#8A7F6B">' + rows[i][0] + '</td>' +
+      '<td align="right" style="padding:13px 0;border-bottom:1px solid rgba(58,46,31,.07);font-family:' + TH_BODY + ';font-size:14.5px;font-weight:600;color:' + vc + '">' + rows[i][1] + '</td></tr>';
+  }
+  var t = '';
+  if (total) {
+    t = '<tr><td style="padding:15px 0;font-family:' + TH_BODY + ';font-size:14px;font-weight:700;color:#3A2E1F">' + total[0] + '</td>' +
+      '<td align="right" style="padding:15px 0;font-family:' + TH_DISPLAY + ';font-size:26px;font-weight:700;color:' + (total[2] || '#3A2E1F') + '">' + total[1] + '</td></tr>';
+  }
+  return '<tr><td style="padding:16px 44px 0"><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border:1px solid rgba(58,46,31,.08);border-radius:18px;padding:2px 22px">' + r + t + '</table></td></tr>';
+}
+
+// items = [[judul, deskripsi], ...] → langkah bernomor.
+function _thSteps_(items) {
+  var inner = '';
+  for (var i = 0; i < items.length; i++) {
+    inner += '<tr><td style="padding-bottom:12px"><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border:1px solid rgba(58,46,31,.07);border-radius:14px"><tr>' +
+      '<td width="58" valign="top" align="center" style="width:58px;padding:16px 0 16px 16px"><table cellpadding="0" cellspacing="0" role="presentation"><tr><td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;background:#3A2E1F;border-radius:999px;font-family:' + TH_BODY + ';font-size:15px;font-weight:700;color:#DDBE7F">' + (i + 1) + '</td></tr></table></td>' +
+      '<td valign="middle" style="padding:14px 18px 14px 4px"><div style="font-family:' + TH_BODY + ';font-size:14.5px;font-weight:700;color:#3A2E1F">' + items[i][0] + '</div>' +
+      '<div style="font-family:' + TH_BODY + ';font-size:13.5px;color:#8A7F6B;line-height:1.55;margin-top:3px">' + items[i][1] + '</div></td></tr></table></td></tr>';
+  }
+  return '<tr><td style="padding:22px 44px 0"><table width="100%" cellpadding="0" cellspacing="0" role="presentation">' + inner + '</table></td></tr>';
+}
+
+function _thNote_(emoji, text, tint) {
+  var bg = 'rgba(201,168,106,.16)', bd = 'rgba(201,168,106,.4)';
+  if (tint === 'green') { bg = 'rgba(122,159,101,.14)'; bd = 'rgba(122,159,101,.35)'; }
+  return '<tr><td style="padding:20px 44px 0"><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:14px"><tr>' +
+    '<td width="42" valign="top" style="padding:15px 0 15px 18px;font-size:20px">' + emoji + '</td>' +
+    '<td valign="middle" style="padding:15px 18px 15px 8px;font-family:' + TH_BODY + ';font-size:13.5px;color:#5A4F3C;line-height:1.55">' + text + '</td>' +
+    '</tr></table></td></tr>';
+}
+
+function _thCta_(label, sub, href) {
+  var s = sub ? ('<tr><td align="center" style="padding-top:12px;font-family:' + TH_BODY + ';font-size:12.5px;color:#A9956A">' + sub + '</td></tr>') : '';
+  return '<tr><td align="center" style="padding:30px 44px 4px"><table cellpadding="0" cellspacing="0" role="presentation"><tr>' +
+    '<td align="center" style="background:#C9A86A;border-radius:12px"><a href="' + (href || '#') + '" style="display:inline-block;padding:16px 42px;font-family:' + TH_BODY + ';font-size:15.5px;font-weight:700;color:#3A2E1F;text-decoration:none">' + label + '</a></td>' +
+    '</tr></table></td></tr>' + s;
+}
+
+function _thFooter_(tagline, meta) {
+  var kontak = _custKontak_();
+  return '<tr><td align="center" style="background:#2E2416;padding:34px 44px">' + _thWordmark_() +
+    '<div style="font-family:' + TH_DISPLAY + ';font-style:italic;font-size:18px;color:#C9BCA2;margin-top:12px">' + tagline + '</div>' +
+    '<div style="font-family:' + TH_BODY + ';font-size:12.5px;color:#8A7F6B;margin-top:16px;line-height:1.7">Top Hills · Limau Manis, Pauh, Kota Padang, Sumatera Barat 25176<br>WA ' + kontak.helpdesk + ' &middot; <span style="color:#A9956A">' + _thEmailResmi_() + '</span></div>' +
+    '<div style="font-family:' + TH_BODY + ';font-size:11px;color:#6E5F45;margin-top:14px;letter-spacing:.4px">' + meta + '</div>' +
+    '</td></tr>';
+}
+
+function _thBodyWrap_(inner) {
+  return '<tr><td style="background:#FBF7EF;padding:16px 0 40px"><table width="100%" cellpadding="0" cellspacing="0" role="presentation">' + inner + '</table></td></tr>';
+}
+
+// Rangka penuh: preheader + kartu (hero + body + footer).
+function _thShell_(preheader, innerRows) {
+  var pre = preheader ? ('<tr><td align="center" style="padding:6px 20px 16px;font-family:' + TH_BODY + ';font-size:12px;color:#A9956A;letter-spacing:.4px">' + preheader + '</td></tr>') : '';
+  return '<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#EDE4D3"><tr><td align="center" style="padding:30px 12px">' +
+    '<table width="640" cellpadding="0" cellspacing="0" role="presentation" style="width:640px;max-width:100%">' + pre +
+    '<tr><td><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-radius:24px;overflow:hidden;box-shadow:0 40px 90px -36px rgba(42,33,21,.45)">' +
+    innerRows + '</table></td></tr></table></td></tr></table>';
+}
+
+// Email PROFESIONAL & branded (Top Hills) — invoice / kwitansi / reminder.
 function _custDocHtml_(b, mode) {
   var isKost = _custIsKost_(b), pay = _custBayar_(b), rek = _custRekening_(isKost), kontak = _custKontak_();
-  var nama = String(b.Nama_Customer || 'Kak'), kamar = _custKamar_(b);
-  var periode = b.CheckIn ? (_custTglID_(b.CheckIn) + (b.CheckOut ? (' – ' + _custTglID_(b.CheckOut)) : '')) : (b.Paket || b.Durasi || '-');
+  var nama = _thFirstName_(b), nomorKamar = String(b.Nama_Kamar || '-');
   var isLunas = (mode === 'kwitansi') || pay.lunas;
+  var noDoc = String(b.BookingID || '');
+  var periodeText = isKost ? (b.Paket || b.Durasi || 'Paket sewa')
+    : ((b.CheckIn ? _custTglID_(b.CheckIn) : '') + (b.CheckOut ? (' – ' + _custTglID_(b.CheckOut)) : ''));
+  var roomTitle = isKost ? ('Kost Putri — Kamar ' + nomorKamar + (_custHasAc_(b) ? ' · AC' : ''))
+    : ('Penginapan' + (b.Tipe_Kamar ? (' · ' + b.Tipe_Kamar) : ''));
+  var subParts = [];
+  if (b.Nama_Customer) subParts.push(String(b.Nama_Customer));
+  if (b.Gedung) subParts.push(String(b.Gedung));
+  if (periodeText) subParts.push(periodeText);
+  var roomSub = subParts.join(' · ');
+  var pills = (!isKost && _custHasAc_(b)) ? ['AC'] : null;
+  var tglTerima = b.Tgl_Pembayaran ? _custTglID_(b.Tgl_Pembayaran) : _custTglID_(new Date());
 
-  var judul, intro;
-  if (mode === 'kwitansi') { judul = 'KUITANSI PELUNASAN'; intro = 'Pembayaranmu sudah <b>LUNAS</b>. Terima kasih sudah mempercayai Top Hills 🌸'; }
-  else if (mode === 'reminder') { judul = 'REMINDER PELUNASAN'; intro = 'Ini pengingat lembut untuk melunasi sisa pembayaran booking kamu ya 🙏'; }
-  else { judul = 'INVOICE / TAGIHAN'; intro = 'Terima kasih sudah booking di Top Hills. Berikut rincian & tagihannya:'; }
-
-  function row(k, v, color) {
-    return '<tr><td style="padding:9px 0;color:#8A7A5A;font-size:13px;border-bottom:1px solid #EDE3CE">' + k + '</td>' +
-      '<td align="right" style="padding:9px 0;color:' + (color || '#3E2F1C') + ';font-size:13px;font-weight:bold;border-bottom:1px solid #EDE3CE">' + v + '</td></tr>';
+  // Rincian + hero box beda per mode.
+  var rowsArr, totalArr, heroBox;
+  if (isLunas) {
+    rowsArr = [
+      [isKost ? 'Paket sewa' : ('Sewa kamar' + (b.Durasi ? (' · ' + b.Durasi) : '')), periodeText || '-'],
+      ['Metode pembayaran', 'Transfer ' + rek.bank],
+      ['Tanggal diterima', tglTerima]
+    ];
+    totalArr = ['Total Diterima', _custRp_(pay.total), '#5C7A4C'];
+    heroBox = { label: 'NO. KWITANSI', value: _thKwitansiNo_(b, isKost), vc: '#9FBE8B', lc: '#8FAE7C' };
+  } else {
+    rowsArr = [
+      ['Total', _custRp_(pay.total)],
+      ['Sudah dibayar' + (pay.dibayar > 0 ? ' (DP)' : ''), _custRp_(pay.dibayar), '#5C7A4C']
+    ];
+    if (pay.refund > 0) rowsArr.push(['Refund', '- ' + _custRp_(pay.refund), '#C0392B']);
+    totalArr = ['Sisa Tagihan', _custRp_(pay.sisa), '#B0632F'];
+    heroBox = { label: 'SISA TAGIHAN', value: _custRp_(pay.sisa), vc: '#F0C89A', lc: '#D8A97A', hint: 'Kamar ' + nomorKamar + (noDoc ? (' · ' + noDoc) : '') };
   }
-  var detail = row('Kamar', kamar) + row('Layanan', isKost ? 'Kost Putri' : 'Penginapan') + row('Periode', periode) +
-    row('Total', _custRp_(pay.total)) + row('Sudah dibayar', _custRp_(pay.dibayar), '#178A43') +
-    (pay.refund > 0 ? row('Refund', '- ' + _custRp_(pay.refund), '#C0392B') : '');
 
-  var statusBlock = isLunas
-    ? '<div style="text-align:center;background:#E9F7EE;border:1px solid #BFE6CE;border-radius:12px;padding:16px;margin:18px 0">' +
-        '<div style="color:#178A43;font-size:19px;font-weight:bold">✓ LUNAS</div>' +
-        '<div style="color:#5A7A65;font-size:12px;margin-top:3px">Pembayaran diterima penuh — ' + _custRp_(pay.total) + '</div></div>'
-    : '<div style="text-align:center;background:#FDECEC;border:1px solid #F3C4C4;border-radius:12px;padding:16px;margin:18px 0">' +
-        '<div style="color:#B07A5A;font-size:11px;letter-spacing:1px;text-transform:uppercase">Sisa Tagihan</div>' +
-        '<div style="color:#C0392B;font-size:26px;font-weight:bold;margin-top:3px">' + _custRp_(pay.sisa) + '</div></div>';
+  var pill = isLunas ? 'PEMBAYARAN DITERIMA' : (mode === 'reminder' ? 'REMINDER PELUNASAN' : 'INVOICE / TAGIHAN');
+  var headline = isLunas ? ('Lunas! Makasih ya, ' + nama + '.')
+    : (mode === 'reminder' ? ('Pengingat dari kami, ' + nama + '.') : ('Ini rincian tagihanmu, ' + nama + '.'));
+  var sub = isLunas ? 'Pembayaranmu sudah kami terima dan tercatat penuh. Email ini berlaku sebagai bukti pembayaran (kwitansi) kamu.'
+    : (mode === 'reminder' ? 'Sekadar mengingatkan dengan santai — masih ada sisa pembayaran booking kamu. Berikut rinciannya.'
+      : 'Terima kasih sudah booking di Top Hills. Berikut rincian & sisa yang perlu dilunasi.');
 
-  var rekBlock = isLunas
-    ? '<p style="color:#A99C7E;font-size:12px;text-align:center;margin:6px 0 0">Rekening pembayaran: ' + rek.bank + ' · ' + rek.no + ' (a.n. ' + rek.atasNama + ')</p>'
-    : '<div style="background:#FBF3E0;border:1px solid #E7D3A0;border-radius:12px;padding:14px 16px;margin:6px 0">' +
-        '<div style="color:#8A6A24;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">💳 Silakan lunasi ke rekening</div>' +
-        '<div style="color:#3E2F1C;font-size:15px;font-weight:bold">' + rek.bank + '</div>' +
-        '<div style="color:#3E2F1C;font-size:20px;font-weight:bold;letter-spacing:1px;margin:2px 0">' + rek.no + '</div>' +
-        '<div style="color:#8A7A5A;font-size:13px">a.n. ' + rek.atasNama + '</div>' +
-        '<div style="color:#8A7A5A;font-size:12px;margin-top:8px">Setelah transfer, mohon kirim bukti ke WhatsApp admin ya 🙏</div></div>';
+  var waUrl = _thWaUrl_(kontak.helpdesk, 'Halo Top Hills 🌸, saya ' + String(b.Nama_Customer || '') + (noDoc ? (' (kode ' + noDoc + ')') : '') + '. ' + (isLunas ? 'Mau konfirmasi soal kwitansi/pembayaran.' : 'Saya mau kirim bukti transfer pelunasan.'));
 
-  var jam = isKost ? '' : '<p style="color:#A99C7E;font-size:12px;text-align:center;margin:12px 0 0">⏰ Check-in mulai 13.00 WIB · Check-out maksimal 12.00 WIB</p>';
+  var body = _thDivider_(isLunas ? 'RINCIAN PEMBAYARAN' : 'RINCIAN') +
+    _thRoomCard_(nomorKamar, roomTitle, roomSub, pills, isLunas) +
+    _thRows_(rowsArr, totalArr);
+  if (isLunas) {
+    body += _thNote_('🌸', isKost ? 'Selamat menempati kamar barumu! Jangan lupa gabung grup WA penghuni ya — semua info & pengumuman ada di sana.'
+      : 'Semoga nyaman menginap di Top Hills. Kalau butuh apa-apa selama menginap, Bang Mezi & Helpdesk siap bantu ya.', 'green') +
+      _thCta_('Konfirmasi via WA', 'Ada yang tidak sesuai? Balas email ini atau WA kami, langsung kami cek.', waUrl);
+  } else {
+    body += _thDivider_('CARA BAYAR') +
+      _thSteps_([
+        ['Transfer ke rekening Top Hills', rek.bank + ' ' + rek.no + ' a.n ' + rek.atasNama + ' — nominal ' + _custRp_(pay.sisa) + '.'],
+        ['Kirim bukti transfer via WA', 'Ke Helpdesk ' + kontak.helpdesk + (noDoc ? (' dengan kode ' + noDoc) : '') + '.']
+      ]);
+    if (mode === 'reminder') body += _thNote_('🌿', 'Sudah terlanjur bayar? Abaikan email ini — atau kabari kami via WA biar langsung kami catat.', 'green');
+    if (!isKost) body += _thNote_('⏰', 'Check-in mulai <b>13.00 WIB</b> · Check-out maksimal <b>12.00 WIB</b>.');
+    body += _thCta_('Kirim Bukti Transfer via WA', 'Ada yang tidak sesuai? Balas email ini atau WA kami.', waUrl);
+  }
 
-  return '<div style="margin:0;padding:0;background:#F2EADA">' +
-    '<div style="max-width:600px;margin:0 auto;padding:24px 12px;font-family:\'Segoe UI\',Arial,Helvetica,sans-serif">' +
-      '<div style="background:#ffffff;border:1px solid #E7DCC4;border-radius:18px;overflow:hidden">' +
-        '<div style="background:#8A6A24;background:linear-gradient(135deg,#B98C34,#8A6A24);padding:26px 28px;text-align:center">' +
-          '<div style="color:#FBF7EC;font-size:12px;letter-spacing:4px;font-weight:bold">TOP HILLS</div>' +
-          '<div style="color:#ffffff;font-size:21px;font-weight:bold;letter-spacing:1px;margin-top:6px">' + judul + '</div>' +
-          '<div style="color:#F3E6C8;font-size:12px;margin-top:4px">' + _custFmt_(new Date(), 'd MMMM yyyy') + '  ·  ' + String(b.BookingID || '') + '</div>' +
-        '</div>' +
-        '<div style="padding:26px 28px">' +
-          '<p style="color:#3E2F1C;font-size:15px;line-height:1.5;margin:0 0 16px">Halo Kak <b>' + nama + '</b> 🌸<br>' + intro + '</p>' +
-          '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + detail + '</table>' +
-          statusBlock + rekBlock + jam +
-        '</div>' +
-        '<div style="background:#FAF6EC;border-top:1px solid #E7DCC4;padding:20px 28px;text-align:center">' +
-          '<div style="color:#8A6A24;font-size:11px;font-weight:bold;letter-spacing:1px;margin-bottom:8px">BUTUH BANTUAN?</div>' +
-          '<div style="color:#5A5446;font-size:13px;line-height:1.7">💬 Helpdesk Top Hills: <b>' + kontak.helpdesk + '</b><br>💬 Bang Mezi (penjaga): <b>' + kontak.mezi + '</b></div>' +
-          '<div style="color:#A99C7E;font-size:11px;margin-top:14px">Top Hills — Kost Putri &amp; Penginapan · Terima kasih 🌸</div>' +
-        '</div>' +
-      '</div>' +
-    '</div></div>';
+  var pre = isLunas ? 'Pembayaran kamu sudah kami terima — lunas ✓'
+    : (mode === 'reminder' ? 'Pengingat lembut — masih ada sisa pembayaran ya 🌿'
+      : ('Rincian tagihan booking kamu' + (nomorKamar !== '-' ? (' — kamar ' + nomorKamar) : '')));
+  var tagline = (isLunas && isKost) ? 'Selamat menempati rumah barumu, ya.' : 'Sampai ketemu di Top Hills, ya.';
+  var meta = (mode === 'kwitansi' ? 'Kwitansi pelunasan' : (mode === 'reminder' ? 'Reminder pelunasan' : 'Invoice')) + (noDoc ? (' · ' + noDoc) : '');
+
+  return _thShell_(pre,
+    _thHero_({ pill: pill, pillColor: isLunas ? '#9FBE8B' : '#DDBE7F', pillBorder: isLunas ? 'rgba(122,159,101,.55)' : 'rgba(201,168,106,.55)', headline: headline, sub: sub, box: heroBox, icon: isLunas ? '✓' : null }) +
+    _thBodyWrap_(body) +
+    _thFooter_(tagline, meta));
 }
 
 /* ---------- ACTION: kirim invoice/kuitansi ke customer ---------- */

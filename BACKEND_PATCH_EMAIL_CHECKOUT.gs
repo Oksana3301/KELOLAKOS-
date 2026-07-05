@@ -23,65 +23,35 @@ function _checkoutSubject_(b) {
 
 function _checkoutHtml_(b) {
   var kontak = _custKontak_();
-  var nama = String(b.Nama_Customer || 'Kak'), kamar = _custKamar_(b);
+  var nama = _thFirstName_(b), nomorKamar = String(b.Nama_Kamar || '-');
   var berakhir = b.CheckOut ? _custTglID_(b.CheckOut) : '-';
-  var waHelp = String(kontak.helpdesk || '').replace(/[^0-9]/g, '');
-  if (waHelp.indexOf('0') === 0) waHelp = '62' + waHelp.slice(1);
-  var extendUrl = 'https://wa.me/' + waHelp + '?text=' + encodeURIComponent('Halo Top Hills 🌸, saya ' + nama + ' (kamar ' + String(b.Nama_Kamar || '') + ') mau *perpanjang* sewa kost. Mohon dibantu ya 🙏');
+  var roomTitle = 'Kost Putri — Kamar ' + nomorKamar + (_custHasAc_(b) ? ' · AC' : '');
+  var subParts = [];
+  if (b.Nama_Customer) subParts.push(String(b.Nama_Customer));
+  if (b.Gedung) subParts.push(String(b.Gedung));
+  var roomSub = subParts.join(' · ');
 
-  function row(k, v) {
-    return '<tr><td style="padding:9px 0;color:#8A7A5A;font-size:13px;border-bottom:1px solid #EDE3CE">' + k + '</td>' +
-      '<td align="right" style="padding:9px 0;color:#3E2F1C;font-size:13px;font-weight:bold;border-bottom:1px solid #EDE3CE">' + v + '</td></tr>';
-  }
-  var detail = row('Kamar', kamar) + row('Masa sewa berakhir', berakhir) + row('Sisa waktu', '± 30 hari lagi');
-
-  // Jalur 1 — Perpanjang
-  var perpanjang = '<div style="background:#E9F7EE;border:1px solid #BFE6CE;border-radius:12px;padding:16px;margin:16px 0">' +
-    '<div style="color:#178A43;font-size:13px;font-weight:bold;margin-bottom:6px">✅ Mau Lanjut? Perpanjang Sekarang</div>' +
-    '<div style="color:#3E5A48;font-size:13px;line-height:1.6">Biar kamar kamu tetap aman, yuk kabari kami untuk perpanjang sebelum masa sewa habis 🌸</div>' +
-    '<div style="text-align:center;margin-top:12px"><a href="' + extendUrl + '" style="display:inline-block;background:linear-gradient(135deg,#1FAF55,#178A43);color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px">Perpanjang via WhatsApp →</a></div>' +
-  '</div>';
-
-  // Jalur 2 — Checkout (tanpa deposit)
-  var checkout = '<div style="background:#FAF6EC;border:1px solid #E7DCC4;border-radius:12px;padding:14px 16px;margin:6px 0">' +
-    '<div style="color:#8A6A24;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Kalau tidak lanjut (checkout)</div>' +
-    '<div style="color:#5A5446;font-size:13px;line-height:1.7">' +
-      '• Mohon kosongkan kamar paling lambat tanggal <b>' + berakhir + '</b>.<br>' +
-      '• Pastikan <b>semua barang sudah dibawa</b> — hati-hati, jangan ada yang tertinggal.<br>' +
-      '• Kembalikan kunci ke penjaga (Bang Mezi).<br>' +
-      '• Tinggalkan kamar dalam kondisi bersih &amp; tetap jaga ketertiban ya 🌸' +
-    '</div>' +
-  '</div>';
-
-  // Kesan & pesan — ajakan feedback (link dari config, fallback link resmi).
+  var extendUrl = _thWaUrl_(kontak.helpdesk, 'Halo Top Hills 🌸, saya ' + String(b.Nama_Customer || '') + ' (kamar ' + nomorKamar + ') mau *perpanjang* sewa kost. Mohon dibantu ya 🙏');
   var s = (typeof _custSettings_ === 'function') ? _custSettings_() : {};
   var fbLink = String(s.link_feedback || '').trim() || 'https://tinyurl.com/feedbacktophillspdg';
-  var feedback = '<div style="background:#FBF3E0;border:1px solid #E7D3A0;border-radius:12px;padding:16px;margin:16px 0;text-align:center">' +
-    '<div style="color:#8A6A24;font-size:13px;font-weight:bold;margin-bottom:6px">💛 Tetap ingat Top Hills ya!</div>' +
-    '<div style="color:#5A5446;font-size:13px;line-height:1.6">Terima kasih sudah tinggal bersama kami. Boleh dong bagikan kesan &amp; pesan kamu tentang Top Hills — masukanmu sangat berarti 🌸</div>' +
-    '<div style="margin-top:12px"><a href="' + fbLink + '" style="display:inline-block;background:linear-gradient(135deg,#B98C34,#8A6A24);color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px">Beri Kesan &amp; Pesan →</a></div>' +
-  '</div>';
 
-  return '<div style="margin:0;padding:0;background:#F2EADA">' +
-    '<div style="max-width:600px;margin:0 auto;padding:24px 12px;font-family:Georgia,\'Times New Roman\',serif">' +
-      '<div style="background:#ffffff;border:1px solid #E7DCC4;border-radius:18px;overflow:hidden">' +
-        '<div style="background:#8A6A24;background:linear-gradient(135deg,#B98C34,#8A6A24);padding:26px 28px;text-align:center">' +
-          '<div style="color:#FBF7EC;font-size:12px;letter-spacing:4px;font-weight:bold;font-family:Arial,sans-serif">TOP HILLS</div>' +
-          '<div style="color:#ffffff;font-size:22px;font-style:italic;margin-top:6px">Masa Sewa Akan Berakhir</div>' +
-          '<div style="color:#F3E6C8;font-size:12px;margin-top:4px;font-family:Arial,sans-serif">' + _custFmt_(new Date(), 'd MMMM yyyy') + '</div>' +
-        '</div>' +
-        '<div style="padding:26px 28px;font-family:Arial,Helvetica,sans-serif">' +
-          '<p style="color:#3E2F1C;font-size:15px;line-height:1.55;margin:0 0 16px">Halo Kak <b>' + nama + '</b> 🌸<br>Sekadar mengingatkan dengan lembut, masa sewa kost kamu akan berakhir <b>± 30 hari lagi</b>. Berikut detailnya:</p>' +
-          '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + detail + '</table>' +
-          perpanjang + checkout + feedback +
-        '</div>' +
-        '<div style="background:#FAF6EC;border-top:1px solid #E7DCC4;padding:20px 28px;text-align:center;font-family:Arial,sans-serif">' +
-          '<div style="color:#8A6A24;font-size:11px;font-weight:bold;letter-spacing:1px;margin-bottom:8px">BUTUH BANTUAN?</div>' +
-          '<div style="color:#5A5446;font-size:13px;line-height:1.7">💬 Helpdesk Top Hills: <b>' + kontak.helpdesk + '</b><br>💬 Bang Mezi (penjaga): <b>' + kontak.mezi + '</b></div>' +
-          '<div style="color:#A99C7E;font-size:11px;margin-top:14px">Top Hills — Kost Putri &amp; Penginapan 🌸</div>' +
-        '</div>' +
-      '</div>' +
-    '</div></div>';
+  var body = _thDivider_('DETAIL') +
+    _thRoomCard_(nomorKamar, roomTitle, roomSub, null, false) +
+    _thNote_('✅', '<b>Mau lanjut?</b> Biar kamar kamu tetap aman, yuk kabari kami untuk perpanjang sebelum masa sewa habis 🌸', 'green') +
+    _thDivider_('KALAU CHECKOUT') +
+    _thSteps_([
+      ['Kosongkan kamar tepat waktu', 'Paling lambat tanggal <b>' + berakhir + '</b>. Pastikan semua barang sudah dibawa — hati-hati, jangan ada yang tertinggal.'],
+      ['Kembalikan kunci ke Bang Mezi', 'Tinggalkan kamar dalam kondisi bersih & tetap jaga ketertiban ya 🌸']
+    ]) +
+    _thNote_('💛', 'Tetap ingat Top Hills ya! Boleh dong bagikan kesan & pesan kamu tentang Top Hills — masukanmu sangat berarti. Beri kesan & pesan di <b>' + fbLink + '</b>') +
+    _thCta_('Perpanjang via WhatsApp', 'Atau beri kesan & pesan di ' + fbLink, extendUrl);
+
+  return _thShell_('Masa sewa kamar ' + nomorKamar + ' akan berakhir ± 30 hari lagi 🗓️',
+    _thHero_({ pill: 'MASA SEWA AKAN BERAKHIR', headline: 'Masa sewamu sebentar lagi, ' + nama + '.',
+      sub: 'Sekadar mengingatkan dengan lembut, masa sewa kost kamu akan berakhir ± 30 hari lagi. Berikut detailnya.',
+      box: { label: 'MASA SEWA BERAKHIR', value: berakhir, hint: '± 30 hari lagi' } }) +
+    _thBodyWrap_(body) +
+    _thFooter_('Terima kasih sudah tinggal bersama kami.', 'Reminder checkout · Kamar ' + nomorKamar));
 }
 
 function sendCheckoutEmail_(b) {

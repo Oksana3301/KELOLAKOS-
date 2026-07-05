@@ -89,13 +89,16 @@ function _remActive_(b) {
 }
 function _remBayar_(b) {
   var total = Number(b.Harga_Total_Net || 0);
-  var dibayar = Number(b.Net_Diterima || b.Total_Bayar || 0);
-  var sisaRaw = b.Sisa_Bayar;
-  var sisa = (sisaRaw === '' || sisaRaw == null) ? Math.max(total - dibayar, 0) : Number(sisaRaw);
-  var st = String(b.Status_Bayar || '').toUpperCase();
-  var lunas = st.indexOf('LUNAS') >= 0 || (total > 0 && sisa <= 0 && dibayar > 0);
-  var dp = !lunas && (dibayar > 0 || st.indexOf('DP') >= 0);
-  return { total: total, dibayar: dibayar, sisa: sisa, lunas: lunas, dp: dp };
+  var refund = Number(b.Refund_Total || 0);
+  var net = b.Net_Diterima;
+  // dibayar = net-of-refund: Net_Diterima bila terisi (cek eksplisit, bukan ||,
+  // supaya nilai 0 tak jatuh ke Total_Bayar KOTOR), else Total_Bayar − Refund.
+  var dibayar = (net === '' || net === null || net === undefined) ? Math.max(0, Number(b.Total_Bayar || 0) - refund) : Number(net || 0);
+  var sisa = Math.max(0, total - dibayar);
+  // LUNAS & DP murni dari uang (bukan Status_Bayar yang bisa basi / refund-blind).
+  var lunas = total > 0 && sisa <= 0 && dibayar > 0;
+  var dp = !lunas && dibayar > 0;
+  return { total: total, dibayar: dibayar, sisa: sisa, lunas: lunas, dp: dp, refund: refund };
 }
 function _remKamar_(b) {
   return String(b.Nama_Kamar || '-') + (b.Gedung ? (' · ' + b.Gedung) : '') + (b.Tipe_Kamar ? (' (' + b.Tipe_Kamar + ')') : '');
