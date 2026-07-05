@@ -419,7 +419,10 @@ function _remindPelunasan_(force) {
   var rows = _custRows_(), props = PropertiesService.getScriptProperties(), sent = 0;
   rows.forEach(function (b) {
     if (!_custActive_(b)) return;
-    var email = String(b.Email || '').trim(); if (!email || email.indexOf('@') < 0) return;
+    // Kirim reminder bila ada EMAIL ATAU WA (sendBookingDocToCustomer_ handle tiap channel sendiri).
+    var email = String(b.Email || '').trim();
+    var waNo = String(b.WhatsApp || '').trim();
+    if ((!email || email.indexOf('@') < 0) && !waNo) return; // skip hanya kalau email & WA dua-duanya kosong
     var pay = _custBayar_(b); if (pay.lunas || pay.sisa <= 0) return;
     if (pay.refund > 0) return; // ada refund → jangan tagih pelunasan (bisa salah tagih) // sudah lunas → skip
     var milestones = [];
