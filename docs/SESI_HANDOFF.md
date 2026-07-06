@@ -100,10 +100,47 @@ Usulan simpan: sheet `KwitansiSettings` (key-value) atau `HalamanInfo`.
 - Author commit: `noreply@anthropic.com`.
 - PR #233 isi: backend owner-send manual + reminder Email OR WA + tombol frontend + CLAUDE.md.
 
+## 9. Audit notif booking /info (6 Jul 2026) — temuan penting
+
+Investigasi kenapa notif booking /info tak terkirim. Peta penerima **saat booking /info masuk**:
+
+| Penerima | Channel | Status di kode | Sumber alamat |
+|---|---|---|---|
+| Admin (dewiatika) | Email | wired (`_notifyAdminNewBooking_`) | `ADMIN_EMAIL` |
+| **Admin (kostputritophills)** | Email | **BELUM** (kode cuma 1 alamat) → **diperbaiki**, lihat bawah | — |
+| Mezi | WA | wired (`_notifyMeziNewBooking_`) | `MEZI_WA` / waMezi `6283841614871` |
+| **Admin/helpdesk WA** | WA | **BELUM** → **diperbaiki** | waResmi `628116646615` |
+| Customer | Email + WA | **repo TIDAK wire** `sendBookingConfirmEmail_` (live owner dulu tambah manual) | `b.Email`/`b.WhatsApp` |
+
+**Root-cause kandidat kegagalan (urut kemungkinan), CEK via `diagNotifBooking()`:**
+1. `submitBookingRequest` (repo `BACKEND_PATCH_PERPANJANG.gs`) TIDAK panggil `sendBookingConfirmEmail_` & `vals` tak punya key `Email`. Live owner dulu tambah manual → **mungkin ke-reset saat "rapihin appscript"**. Cek: kolom `Email` booking /info terakhir kosong?
+2. `FONNTE_TOKEN` kosong → semua WA gagal senyap.
+3. Syntax error dari paste terbaru → SELURUH project mati (cek: baris booking masuk sheet? kalau masuk → gugur).
+4. Backend belum re-deploy → frontend `looksUndeployed` → demo-success (cek: baris booking ADA di sheet?).
+5. Kuota Gmail habis (100/hari) → email gagal senyap.
+
+**🔐 SECURITY:** `FONNTE_TOKEN` asli sempat ke-commit di `BACKEND_RUMAH_CLUSTER1.gs:9` (komentar). Sudah di-redact di repo. **Owner WAJIB rotate token di dashboard Fonnte** (token lama sudah bocor di git history).
+
+## 10. Enhancement notif admin (siap, PREVIEW dulu)
+
+`BACKEND_PATCH_EMAIL_NOTIF_FIX.gs` di-upgrade (signature `_notifyAdminNewBooking_(v, buktiUrl)` SAMA → `submitBookingRequest` tak disentuh):
+- Email admin → **SEMUA** (`ADMIN_EMAILS` comma, default dewiatika + kostputritophills).
+- **WA admin/helpdesk** ke waResmi `628116646615` (`ADMIN_WA`, selain WA Mezi).
+- Nomor/email dari **config nyata** (halaman-info.ts), bukan karangan.
+- Fungsi: `previewNotifAdmin()` (dry, cek dulu), `testNotifAdmin()` (kirim tes), `setAdminEmails()`, `setAdminWa()`.
+- Diverifikasi: 16 unit test lolos (sandbox), `node --check` lolos.
+- **Owner Run `previewNotifAdmin` DULU** → approve → `testNotifAdmin` → deploy. (Aturan preview-first CLAUDE.md.)
+
+**Belum diputuskan / butuh owner:** customer /info tak dapat email butuh edit `submitBookingRequest` (tambah `Email:` ke vals + panggil `sendBookingConfirmEmail_`) — sentuh write-path, TUNGGU approval owner + hasil `diagNotifBooking`.
+
 ---
 
 ### TODO ringkas buat chat baru
-1. [ ] Owner tambah 2 case `dispatchV2_` di `apiv2.gs` (§4) → tombol Kirim jalan.
-2. [ ] Owner Run `autoSelesaiPenginapanDP` + `setupAutoSelesaiTrigger` (§5), paste log.
-3. [ ] Merge PR #233 kalau owner sudah puas.
-4. [ ] (Parked) Email ulang tahun.
+1. [ ] Owner Run `diagNotifBooking()` → paste log → pastikan root-cause outage.
+2. [ ] Owner **rotate FONNTE_TOKEN** di Fonnte (token lama bocor di git).
+3. [ ] Owner Run `previewNotifAdmin` → approve → `testNotifAdmin` → deploy (notif admin 2 email + WA).
+4. [ ] Owner tambah 2 case `dispatchV2_` di `apiv2.gs` (§4) → tombol Kirim jalan.
+5. [ ] Owner Run `autoSelesaiPenginapanDP` + `setupAutoSelesaiTrigger` (§5), paste log.
+6. [ ] Customer /info email: tunggu approval owner utk edit `submitBookingRequest`.
+7. [ ] Merge PR #233 kalau owner sudah puas.
+8. [ ] (Parked) Email ulang tahun.
