@@ -72,11 +72,18 @@ function diagNotifBooking() {
   var props = PropertiesService.getScriptProperties();
   var token = props.getProperty('FONNTE_TOKEN') || '';
   var adminEmail = props.getProperty('ADMIN_EMAIL') || '(kosong → fallback pemilik script)';
-  var meziWa = props.getProperty('MEZI_WA') || '(kosong → coba dari HalamanInfo.waMezi)';
+  var meziWaProp = props.getProperty('MEZI_WA') || '(kosong → coba dari HalamanInfo.waMezi)';
+  // Resolusi nomor Mezi yang BENAR-BENAR dipakai runtime (property → _meziWa_ → HalamanInfo).
+  var meziResolved = '';
+  try { if (typeof _meziWa_ === 'function') meziResolved = _meziWa_(); } catch (e) {}
+  if (!meziResolved) { try { if (typeof v2_getHalamanInfo === 'function') { var hi = v2_getHalamanInfo(); meziResolved = (hi && hi.waMezi) || ''; } } catch (e) {} }
   L.push('[3] Config:');
-  L.push('    FONNTE_TOKEN : ' + (token ? ('ADA (' + token.length + ' char)') : 'KOSONG ← semua WA GAGAL'));
-  L.push('    ADMIN_EMAIL  : ' + adminEmail + '   ← CUMA 1 alamat yang dapat email admin');
-  L.push('    MEZI_WA      : ' + meziWa);
+  L.push('    FONNTE_TOKEN : ' + (token ? ('ADA (' + token.length + ' char)') : 'KOSONG ← semua WA (Mezi!) GAGAL'));
+  L.push('    ADMIN_EMAIL  : ' + adminEmail);
+  L.push('    MEZI_WA (prop): ' + meziWaProp);
+  L.push('    Mezi terpakai: ' + (meziResolved || '(KOSONG → Mezi TIDAK dapat WA!)') + '   ← nomor yang benar2 dikirimi');
+  L.push('    LAST_MAIL_OK : ' + (props.getProperty('LAST_MAIL_OK') || '(belum pernah)'));
+  L.push('    LAST_MAIL_ERROR: ' + (props.getProperty('LAST_MAIL_ERROR') || '(tidak ada)'));
 
   // 4) Kuota Gmail (consumer Gmail biasanya 100/hari)
   try { L.push('[4] Sisa kuota email hari ini: ' + MailApp.getRemainingDailyQuota() + ' (kalau 0 → semua email GAGAL diam-diam)'); }
@@ -102,6 +109,32 @@ function diagNotifBooking() {
   var out = L.join('\n');
   Logger.log(out);
   return out;
+}
+
+// ============ TEST KHUSUS WA MEZI (BENERAN kirim) ============
+// Jawab "kenapa Mezi nggak dapet WA": resolve nomor Mezi + kirim tes langsung.
+function diagTestMeziWa() {
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('FONNTE_TOKEN') || '';
+  var to = '';
+  try { if (typeof _meziWa_ === 'function') to = _meziWa_(); } catch (e) {}
+  if (!to) { try { if (typeof v2_getHalamanInfo === 'function') { var hi = v2_getHalamanInfo(); to = (hi && hi.waMezi) || ''; } } catch (e) {} }
+
+  var res = { fonnteToken: token ? ('ADA (' + token.length + ' char)') : 'KOSONG', meziNomor: to || '(KOSONG)' };
+  if (!token) { res.hasil = 'GAGAL: FONNTE_TOKEN kosong → semua WA (termasuk Mezi) gagal senyap. Set token dulu.'; Logger.log(JSON.stringify(res, null, 2)); return res; }
+  if (!to) { res.hasil = 'GAGAL: nomor Mezi tak ketemu (MEZI_WA kosong & HalamanInfo.waMezi kosong). Set MEZI_WA di Script Properties.'; Logger.log(JSON.stringify(res, null, 2)); return res; }
+
+  var msg = '🔔 TES notifikasi Mezi — Top Hills. Kalau ini masuk, WA Mezi AKTIF. (' + new Date() + ')';
+  var r = null;
+  if (typeof _sendWa_ === 'function') { try { r = _sendWa_(to, msg); } catch (e) { r = { ok: false, error: String(e) }; } }
+  else if (typeof _fonnteSend_ === 'function') { try { r = _fonnteSend_(to, msg); } catch (e) { r = { ok: false, error: String(e) }; } }
+  else { res.hasil = 'GAGAL: fungsi _sendWa_/_fonnteSend_ tak ada.'; Logger.log(JSON.stringify(res, null, 2)); return res; }
+
+  res.respFonnte = r;
+  res.hasil = (r && r.ok) ? ('OK — WA tes dikirim ke Mezi ' + to + '. Cek HP Mezi.') :
+    ('GAGAL kirim ke ' + to + '. Cek body Fonnte (nomor tak terdaftar? device disconnect? kuota?).');
+  Logger.log(JSON.stringify(res, null, 2));
+  return res;
 }
 
 // ============ TEST KIRIM ULANG notif buat 1 booking (BENERAN kirim) ============

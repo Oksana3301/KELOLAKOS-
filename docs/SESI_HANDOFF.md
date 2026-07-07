@@ -123,13 +123,21 @@ Investigasi kenapa notif booking /info tak terkirim. Peta penerima **saat bookin
 
 ## 10. Enhancement notif admin (siap, PREVIEW dulu)
 
+**KEPUTUSAN OWNER (7 Jul):** notif booking /info cukup **Mezi (WA) + email admin**. WA
+helpdesk/admin **TIDAK jadi** (dibatalkan). Jadi enhancement = email-only.
+
 `BACKEND_PATCH_EMAIL_NOTIF_FIX.gs` di-upgrade (signature `_notifyAdminNewBooking_(v, buktiUrl)` SAMA → `submitBookingRequest` tak disentuh):
 - Email admin → **SEMUA** (`ADMIN_EMAILS` comma, default dewiatika + kostputritophills).
-- **WA admin/helpdesk** ke waResmi `628116646615` (`ADMIN_WA`, selain WA Mezi).
-- Nomor/email dari **config nyata** (halaman-info.ts), bukan karangan.
-- Fungsi: `previewNotifAdmin()` (dry, cek dulu), `testNotifAdmin()` (kirim tes), `setAdminEmails()`, `setAdminWa()`.
-- Diverifikasi: 16 unit test lolos (sandbox), `node --check` lolos.
-- **Owner Run `previewNotifAdmin` DULU** → approve → `testNotifAdmin` → deploy. (Aturan preview-first CLAUDE.md.)
+- WA Mezi tetap lewat `_notifyMeziNewBooking_` (file booking) — TAK diubah.
+- Fungsi: `previewNotifAdmin()` (dry), `testNotifAdmin()` (kirim tes), `setAdminEmails()`.
+- Diverifikasi: unit test lolos (sandbox), `node --check` lolos.
+- **Owner Run `previewNotifAdmin` DULU** → approve → `testNotifAdmin` → deploy.
+
+**Kenapa Mezi tak dapat WA (booking /info ada tapi Mezi sepi):** cek via
+`diagTestMeziWa()` (BACKEND_DIAG_NOTIF_BOOKING.gs) — resolve nomor Mezi + kirim tes.
+Tersangka: (1) `FONNTE_TOKEN` kosong → semua WA gagal senyap; (2) `MEZI_WA` &
+`HalamanInfo.waMezi` kosong → target kosong → skip; (3) Fonnte device disconnect /
+nomor tak terdaftar. `diagNotifBooking()` sekarang tampilkan "Mezi terpakai" (nomor riil).
 
 **Belum diputuskan / butuh owner:** customer /info tak dapat email butuh edit `submitBookingRequest` (tambah `Email:` ke vals + panggil `sendBookingConfirmEmail_`) — sentuh write-path, TUNGGU approval owner + hasil `diagNotifBooking`.
 
