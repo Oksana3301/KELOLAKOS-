@@ -617,6 +617,7 @@ function _publicPayStatus_(b) {
   if (booking.indexOf('BATAL') >= 0 || booking.indexOf('CANCEL') >= 0 ||
       booking.indexOf('TOLAK') >= 0 || booking.indexOf('REJECT') >= 0) return 'abaikan';
   if (booking.indexOf('MENUNGGU') >= 0) return 'abaikan';
+  if (booking.indexOf('SELESAI') >= 0) return 'abaikan'; // tamu sudah checkout → kamar bebas
   var bayar = String(b.Status_Bayar || '').toUpperCase();
   var total = Number(b.Harga_Total_Net || 0);
   var dibayar = Number(b.Net_Diterima || b.Total_Bayar || 0);
@@ -635,9 +636,16 @@ function _publicBookingStatusByRoom_() {
   var map = {};
   try {
     var rows = (typeof getSheetObjects_ === 'function') ? (getSheetObjects_(SHEETS.BOOKINGS) || []) : [];
+    var tz = Session.getScriptTimeZone() || 'GMT+7';
+    var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
     for (var i = 0; i < rows.length; i++) {
       var st = _publicPayStatus_(rows[i]);
       if (st !== 'lunas' && st !== 'dp') continue;
+      // Kamar bebas lagi kalau tanggal checkout sudah lewat (seragam dgn menu Kamar).
+      if (rows[i].CheckOut) {
+        var co = Utilities.formatDate(new Date(rows[i].CheckOut), tz, 'yyyy-MM-dd');
+        if (co && co < today) continue;
+      }
       var key = _publicRoomKey_(rows[i].Nama_Kamar);
       if (!key) continue;
       if (map[key] === 'terisi') continue;

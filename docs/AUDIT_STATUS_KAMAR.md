@@ -49,3 +49,21 @@
 **Keputusan owner yang dibutuhkan (nentuin logika semua view):**
 - **DP** tampil "DP/dipesan" (beda dari Terisi) atau dihitung "Terisi"? → rekomendasi: **DP terpisah** (sesuai denah + menu Booking).
 - Kamar **SELESAI**/lewat-checkout auto jadi "kosong" lagi? → rekomendasi: **Ya**.
+
+---
+
+## ✅ IMPLEMENTASI (owner pilih: "gas rekomendasi" — DP terpisah + SELESAI/lewat-checkout → kosong)
+
+**Frontend (live setelah deploy Vercel — sudah di PR #233):**
+- `src/components/kk/status.ts` → helper kanonik **`deriveRoomStatus(room, bookings, today?)`** (booking-derived, by-RoomID): abaikan CANCEL/BATAL/TOLAK/MENUNGGU/**SELESAI** + **lewat CheckOut**; Lunas→terisi, DP→dp, else kosong, maintenance→perbaikan. + `liveToDisplay()` + badge "DP" (kuning). 11 unit test lolos.
+- `src/app/kamar/page.tsx` + `kamar-ui.tsx` → menu **Kamar** pakai `deriveRoomStatus` (bukan `Status_Code`). Filter status tambah "DP". Tint kuning utk DP.
+- `src/app/beranda/page.tsx` → tile **Status Kamar** jadi **Terisi / DP / Kosong** (booking-derived).
+- Denah 2D/3D + Layout Properti + /info → **sudah** pakai `getPublicRooms` (DP-aware), tak berubah.
+
+**Backend (owner paste — biar /info ikut aturan SELESAI/checkout):**
+- `APIV2_SIAP_PASTE.gs` + `BACKEND_PATCH_KAMAR_PUBLIK.gs` → `_publicPayStatus_` abaikan **SELESAI**; `_publicBookingStatusByRoom_` skip booking yang **CheckOut sudah lewat**. Read-only, `node --check` lolos.
+- ⚠️ Owner paste versi yang dipakai (kemungkinan `APIV2_SIAP_PASTE.gs`) → Deploy New version. Kalau tak di-paste, /info telat ikut aturan SELESAI (dashboard tetap benar).
+
+**TIDAK disentuh:** kode penulis booking (submitBooking/confirmBooking/dst), alur bikin booking (room picker booking-ui — sudah punya DP-aware sendiri), daftar denah hardcoded (`building-layout.ts`) & matching by-nama (risiko terpisah, dicatat di §masalah lain).
+
+**Diverifikasi:** `tsc --noEmit` lolos, `npm run build` lolos (semua route), 11 unit test `deriveRoomStatus` lolos.

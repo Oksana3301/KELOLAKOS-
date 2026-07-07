@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Sheet, SheetHead, KkButton, KkCard, InfoRow, RoomBadge } from './ui';
 import { KkIcon } from './icons';
 import { DeleteConfirm } from './confirm';
-import { mapRoomStatus, rupiah, type RoomDisplayStatus } from './status';
+import { liveToDisplay, rupiah, type RoomDisplayStatus, type RoomLiveStatus } from './status';
 import type { RoomStatus } from '@/lib/api';
 
 // A room enriched with the derived display values the page computes.
@@ -18,6 +18,8 @@ export interface KamarView {
   /** Unit label for `harga` (e.g. "bulan", "hari") from the room's primary paket. */
   hargaUnit?: string;
   lantai: number;
+  /** Status hunian booking-derived (sumber kebenaran = data Booking). */
+  live: RoomLiveStatus;
 }
 
 // ───────────────────────── Form field (big label + example + hint) ─────────────────────────
@@ -64,8 +66,8 @@ export function KamarDetail({
 }) {
   if (!view) return null;
   const { room, harga, lantai, hargaUnit } = view;
-  const status: RoomDisplayStatus = mapRoomStatus(room);
-  const occupied = status !== 'Tersedia';
+  const status: RoomDisplayStatus = liveToDisplay(view.live);
+  const occupied = view.live !== 'kosong';
   const penyewa = (room.Penghuni_Text || '').trim();
 
   return (
@@ -264,7 +266,7 @@ export function HapusKamar({
   onConfirm: () => void;
 }) {
   if (!view) return null;
-  const occupied = mapRoomStatus(view.room) !== 'Tersedia';
+  const occupied = view.live !== 'kosong';
   const penyewa = (view.room.Penghuni_Text || '').trim();
 
   return (

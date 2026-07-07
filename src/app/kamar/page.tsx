@@ -7,7 +7,7 @@ import { invalidateBookingData } from '@/lib/query-sync';
 import { toast } from 'sonner';
 import { ScreenHead, KkButton, KkCard } from '@/components/kk/ui';
 import { KkIcon } from '@/components/kk/icons';
-import { mapRoomStatus, rupiah } from '@/components/kk/status';
+import { deriveRoomStatus, liveToDisplay, rupiah } from '@/components/kk/status';
 import { HelpSheet } from '@/components/kk/help-sheet';
 import { useRole } from '@/components/kk/role';
 import { ScrollFab } from '@/components/kk/scroll-fab';
@@ -111,6 +111,27 @@ export default function KamarPage() {
   const rules = useMemo(() => data?.roomPriceRules || [], [data]);
   const prices = useMemo(() => data?.prices || [], [data]);
 
+  // Semua booking di-group per RoomID (dedupe by BookingID) — dipakai untuk hitung
+  // status hunian (deriveRoomStatus) dari SUMBER KEBENARAN data Booking.
+  const bookingsByRoom = useMemo(() => {
+    const m = new Map<string, BookingItem[]>();
+    if (!data) return m;
+    const seen = new Set<string>();
+    [
+      ...(data.paymentBookings || []),
+      ...(data.statusActionBookings || []),
+      ...(data.closingBookings || []),
+      ...(data.feeBookingOptions || []),
+    ].forEach((b) => {
+      if (!b.RoomID || (b.BookingID && seen.has(b.BookingID))) return;
+      if (b.BookingID) seen.add(b.BookingID);
+      const arr = m.get(b.RoomID);
+      if (arr) arr.push(b);
+      else m.set(b.RoomID, [b]);
+    });
+    return m;
+  }, [data]);
+
   // Map RoomID → its active booking (for stay duration / days left). Prefer a
   // non-cancelled booking; later lists don't override an earlier match.
   const bookingByRoom = useMemo(() => {
@@ -150,8 +171,9 @@ export default function KamarPage() {
         harga: hargaByRoom.get(room.RoomID)?.harga || 0,
         hargaUnit: hargaByRoom.get(room.RoomID)?.unit || 'bulan',
         lantai: floorForRoom(room),
+        live: deriveRoomStatus(room, bookingsByRoom.get(room.RoomID) || []),
       })),
-    [rooms, hargaByRoom],
+    [rooms, hargaByRoom, bookingsByRoom],
   );
 
   const buildings = useMemo(
@@ -175,8 +197,8 @@ export default function KamarPage() {
     [views],
   );
 
-  // Status filter labels → the value mapRoomStatus returns ("Kosong" = Tersedia).
-  const statusOptions = [SEMUA, 'Terisi', 'Kosong', 'Perlu Perhatian'];
+  // Status filter labels → nilai liveToDisplay ("Kosong" = Tersedia).
+  const statusOptions = [SEMUA, 'Terisi', 'DP', 'Kosong', 'Perlu Perhatian'];
 
   // ── Apply all filters together ──
   const filtered = useMemo(() => {
@@ -187,7 +209,7 @@ export default function KamarPage() {
         if (!hay.includes(q)) return false;
       }
       if (fStatus !== SEMUA) {
-        const s = mapRoomStatus(v.room); // 'Terisi' | 'Tersedia' | 'Perlu Perhatian'
+        const s = liveToDisplay(v.live); // 'Terisi' | 'DP' | 'Tersedia' | 'Perlu Perhatian'
         const want = fStatus === 'Kosong' ? 'Tersedia' : fStatus;
         if (s !== want) return false;
       }
@@ -518,16 +540,17 @@ function RoomRow({
   onClick: () => void;
 }) {
   const { room, harga, lantai, hargaUnit } = view;
-  const status = mapRoomStatus(room);
   const tint =
-    status === 'Terisi'
+    view.live === 'terisi'
       ? 'bg-kk-mint-soft border-kk-mint'
-      : status === 'Perlu Perhatian'
-        ? 'bg-kk-orange-soft border-kk-orange'
-        : 'bg-kk-mauve-soft border-kk-mauve';
+      : view.live === 'dp'
+        ? 'bg-kk-yellow-soft border-kk-yellow'
+        : view.live === 'perbaikan'
+          ? 'bg-kk-orange-soft border-kk-orange'
+          : 'bg-kk-mauve-soft border-kk-mauve';
 
   const nama = penghuniName(room);
-  const terisi = status !== 'Tersedia';
+  const terisi = view.live !== 'kosong';
   const stay = terisi ? stayInfoFor(booking) : null;
 
   // "sisa" chip text + color
