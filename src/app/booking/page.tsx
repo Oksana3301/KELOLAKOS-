@@ -136,6 +136,37 @@ function bookingSortKey(b: BookingItem, status: PayStatus): string {
   if (status === 'Lunas' || status === 'Belum Bayar') return isoDay(b.CheckIn) || bookingRangeDate(b) || HI;
   return HI;
 }
+// ── Anak baru vs anak lama (cycle pelunasan) ──────────────────────────────
+// Identitas customer = nomor WA (dinormalisasi 62xx); fallback nama (lowercase).
+// Anak lama = punya booking LUNAS di Top Hills; jumlahnya = berapa kali pelunasan.
+// Penting buat aturan perpanjangan: anak lama yang melunasi LEBIH CEPAT dari
+// tenggat → tanggal checkout periode barunya tetap dihitung dari checkout
+// terakhirnya (bukan dari tanggal pelunasan); anak baru ikut tanggal pelunasan.
+function custIdentityKey(b: Pick<BookingItem, 'WhatsApp' | 'Nama_Customer'>): string {
+  let wa = String(b.WhatsApp || '').replace(/[^0-9]/g, '');
+  if (wa.startsWith('0')) wa = '62' + wa.slice(1);
+  if (wa.length >= 9) return 'wa:' + wa;
+  const nama = String(b.Nama_Customer || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return nama ? 'nm:' + nama : '';
+}
+
+// Hari ini (tanggal kalender) di WIB — dicocokkan ke jam sistem GMT+7,
+// bukan timezone perangkat, biar penilaian "lewat tempo" konsisten.
+function todayWIB(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+}
+
+// Selisih hari booking thd masa tempo (CheckOut) per hari ini WIB.
+// >0 = sudah lewat N hari · 0 = jatuh tempo HARI INI · <0 = belum.
+// null = tak relevan (batal/selesai/tanpa tanggal keluar).
+function tempoDays(b: BookingItem, today: string): number | null {
+  const st = (b.Status_Booking || '').toUpperCase();
+  if (st.includes('SELESAI') || st.includes('CANCEL') || st.includes('BATAL')) return null;
+  const co = isoDay(b.CheckOut);
+  if (!co || !today) return null;
+  return Math.round((Date.parse(today) - Date.parse(co)) / 86400000);
+}
+
 function sortByStatusRule(list: BookingItem[], status: PayStatus): BookingItem[] {
   if (status === 'Batal') {
     // Batal → paling baru diubah/dibuat di atas (arsip).
@@ -172,6 +203,16 @@ function BookingPageInner() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [dateBasis, setDateBasis] = useState<DateBasis>('masuk');
+  // Filter jatuh masa tempo (CheckOut ≤ hari ini WIB, belum ditutup).
+  const [fTempo, setFTempo] = useState(false);
+  // Tick per menit → penilaian "lewat tempo" ikut jam berjalan (realtime WIB).
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick((x) => x + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const today = useMemo(() => todayWIB(), [nowTick]);
 
   // Add / edit flow
   const [showFlow, setShowFlow] = useState(false);
@@ -266,6 +307,24 @@ function BookingPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, data, allBookings]);
 
+  // Cycle pelunasan per customer (identitas = WA/nama) — jumlah booking LUNAS.
+  // 0 = anak baru (belum pernah pelunasan) · ≥1 = anak lama (Nx pelunasan).
+  const lunasCycles = useMemo(() => {
+    const m = new Map<string, number>();
+    allBookings.forEach((b) => {
+      if (mapPayStatus(b) !== 'Lunas') return;
+      const k = custIdentityKey(b);
+      if (k) m.set(k, (m.get(k) || 0) + 1);
+    });
+    return m;
+  }, [allBookings]);
+
+  // Jumlah booking yang jatuh/lewat masa tempo (badge di chip filter).
+  const tempoCount = useMemo(
+    () => allBookings.filter((b) => { const d = tempoDays(b, today); return d != null && d >= 0; }).length,
+    [allBookings, today],
+  );
+
   // Jumlah booking per jenis layanan (untuk badge di pilihan filter).
   const layananCount = useMemo(() => {
     let kost = 0, penginapan = 0;
@@ -308,6 +367,10 @@ function BookingPageInner() {
     if (tab !== 'semua') {
       list = list.filter((b) => mapPayStatus(b) === (tab as PayStatus));
     }
+    // 2b) Filter jatuh masa tempo (hari ini WIB atau sudah lewat).
+    if (fTempo) {
+      list = list.filter((b) => { const d = tempoDays(b, today); return d != null && d >= 0; });
+    }
     // 3) Filter RENTANG TANGGAL — basis dipilih owner (Masuk / DP / Lunas / Keluar).
     if (dateFrom || dateTo) {
       list = list.filter((b) => {
@@ -328,7 +391,7 @@ function BookingPageInner() {
     }
     // Urutan final ditentukan per-status saat render (lihat sortByStatusRule).
     return list;
-  }, [allBookings, layanan, periode, tab, cari, dateFrom, dateTo, dateBasis]);
+  }, [allBookings, layanan, periode, tab, cari, dateFrom, dateTo, dateBasis, fTempo, today]);
 
   // Ringkasan untuk laporan penjaga (mengikuti filter aktif).
   const summary = useMemo(() => {
@@ -745,6 +808,25 @@ function BookingPageInner() {
         ))}
       </div>
 
+      {/* Filter 2b: Jatuh masa tempo — CheckOut ≤ hari ini (WIB), belum ditutup */}
+      <div className="flex gap-2.5 overflow-x-auto pb-1.5 mb-5 -mx-1 px-1">
+        <button
+          onClick={() => setFTempo((v) => !v)}
+          className={`flex-shrink-0 min-h-[48px] px-[18px] rounded-kk-pill font-body font-semibold text-[17px] border-2 ${
+            fTempo
+              ? 'border-[#B42318] bg-[#B42318] text-white'
+              : tempoCount > 0
+                ? 'border-[#F3B4B4] bg-[#FDECEC] text-[#B42318]'
+                : 'border-kk-mauve bg-white text-kk-navy'
+          }`}
+        >
+          ⏰ Jatuh tempo
+          <span className={`ml-1.5 text-[13px] font-bold ${fTempo ? 'text-white/80' : ''}`}>
+            {tempoCount}
+          </span>
+        </button>
+      </div>
+
       {/* Filter 3: Rentang tanggal (untuk laporan penjaga) */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-caption font-semibold text-kk-ink">Rentang tanggal</span>
@@ -825,7 +907,9 @@ function BookingPageInner() {
               </div>
               <div className="grid grid-cols-2 gap-2.5 items-start">
                 {items.map((b) => (
-                  <BookingCard key={b.BookingID} booking={b} fas={bookingFas?.[b.BookingID]} onClick={() => openDetail(b)} />
+                  <BookingCard key={b.BookingID} booking={b} fas={bookingFas?.[b.BookingID]}
+                    cycles={lunasCycles.get(custIdentityKey(b)) || 0} tempoHari={tempoDays(b, today)}
+                    onClick={() => openDetail(b)} />
                 ))}
               </div>
             </div>
@@ -834,7 +918,9 @@ function BookingPageInner() {
       ) : (
         <div className="grid grid-cols-2 gap-2.5 items-start">
           {sortByStatusRule(filtered, tab as PayStatus).map((b) => (
-            <BookingCard key={b.BookingID} booking={b} fas={bookingFas?.[b.BookingID]} onClick={() => openDetail(b)} />
+            <BookingCard key={b.BookingID} booking={b} fas={bookingFas?.[b.BookingID]}
+              cycles={lunasCycles.get(custIdentityKey(b)) || 0} tempoHari={tempoDays(b, today)}
+              onClick={() => openDetail(b)} />
           ))}
         </div>
       )}
@@ -931,10 +1017,16 @@ function BookingPageInner() {
 function BookingCard({
   booking: b,
   fas,
+  cycles = 0,
+  tempoHari = null,
   onClick,
 }: {
   booking: BookingItem;
   fas?: { count: number; names: string[]; ringkas: string; dateIssue?: string };
+  /** Jumlah pelunasan customer ini di Top Hills (0 = anak baru). */
+  cycles?: number;
+  /** Selisih hari thd masa tempo: >0 lewat, 0 hari ini, null tak relevan. */
+  tempoHari?: number | null;
   onClick: () => void;
 }) {
   const status = mapPayStatus(b);
@@ -973,6 +1065,38 @@ function BookingCard({
         <BayarBadge status={status} />
       </div>
       <div className="text-[13px] text-kk-ink mt-0.5 truncate">{b.Nama_Kamar}</div>
+      {/* Anak baru vs anak lama (cycle pelunasan) + jatuh/lewat masa tempo */}
+      {!batal && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          <span
+            className="inline-flex items-center gap-1 rounded-kk-pill px-2 py-0.5 text-[11px] font-bold"
+            style={
+              cycles > 0
+                ? { background: '#FBF1D8', color: '#8A6A1B', border: '1px solid #E8D49A' }
+                : { background: '#E6F2EC', color: '#1F6B47', border: '1px solid #BFDCCB' }
+            }
+            title={
+              cycles > 0
+                ? `Anak lama — sudah ${cycles}x pelunasan. Perpanjangan: checkout baru dihitung dari checkout terakhir (bukan tanggal pelunasan).`
+                : 'Anak baru — belum pernah pelunasan di Top Hills. Checkout mengikuti tanggal pelunasan.'
+            }
+          >
+            {cycles > 0 ? `⭐ Lama · ${cycles}x lunas` : '🌱 Baru'}
+          </span>
+          {tempoHari != null && tempoHari >= 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-kk-pill px-2 py-0.5 text-[11px] font-bold"
+              style={
+                tempoHari > 0
+                  ? { background: '#FDECEC', color: '#B42318', border: '1px solid #F3B4B4' }
+                  : { background: '#FBEEE6', color: '#9A4A1E', border: '1px solid #F0C9AE' }
+              }
+            >
+              ⏰ {tempoHari > 0 ? `Lewat tempo ${tempoHari} hari` : 'Jatuh tempo hari ini'}
+            </span>
+          )}
+        </div>
+      )}
       {/* Periode chip */}
       {per.label !== '—' && (
         <span

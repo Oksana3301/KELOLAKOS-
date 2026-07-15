@@ -1073,10 +1073,14 @@ export default function InfoPage() {
               <b> Salin Gambar</b> (denah kamar tersedia) untuk dikirim ke calon penyewa. 🌸
             </p>
 
-            {/* Peringatan bila backend belum kirim data rentang */}
+            {/* Peringatan bila backend belum kirim data rentang — status yang tampil
+                di denah = status HARI INI, BUKAN tanggal yang dipilih (jangan sampai
+                menyesatkan: kamar bisa saja kosong di tanggal itu). */}
             {(rangeActive && !hasRangeData) && (
-              <p className="text-[12px] mt-2 rounded-[10px] px-3 py-2" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
-                ⚠️ Ketersediaan per tanggal belum bisa ditampilkan otomatis. Mohon konfirmasi langsung via WhatsApp ya.
+              <p className="text-[12.5px] mt-2 rounded-[10px] px-3 py-2 font-semibold" style={{ background: '#FDECEC', border: '1.5px solid #F3B4B4', color: '#B42318' }}>
+                ⚠️ Cek per-tanggal belum aktif — warna denah di bawah adalah status <b>HARI INI</b>,
+                bukan tanggal {fmtShort(rangeStart)}–{fmtShort(rangeEnd)}. Untuk kepastian tanggal
+                tersebut, konfirmasi via WhatsApp ya. 🙏
               </p>
             )}
 
