@@ -58,7 +58,7 @@ function setupBookingAll() {
  *  BAGIAN 1 — FASILITAS DI KARTU + FLAG "DP > PELUNASAN"          *
  * ============================================================== */
 var BK_FAS_CFG = {
-  bookingSheet: 'Booking',
+  bookingSheet: 'Booking', // fallback saja — resolusi sebenarnya via _bkBookingSheet_()
   fasilitasSheet: 'Fasilitas',
   idColumns: ['Fasilitas_IDs', 'Fasilitas_Ids', 'FasilitasIDs', 'Fasilitas_ID',
               'Fasilitas_Tambahan', 'Fasilitas', 'Add_Ons', 'Addons', 'Addon_IDs'],
@@ -73,6 +73,27 @@ var BK_FAS_CFG = {
   payTanggalCol: ['tanggal_bayar', 'Tanggal_Bayar', 'tgl_bayar', 'tanggal', 'date'],
 };
 
+// Sheet booking sebenarnya — robust: SHEETS.BOOKINGS → nama umum → scan kolom
+// BookingID. (Nama tab tiap project bisa beda: 'Booking' vs 'BOOKINGS' dst.)
+function _bkBookingSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    if (typeof SHEETS !== 'undefined' && SHEETS && SHEETS.BOOKINGS) {
+      var s = ss.getSheetByName(SHEETS.BOOKINGS);
+      if (s) return s;
+    }
+  } catch (e) {}
+  var names = ['Booking', 'BOOKINGS', 'Bookings', 'BOOKING'];
+  for (var i = 0; i < names.length; i++) { var sh = ss.getSheetByName(names[i]); if (sh) return sh; }
+  var all = ss.getSheets();
+  for (var j = 0; j < all.length; j++) {
+    var lc = all[j].getLastColumn(); if (lc < 1) continue;
+    var H = all[j].getRange(1, 1, 1, lc).getValues()[0].map(function (h) { return String(h); });
+    if (H.indexOf('BookingID') >= 0) return all[j];
+  }
+  return null;
+}
+
 function getBookingFasilitas_(payload) {
   var only = null;
   if (payload && payload.bookingIds && payload.bookingIds.length) {
@@ -82,7 +103,7 @@ function getBookingFasilitas_(payload) {
   var master = _bkFasMaster_();
   var perBooking = {};
 
-  var sh = _bkSheet_(BK_FAS_CFG.bookingSheet);
+  var sh = _bkBookingSheet_();
   if (sh) {
     var headers = _bkHeaders_(sh);
     var idCol = _bkColIndex_(headers, BK_FAS_CFG.idColumns);
@@ -172,8 +193,9 @@ function _bkIso_(v) {
   return Utilities.formatDate(d, Session.getScriptTimeZone() || 'GMT+7', 'yyyy-MM-dd');
 }
 function diagBookingFasilitas() {
-  var sh = _bkSheet_(BK_FAS_CFG.bookingSheet);
-  if (!sh) { Logger.log('❌ Sheet "%s" tidak ada.', BK_FAS_CFG.bookingSheet); return; }
+  var sh = _bkBookingSheet_();
+  if (!sh) { Logger.log('❌ Sheet booking tak ketemu (tak ada tab dgn kolom BookingID).'); return; }
+  Logger.log('Sheet booking terpakai: "%s"', sh.getName());
   var headers = _bkHeaders_(sh);
   Logger.log('Header Booking: %s', headers.join(' | '));
   Logger.log('Kolom fasilitas: %s', _bkColIndex_(headers, BK_FAS_CFG.idColumns) === -1 ? '(TIDAK ADA)' : 'OK');
@@ -249,21 +271,19 @@ function editPendingBooking_multibukti_(data) {
 /* ============================================================== *
  *  BAGIAN 3 — Created_At / Updated_At                             *
  * ============================================================== */
-var BK_TS_SHEET = 'Booking';
-
 function ensureBookingTimestampCols_() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BK_TS_SHEET);
-  if (!sh) throw new Error('Sheet "' + BK_TS_SHEET + '" tidak ada');
+  var sh = _bkBookingSheet_();
+  if (!sh) throw new Error('Sheet booking tak ketemu (tak ada tab dgn kolom BookingID)');
   var headers = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(function (h) { return String(h); });
   ['Created_At', 'Updated_At'].forEach(function (col) {
     if (headers.indexOf(col) === -1) { sh.getRange(1, headers.length + 1).setValue(col); headers.push(col); }
   });
-  return 'OK — kolom Created_At & Updated_At siap.';
+  return 'OK — kolom Created_At & Updated_At siap di "' + sh.getName() + '".';
 }
 
 function backfillBookingCreatedAt() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BK_TS_SHEET);
-  if (!sh) throw new Error('Sheet "' + BK_TS_SHEET + '" tidak ada');
+  var sh = _bkBookingSheet_();
+  if (!sh) throw new Error('Sheet booking tak ketemu (tak ada tab dgn kolom BookingID)');
   ensureBookingTimestampCols_();
   var data = sh.getDataRange().getValues();
   var headers = data[0].map(function (h) { return String(h); });
