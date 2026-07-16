@@ -2,7 +2,7 @@
 
 > **Buat chat baru:** baca file ini + `CLAUDE.md` dulu sebelum kerja. Ini ringkasan
 > keputusan owner, apa yang sudah dibangun, dan apa yang masih perlu diklik owner.
-> Terakhir diperbarui: sesi 5 Juli 2026.
+> Terakhir diperbarui: sesi 16 Juli 2026 (lihat §11–§13 untuk yang terbaru).
 
 ---
 
@@ -141,14 +141,79 @@ nomor tak terdaftar. `diagNotifBooking()` sekarang tampilkan "Mezi terpakai" (no
 
 **Belum diputuskan / butuh owner:** customer /info tak dapat email butuh edit `submitBookingRequest` (tambah `Email:` ke vals + panggil `sendBookingConfirmEmail_`) — sentuh write-path, TUNGGU approval owner + hasil `diagNotifBooking`.
 
+## 11. Status kamar — SATU sumber kebenaran (16 Jul, SELESAI di frontend)
+
+Audit lengkap: `docs/AUDIT_STATUS_KAMAR.md`. Keputusan owner ("gas rekomendasi"):
+**DP tampil terpisah dari Terisi** + **SELESAI/lewat-CheckOut → kamar auto-kosong**.
+
+- `src/components/kk/status.ts` → **`deriveRoomStatus(room, bookings, today?)`** =
+  helper kanonik booking-derived by-RoomID (abaikan CANCEL/BATAL/TOLAK/MENUNGGU/SELESAI
+  + lewat CheckOut; Lunas→terisi, DP→dp, else kosong, maintenance→perbaikan) +
+  `liveToDisplay()`. `mapRoomStatus` (Status_Code) TIDAK dipakai lagi utk status hunian.
+- Menu **Kamar** + **Beranda** pakai helper ini (badge/filter DP kuning). Denah/Layout//info
+  sudah DP-aware via `getPublicRooms`. 11 unit test logika lolos.
+- Backend `.gs` (APIV2_SIAP_PASTE + BACKEND_PATCH_KAMAR_PUBLIK): `_publicPayStatus_`
+  abaikan SELESAI; `_publicBookingStatusByRoom_` skip CheckOut lewat. **Blok B** = seksi
+  KAMAR PUBLIK lengkap utk di-paste owner ke `apiv2.gs` (sudah dipandu, statusnya cek §13).
+
+## 12. Fitur booking baru (16 Jul, SELESAI — frontend live via Vercel)
+
+1. **Flag anak baru/lama** di card booking: 🌱 Baru (0 pelunasan) vs ⭐ Lama · Nx lunas.
+   Identitas = WA normalized 62xx (fallback nama). `custIdentityKey` + `lunasCycles`
+   di `src/app/booking/page.tsx`. Aturan bisnis owner (BELUM diimplement — write-path,
+   butuh approval): perpanjangan anak lama yang lunasi lebih cepat → checkout baru
+   dihitung dari checkout terakhir, bukan tgl pelunasan; anak baru ikut tgl pelunasan.
+2. **Jatuh tempo realtime WIB**: chip ⏰ Lewat tempo N hari / Jatuh tempo hari ini
+   (`tempoDays`, Asia/Jakarta, tick 60s; exclude Batal/SELESAI).
+3. **Filter "⏰ Jatuh tempo"** + counter di menu Booking.
+4. **/info**: warning merah tegas bila pilih tanggal tapi backend belum kirim
+   `bookedRanges` (fallback = status HARI INI, jangan menyesatkan).
+5. **Upload bukti**: max 10 file per booking (`file-upload.tsx` MAX_FILES).
+
+## 13. Progress paste backend owner (16 Jul) — SEBAGIAN SELESAI
+
+Error bukti "editPendingBooking_multibukti_ is not defined" = fungsi hilang dari project
+owner. Solusi yang SUDAH dilakukan owner:
+- ✅ Paste `BACKEND_PATCH_BOOKING_ALL.gs` (versi robust `_bkBookingSheet_()` — sheet
+  booking owner bernama **"BOOKINGS"** bukan "Booking"). `setupBookingAll` log BERSIH.
+- ✅ Paste `BACKEND_PATCH_BUKTI.gs` (`saveBuktiFiles_` dkk — sebelumnya TIDAK ADA di
+  project owner; bukti edit tak pernah tersimpan).
+- ✅ Dispatcher `dispatchV1_`: 5 case submit* → versi `_bukti`.
+- ✅ Deploy New version (setelah BOOKING_ALL; cek apakah SETELAH Blok B juga).
+- 🔄 **Blok B** (seksi KAMAR PUBLIK di `apiv2.gs`) — terakhir owner bilang "oke gw coba";
+  status paste+deploy BELUM dikonfirmasi. Kalau /info masih ngaco per-tanggal → ini belum.
+- ❓ Tes akhir belum dikonfirmasi: (a) tambah foto di edit booking; (b) /info cek 1 Agu.
+
+**⚠️ Temuan data:** header sheet BOOKINGS punya kolom **`Jumlah_Orang` DUA KALI**
+(posisi ~15 dan ~33, yang kedua di antara `tag_perpanjangan` dan `Bukti_Bayar`).
+Owner diminta cek: kolom kedua kosong → hapus; ada isi → konsultasi dulu. BELUM dikonfirmasi.
+
+Header BOOKINGS lengkap (16 Jul): BookingID | Tanggal_Input | Layanan | Nama_Customer |
+WhatsApp | RoomID | Nama_Kamar | Gedung | Tipe_Kamar | Paket | Jumlah_Periode | CheckIn |
+CheckOut | Durasi | Jumlah_Orang | Extra_Bed_Qty | Extra_Person_Qty | Harga_Kamar |
+Extra_Charge | Diskon | Harga_Total_Net | Status_Booking | Status_Bayar | Total_Bayar |
+Refund_Total | Net_Diterima | Sisa_Bayar | DP_Hangus | Catatan | Timestamp_Update |
+Bukti_URLs | tag_perpanjangan | Jumlah_Orang | Bukti_Bayar | Tgl_Pembayaran |
+Fasilitas_IDs | Email | Notif_Email_At | Notif_Email_Info | Notif_WA_At | Notif_WA_Info |
+Created_At | Updated_At
+
 ---
 
-### TODO ringkas buat chat baru
-1. [ ] Owner Run `diagNotifBooking()` → paste log → pastikan root-cause outage.
-2. [ ] Owner **rotate FONNTE_TOKEN** di Fonnte (token lama bocor di git).
-3. [ ] Owner Run `previewNotifAdmin` → approve → `testNotifAdmin` → deploy (notif admin 2 email + WA).
-4. [ ] Owner tambah 2 case `dispatchV2_` di `apiv2.gs` (§4) → tombol Kirim jalan.
-5. [ ] Owner Run `autoSelesaiPenginapanDP` + `setupAutoSelesaiTrigger` (§5), paste log.
-6. [ ] Customer /info email: tunggu approval owner utk edit `submitBookingRequest`.
-7. [ ] Merge PR #233 kalau owner sudah puas.
-8. [ ] (Parked) Email ulang tahun.
+### TODO ringkas buat chat baru (urutan prioritas)
+1. [ ] **Konfirmasi Blok B** (§13): owner sudah paste seksi KAMAR PUBLIK ke `apiv2.gs` +
+       Deploy New version? → tes /info pilih 1 Agu (kamar kosong harus hijau).
+2. [ ] **Tes foto bukti**: edit booking → tambah 2–3 foto → simpan → preview muncul,
+       tanpa error multibukti. (Juga: sudah Run `_testSaveBukti` + Allow izin Drive?)
+3. [ ] **Kolom `Jumlah_Orang` dobel** di sheet BOOKINGS (§13) → cek isi → rapikan.
+4. [ ] Owner Run `previewAutoSelesaiPenginapan` (owner mau cek ulang preview dulu) →
+       approve → `autoSelesaiPenginapanDP` + `setupAutoSelesaiTrigger` (§5), paste log.
+5. [ ] Owner tambah 2 case `dispatchV2_` di `apiv2.gs` (§4) → tombol "Kirim ke Customer" jalan.
+6. [ ] Owner Run `previewNotifAdmin` → approve → `testNotifAdmin` (notif admin 2 email).
+7. [ ] Owner Run `diagTestMeziWa()` → paste log (kenapa Mezi tak dapat WA).
+8. [ ] Owner **rotate FONNTE_TOKEN** di Fonnte (token lama bocor di git).
+9. [ ] Customer /info email: tunggu approval owner utk edit `submitBookingRequest`.
+10. [ ] (Butuh approval, write-path) Aturan checkout perpanjangan anak lama (§12.1).
+11. [ ] (Terpisah, hati-hati) Denah /info masih hardcoded `building-layout.ts` + match
+        by-nama — rapikan ke by-RoomID + baca dari sheet (lihat AUDIT_STATUS_KAMAR.md).
+12. [ ] Merge PR #233 kalau owner sudah puas.
+13. [ ] (Parked) Email ulang tahun.
