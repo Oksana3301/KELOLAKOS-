@@ -500,7 +500,10 @@ export default function InfoPage() {
     for (const b of booked) {
       if (!b.start) continue;
       const bs = b.start;
-      const be = b.end || '9999-12-31';
+      // CheckOut kosong = data belum lengkap → anggap 1 malam saja (start+1),
+      // JANGAN blok tak-hingga (bikin "Terisi palsu"). Sentinel blok-selamanya
+      // yang disengaja (kost DP tanpa tanggal) sudah pakai '9999-12-31' eksplisit.
+      const be = b.end || addDaysISO(bs, 1);
       free = free.flatMap((iv) => {
         if (be <= iv.start || bs >= iv.end) return [iv];
         const out: Interval[] = [];
@@ -519,7 +522,8 @@ export default function InfoPage() {
     const out: BookedInterval[] = [];
     for (const b of r.bookedRanges || []) {
       if (!b.start) continue;
-      const be = b.end || qe;
+      // CheckOut kosong → 1 malam (start+1), bukan blok sampai akhir rentang.
+      const be = b.end || addDaysISO(b.start, 1);
       const s = b.start > qs ? b.start : qs;
       const e = be < qe ? be : qe;
       if (s < e) out.push({ start: s, end: e, status: b.status === 'lunas' || b.status === 'dp' ? b.status : fallback });

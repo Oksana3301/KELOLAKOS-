@@ -16,6 +16,31 @@ export function hasRangeData(rooms: RoomAvail[]): boolean {
   return rooms.some((r) => Array.isArray(r.bookedRanges));
 }
 
+/** Deteksi kamar penginapan (harian) vs kost — konsisten dgn form /info booking. */
+export function isPenginapanRoom(r: { layanan?: string; gedung?: string; nama?: string }): boolean {
+  const lay = String(r.layanan || '').toUpperCase();
+  if (lay.includes('PENGINAP') || lay.includes('INAP')) return true;
+  if (lay.includes('KOS')) return false;
+  const g = String(r.gedung || '').toUpperCase();
+  return g.includes('C') || g.includes('PENGINAPAN') || /\bD0?\d+/i.test(String(r.nama || ''));
+}
+
+// Sentinel "diblok selamanya" (DP kost tanpa tanggal) — end eksplisit, BUKAN kosong,
+// supaya rangeEndOf tidak menganggapnya cuma 1 malam.
+export const FAR_FUTURE_ISO = '9999-12-31';
+
+/**
+ * Batas efektif sebuah rentang booking untuk cek ketersediaan.
+ * CheckOut KOSONG = data belum lengkap → JANGAN blok sampai tak-hingga
+ * (itu bikin "Terisi palsu" di semua tanggal ke depan). Anggap 1 malam saja
+ * (start + 1 hari) — default wajar untuk penginapan harian. Blok "selamanya"
+ * yang disengaja pakai sentinel FAR_FUTURE_ISO (end eksplisit, tak tersentuh).
+ */
+export function rangeEndOf(start: string, end?: string): string {
+  if (end) return end;
+  return addDaysISO(start, 1);
+}
+
 /**
  * Sebagian kamar berstatus dp/terisi di dashboard TAPI `bookedRanges`-nya kosong
  * (mis. booking DP kost yang belum ada CheckIn — backend butuh CheckIn utk bikin
@@ -26,13 +51,25 @@ export function hasRangeData(rooms: RoomAvail[]): boolean {
  * tampilan, TIDAK mengubah/menulis data booking apa pun.
  */
 export function withStatusFallbackRanges<
-  T extends { status?: string; bookedRanges?: { start: string; end: string; status?: 'lunas' | 'dp' }[] },
+  T extends {
+    status?: string;
+    layanan?: string;
+    gedung?: string;
+    nama?: string;
+    bookedRanges?: { start: string; end: string; status?: 'lunas' | 'dp' }[];
+  },
 >(rooms: T[]): T[] {
   return rooms.map((r) => {
     if (Array.isArray(r.bookedRanges) && r.bookedRanges.length > 0) return r;
     if (r.status !== 'dp' && r.status !== 'terisi') return r;
+    // HANYA kost yang diblok penuh saat tak ada tanggal: sewa jangka panjang,
+    // konservatif biar tak dobel-DP. PENGINAPAN (harian) tanpa tanggal JANGAN
+    // disintesis jadi blok — kalau tidak, kamar tampil "Terisi palsu" di /info
+    // & booking flow untuk SEMUA tanggal padahal belum ada booking di tanggal itu.
+    if (isPenginapanRoom(r)) return r;
     const synthStatus: 'lunas' | 'dp' = r.status === 'terisi' ? 'lunas' : 'dp';
-    return { ...r, bookedRanges: [{ start: '1970-01-01', end: '', status: synthStatus }] };
+    // end = sentinel eksplisit (bukan kosong) → blok "selamanya" yang disengaja.
+    return { ...r, bookedRanges: [{ start: '1970-01-01', end: FAR_FUTURE_ISO, status: synthStatus }] };
   });
 }
 
@@ -41,7 +78,7 @@ export function freeIntervals(booked: { start: string; end: string }[], qs: stri
   let free: Interval[] = [{ start: qs, end: qe }];
   for (const b of booked) {
     if (!b.start) continue;
-    const bs = b.start, be = b.end || qe;
+    const bs = b.start, be = rangeEndOf(b.start, b.end);
     free = free.flatMap((iv) => {
       if (be <= iv.start || bs >= iv.end) return [iv];
       const out: Interval[] = [];
@@ -59,7 +96,7 @@ export function bookedWithin(r: RoomAvail, qs: string, qe: string): BookedInterv
   const out: BookedInterval[] = [];
   for (const b of r.bookedRanges || []) {
     if (!b.start) continue;
-    const be = b.end || qe;
+    const be = rangeEndOf(b.start, b.end);
     const s = b.start > qs ? b.start : qs;
     const e = be < qe ? be : qe;
     if (s < e) out.push({ start: s, end: e, status: b.status === 'lunas' || b.status === 'dp' ? b.status : fallback });
