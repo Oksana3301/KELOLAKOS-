@@ -13,7 +13,7 @@ import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/h
 import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, ALL_ROOMS, type RoomStatus3 } from '@/lib/building-layout';
-import { todayISO, addDaysISO } from '@/lib/availability';
+import { todayISO, addDaysISO, withStatusFallbackRanges } from '@/lib/availability';
 import { JAM_NOTE } from '@/lib/booking-rules';
 import {
   buildAvailabilityImage,
@@ -471,7 +471,13 @@ export default function InfoPage() {
   const [bookPick, setBookPick] = useState<RangeRow | null>(null);
   // Grup daftar "Kamar tersedia" yang sedang di-expand (lihat semua kamar).
   const [availExpand, setAvailExpand] = useState<Record<string, boolean>>({});
-  const roomList = useMemo<PublicRoom[]>(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
+  // withStatusFallbackRanges: kamar dp/terisi tanpa bookedRanges (mis. DP kost
+  // belum ada CheckIn) di-fallback ke rentang blok-penuh, biar tak tampil salah
+  // "kosong" di denah/cek-tanggal. Lihat docs/SESI_HANDOFF.md §14 Temuan B.
+  const roomList = useMemo<PublicRoom[]>(
+    () => withStatusFallbackRanges(Array.isArray(rooms) ? rooms : []),
+    [rooms],
+  );
   // Apakah backend sudah mengirim rentang booking (untuk cek ketersediaan)?
   const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
 

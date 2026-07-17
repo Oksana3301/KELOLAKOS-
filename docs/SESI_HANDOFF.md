@@ -222,24 +222,56 @@ live (URL & apiKey publik dari bundle JS tophillspadang.com — memang `NEXT_PUB
   (keputusan owner — pilihan (b) bikin kamar DP terblok di semua tanggal).
 - Daftar kamar hijau utk 1–2 Agu (simulasi dari data live): 80/115 kamar bebas penuh.
 
+## 15. Fix Temuan A & B (17 Jul) — B selesai di frontend, A butuh data owner
+
+**Temuan B — SELESAI (murni frontend, read-only, live setelah deploy Vercel):**
+- `src/lib/availability.ts` → helper baru **`withStatusFallbackRanges(rooms)`**: kamar
+  berstatus dp/terisi TAPI `bookedRanges` kosong → disintesis 1 rentang blok-penuh
+  open-ended (`start:'1970-01-01', end:''`) memakai status snapshot-nya. Dipakai di
+  `src/app/info/page.tsx` (roomList) dan `src/app/layout3d/page.tsx` (statusByKey) —
+  jadi ke-41 kamar itu sekarang tampil DP (kuning) konsisten di denah hari-ini MAUPUN
+  cek per-tanggal ke depan, bukan salah "kosong". Diverifikasi pakai data live real
+  (41/41 kamar terdampak, hasil setelah fix 0 yang masih salah) + `tsc --noEmit` +
+  `npm run build` lolos semua 27 route.
+- **Root cause tetap disarankan dirapikan**: booking DP kost itu idealnya diisi
+  `CheckIn` di sheet BOOKINGS biar rentang tanggalnya presisi (bukan cuma "blok
+  selamanya"). Pakai `BACKEND_DIAG_STATUS_KAMAR.gs` di bawah buat cari baris mana.
+
+**Temuan A — BELUM (ini masalah DATA, bukan kode; CheckOut kosong = memang sengaja
+"blok selamanya" di backend `_publicBookedRangesByRoom_`, biar kamar tak ke-dobel-
+booking selama tanggal keluarnya belum pasti):**
+- File diagnostik BARU (read-only): `BACKEND_DIAG_STATUS_KAMAR.gs`. Paste ke Apps
+  Script → Run `diagBookingTanpaTanggal` → Logs kasih daftar persis: booking
+  penginapan (Gedung C) yang aktif (Lunas/DP) tapi `CheckOut` kosong (Temuan A) +
+  booking kost DP tanpa `CheckIn` (Temuan B, buat rapikan sumbernya).
+- **Langkah owner:** untuk tiap baris di daftar Temuan A → buka sheet BOOKINGS →
+  isi `CheckOut` (tanggal tamu keluar) kalau sudah tahu, ATAU ubah `Status_Booking`
+  jadi `SELESAI` kalau tamu itu sudah benar-benar checkout. Setelah itu paste hasil
+  Logs `diagBookingTanpaTanggal` ke Claude kalau mau verifikasi ulang lewat API live.
+
 ---
 
 ### TODO ringkas buat chat baru (urutan prioritas)
 1. [x] ~~**Konfirmasi Blok B**~~ (§14): TERKONFIRMASI deploy 17 Jul via API live.
-       Follow-up baru: **Temuan A & B di §14** (CheckOut penginapan kosong + DP kost
-       tanpa CheckIn) → butuh keputusan/aksi owner.
-2. [ ] **Tes foto bukti**: edit booking → tambah 2–3 foto → simpan → preview muncul,
+2. [x] ~~**Temuan B (DP kost tanpa CheckIn tampil salah kosong)**~~ (§15): DITAMBAL
+       di frontend (`withStatusFallbackRanges`), live setelah deploy Vercel. Root
+       cause data tetap disarankan dirapikan (bukan wajib).
+3. [ ] **Temuan A (penginapan tanpa CheckOut → tak bisa dibooking per-tanggal)** (§15):
+       owner Run `diagBookingTanpaTanggal` (file baru `BACKEND_DIAG_STATUS_KAMAR.gs`)
+       → isi CheckOut atau tandai SELESAI per baris yang disebut → paste log kalau
+       mau verifikasi ulang.
+4. [ ] **Tes foto bukti**: edit booking → tambah 2–3 foto → simpan → preview muncul,
        tanpa error multibukti. (Juga: sudah Run `_testSaveBukti` + Allow izin Drive?)
-3. [ ] **Kolom `Jumlah_Orang` dobel** di sheet BOOKINGS (§13) → cek isi → rapikan.
-4. [ ] Owner Run `previewAutoSelesaiPenginapan` (owner mau cek ulang preview dulu) →
+5. [ ] **Kolom `Jumlah_Orang` dobel** di sheet BOOKINGS (§13) → cek isi → rapikan.
+6. [ ] Owner Run `previewAutoSelesaiPenginapan` (owner mau cek ulang preview dulu) →
        approve → `autoSelesaiPenginapanDP` + `setupAutoSelesaiTrigger` (§5), paste log.
-5. [ ] Owner tambah 2 case `dispatchV2_` di `apiv2.gs` (§4) → tombol "Kirim ke Customer" jalan.
-6. [ ] Owner Run `previewNotifAdmin` → approve → `testNotifAdmin` (notif admin 2 email).
-7. [ ] Owner Run `diagTestMeziWa()` → paste log (kenapa Mezi tak dapat WA).
-8. [ ] Owner **rotate FONNTE_TOKEN** di Fonnte (token lama bocor di git).
-9. [ ] Customer /info email: tunggu approval owner utk edit `submitBookingRequest`.
-10. [ ] (Butuh approval, write-path) Aturan checkout perpanjangan anak lama (§12.1).
-11. [ ] (Terpisah, hati-hati) Denah /info masih hardcoded `building-layout.ts` + match
+7. [ ] Owner tambah 2 case `dispatchV2_` di `apiv2.gs` (§4) → tombol "Kirim ke Customer" jalan.
+8. [ ] Owner Run `previewNotifAdmin` → approve → `testNotifAdmin` (notif admin 2 email).
+9. [ ] Owner Run `diagTestMeziWa()` → paste log (kenapa Mezi tak dapat WA).
+10. [ ] Owner **rotate FONNTE_TOKEN** di Fonnte (token lama bocor di git).
+11. [ ] Customer /info email: tunggu approval owner utk edit `submitBookingRequest`.
+12. [ ] (Butuh approval, write-path) Aturan checkout perpanjangan anak lama (§12.1).
+13. [ ] (Terpisah, hati-hati) Denah /info masih hardcoded `building-layout.ts` + match
         by-nama — rapikan ke by-RoomID + baca dari sheet (lihat AUDIT_STATUS_KAMAR.md).
-12. [ ] Merge PR #233 kalau owner sudah puas.
-13. [ ] (Parked) Email ulang tahun.
+14. [ ] Merge PR #233 kalau owner sudah puas.
+15. [ ] (Parked) Email ulang tahun.

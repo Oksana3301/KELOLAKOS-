@@ -10,7 +10,7 @@ import { HelpSheet } from '@/components/kk/help-sheet';
 import { ScrollFab } from '@/components/kk/scroll-fab';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, type RoomStatus3 } from '@/lib/building-layout';
-import { todayISO } from '@/lib/availability';
+import { todayISO, withStatusFallbackRanges } from '@/lib/availability';
 
 const SEMUA = 'Semua';
 
@@ -104,7 +104,10 @@ export default function LayoutPropertiPage() {
   const statusByKey = useMemo(() => {
     const today = todayISO();
     const m = new Map<string, DenahStat>();
-    (Array.isArray(publicRooms) ? publicRooms : []).forEach((r) => {
+    // withStatusFallbackRanges: kamar dp/terisi tanpa bookedRanges (mis. DP kost
+    // belum ada CheckIn) di-fallback ke rentang blok-penuh — sinkron dgn /info.
+    // Lihat docs/SESI_HANDOFF.md §14 Temuan B.
+    withStatusFallbackRanges(Array.isArray(publicRooms) ? publicRooms : []).forEach((r) => {
       // REAL-TIME hari ini: perbaikan tetap; selain itu hitung dari rentang booking
       // pada tanggal hari ini (terisi=lunas, dp=DP, kosong) — sinkron dgn /info.
       const s: DenahStat = r.status === 'perbaikan'

@@ -16,6 +16,26 @@ export function hasRangeData(rooms: RoomAvail[]): boolean {
   return rooms.some((r) => Array.isArray(r.bookedRanges));
 }
 
+/**
+ * Sebagian kamar berstatus dp/terisi di dashboard TAPI `bookedRanges`-nya kosong
+ * (mis. booking DP kost yang belum ada CheckIn — backend butuh CheckIn utk bikin
+ * rentang tanggal). Tanpa fallback ini, kamar itu tampil "kosong" (hijau) di /info
+ * & Layout Properti utk SEMUA tanggal, padahal sudah di-DP — bisa bikin calon
+ * penyewa pilih kamar yang sudah dipesan. Sintesis SATU rentang blok penuh
+ * (open-ended dari awal waktu) sebagai fallback konservatif: murni derivasi
+ * tampilan, TIDAK mengubah/menulis data booking apa pun.
+ */
+export function withStatusFallbackRanges<
+  T extends { status?: string; bookedRanges?: { start: string; end: string; status?: 'lunas' | 'dp' }[] },
+>(rooms: T[]): T[] {
+  return rooms.map((r) => {
+    if (Array.isArray(r.bookedRanges) && r.bookedRanges.length > 0) return r;
+    if (r.status !== 'dp' && r.status !== 'terisi') return r;
+    const synthStatus: 'lunas' | 'dp' = r.status === 'terisi' ? 'lunas' : 'dp';
+    return { ...r, bookedRanges: [{ start: '1970-01-01', end: '', status: synthStatus }] };
+  });
+}
+
 /** Potongan waktu BEBAS dalam [qs, qe) setelah dikurangi semua booking. */
 export function freeIntervals(booked: { start: string; end: string }[], qs: string, qe: string): Interval[] {
   let free: Interval[] = [{ start: qs, end: qe }];
