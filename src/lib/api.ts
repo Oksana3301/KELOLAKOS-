@@ -192,6 +192,9 @@ export interface BookingFormData { rooms: RoomStatus[]; prices: PriceItem[] }
 
 /** Sanitized room info for the PUBLIC /info page (no tenant names / money). */
 export interface PublicRoom {
+  /** RoomID kanonik — dikirim backend agar /info cocokkan booking by-RoomID,
+   *  identik dgn menu Kamar dashboard (opsional utk kompat versi lama). */
+  roomId?: string;
   nama: string;
   gedung: string;
   tipe: string;
