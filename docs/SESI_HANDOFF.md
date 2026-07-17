@@ -2,7 +2,7 @@
 
 > **Buat chat baru:** baca file ini + `CLAUDE.md` dulu sebelum kerja. Ini ringkasan
 > keputusan owner, apa yang sudah dibangun, dan apa yang masih perlu diklik owner.
-> Terakhir diperbarui: sesi 16 Juli 2026 (lihat §11–§13 untuk yang terbaru).
+> Terakhir diperbarui: sesi 17 Juli 2026 (lihat §14 untuk yang terbaru).
 
 ---
 
@@ -197,11 +197,37 @@ Bukti_URLs | tag_perpanjangan | Jumlah_Orang | Bukti_Bayar | Tgl_Pembayaran |
 Fasilitas_IDs | Email | Notif_Email_At | Notif_Email_Info | Notif_WA_At | Notif_WA_Info |
 Created_At | Updated_At
 
+## 14. Verifikasi Blok B dari luar (17 Jul) — ✅ TERKONFIRMASI DEPLOY + 2 temuan data
+
+Diverifikasi TANPA akses Apps Script editor: panggil `getPublicRooms` langsung ke exec URL
+live (URL & apiKey publik dari bundle JS tophillspadang.com — memang `NEXT_PUBLIC_*`).
+
+- ✅ **Blok B SUDAH ter-paste + deploy.** Response live: 115 kamar, SEMUA punya field
+  `bookedRanges` → `hasRangeData` true → cek per-tanggal /info AKTIF, warning merah
+  "Cek per-tanggal belum aktif" TIDAK muncul.
+- ✅ Konsisten logika baru: 0 kamar berstatus dp/terisi yang semua range-nya sudah lewat
+  (skip past-CheckOut jalan). Status hari itu: 39 kosong / 43 dp / 33 terisi.
+- ⚠️ **Temuan A — booking penginapan TANPA CheckOut:** kelima kamar Gedung C (D01–D05)
+  punya booking aktif dengan `end` kosong (D01 lunas mulai 5 Jul; D02 lunas mulai 6 Jul;
+  D03 TIGA lunas tanpa end; D04 dp mulai 13 Jul; D05 dp mulai 3 Jul). Frontend
+  memperlakukan end kosong = terblokir selamanya (`9999-12-31`) → simulasi cek 1–2 Agu:
+  SEMUA kamar penginapan tampil TERBOOKING. **Selama CheckOut kosong, penginapan tak
+  pernah bisa dibooking per-tanggal di /info.** Owner: isi kolom `CheckOut` booking2 itu
+  di sheet BOOKINGS (atau tandai SELESAI kalau tamu sudah keluar).
+- ⚠️ **Temuan B — 41 booking DP kost TANPA CheckIn:** 41 kamar kost berstatus `dp` tapi
+  `bookedRanges` kosong (backend butuh `CheckIn` utk bikin range). Akibat: di /info
+  (denah hari-ini & cek per-tanggal) kamar2 itu tampil **HIJAU/kosong**, padahal dashboard
+  menandai DP → calon penyewa bisa pilih kamar yang sudah di-DP orang. Opsi: (a) owner isi
+  `CheckIn` di booking DP kost, atau (b) ubah frontend: DP-tanpa-range tetap kuning
+  (keputusan owner — pilihan (b) bikin kamar DP terblok di semua tanggal).
+- Daftar kamar hijau utk 1–2 Agu (simulasi dari data live): 80/115 kamar bebas penuh.
+
 ---
 
 ### TODO ringkas buat chat baru (urutan prioritas)
-1. [ ] **Konfirmasi Blok B** (§13): owner sudah paste seksi KAMAR PUBLIK ke `apiv2.gs` +
-       Deploy New version? → tes /info pilih 1 Agu (kamar kosong harus hijau).
+1. [x] ~~**Konfirmasi Blok B**~~ (§14): TERKONFIRMASI deploy 17 Jul via API live.
+       Follow-up baru: **Temuan A & B di §14** (CheckOut penginapan kosong + DP kost
+       tanpa CheckIn) → butuh keputusan/aksi owner.
 2. [ ] **Tes foto bukti**: edit booking → tambah 2–3 foto → simpan → preview muncul,
        tanpa error multibukti. (Juga: sudah Run `_testSaveBukti` + Allow izin Drive?)
 3. [ ] **Kolom `Jumlah_Orang` dobel** di sheet BOOKINGS (§13) → cek isi → rapikan.
