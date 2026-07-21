@@ -85,7 +85,11 @@ function PerpanjangForm() {
   const [extraBedQty, setExtraBedQty] = useState(0);
   const [orang, setOrang] = useState(1);
 
-  const { data: rooms } = useQuery({ queryKey: ['public-rooms'], queryFn: api.getPublicRooms, retry: 0, staleTime: 60_000 });
+  // retry 2x + error terlihat (bukan "memuat" abadi) — konsisten dgn form booking baru.
+  const { data: rooms, isError: roomsError, refetch: refetchRooms } = useQuery({
+    queryKey: ['public-rooms'], queryFn: api.getPublicRooms,
+    retry: 2, retryDelay: (a) => Math.min(2000 * 2 ** a, 8000), staleTime: 60_000,
+  });
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
   const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
@@ -278,7 +282,14 @@ function PerpanjangForm() {
             <span className="text-[12px]" style={{ color: TH.brownSoft }}>atau lupa keduanya?</span>
             <div className="flex-1 h-px" style={{ background: TH.border }} />
           </div>
-          <THField label="Pilih nomor kamar (yang masih kamu tempati)" hint={!rooms ? 'Memuat data kamar…' : kamarOpsi.length === 0 ? 'Belum ada data kamar' : 'Pilih nomor kamar yang sedang kamu tempati'}>
+          <THField label="Pilih nomor kamar (yang masih kamu tempati)" hint={!rooms ? (roomsError ? '⚠️ Gagal memuat data kamar.' : 'Memuat data kamar…') : kamarOpsi.length === 0 ? 'Belum ada data kamar' : 'Pilih nomor kamar yang sedang kamu tempati'}>
+            {!rooms && roomsError && (
+              <button type="button" onClick={() => refetchRooms()}
+                className="mb-2 rounded-full px-3 py-1.5 text-[12px] font-bold"
+                style={{ background: '#B42318', color: '#fff' }}>
+                🔄 Coba muat ulang data kamar
+              </button>
+            )}
             <THSelect value={kamarPilih} onChange={(e) => setKamarPilih(e.target.value)}>
               <option value="">— pilih kamar —</option>
               {kamarOpsi.map((r) => (

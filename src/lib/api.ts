@@ -80,6 +80,13 @@ export async function callApi<T = unknown>(
   const payload: Record<string, unknown> = { apiKey: API_KEY, action, data: data || {} };
   if (accessCode) payload.accessCode = accessCode;
 
+  // Timeout keras: tanpa ini, request Apps Script yang menggantung (cold start
+  // macet / server hang) membuat fetch menunggu SELAMANYA → UI "memuat" abadi.
+  // 45 detik cukup untuk cold start terburuk, tapi tetap gagal-cepat.
+  const API_TIMEOUT_MS = 45_000;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), API_TIMEOUT_MS);
+
   let response: Response;
   try {
     response = await fetch(APPS_SCRIPT_URL, {
@@ -87,9 +94,15 @@ export async function callApi<T = unknown>(
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
       redirect: 'follow',
+      signal: abort.signal,
     });
   } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      throw new ApiError('Server lambat merespons (lebih dari 45 detik). Coba lagi sebentar lagi.', 'TIMEOUT');
+    }
     throw new ApiError('Network error: ' + (e as Error).message + '. Cek koneksi internet atau Apps Script URL.', 'NETWORK');
+  } finally {
+    clearTimeout(timer);
   }
   if (!response.ok) throw new ApiError('HTTP ' + response.status + ': ' + response.statusText, 'HTTP_' + response.status);
 

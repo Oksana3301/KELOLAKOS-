@@ -82,7 +82,9 @@ export default function LayoutPropertiPage() {
   const { data: publicRooms, dataUpdatedAt, isFetching, refetch: refetchPublic } = useQuery({
     queryKey: ['public-rooms'],
     queryFn: api.getPublicRooms,
-    retry: 0,
+    // retry 2x + backoff: cold start Apps Script sering gagal sekali lalu sukses.
+    retry: 2,
+    retryDelay: (a) => Math.min(2000 * 2 ** a, 8000),
   });
   // Waktu data terakhir dimuat, format WIB (GMT+7) — jelas untuk semua zona waktu.
   const updatedWIB = useMemo(() => {

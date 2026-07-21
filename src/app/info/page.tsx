@@ -450,10 +450,12 @@ export default function InfoPage() {
   const info = mergeInfo(data || DEFAULT_INFO);
 
   // Live room availability (public, sanitized). On error → empty → fallback card.
-  const { data: rooms, dataUpdatedAt, isFetching: roomsFetching, refetch: refetchRooms } = useQuery({
+  const { data: rooms, dataUpdatedAt, isFetching: roomsFetching, isError: roomsError, refetch: refetchRooms } = useQuery({
     queryKey: ['public-rooms'],
     queryFn: api.getPublicRooms,
-    retry: 0,
+    // retry 2x + backoff: cold start Apps Script sering gagal sekali lalu sukses.
+    retry: 2,
+    retryDelay: (a) => Math.min(2000 * 2 ** a, 8000),
     staleTime: 60 * 1000,
   });
   // Waktu data terakhir dimuat, format WIB (GMT+7) — jelas juga untuk tamu LN.
@@ -1057,6 +1059,14 @@ export default function InfoPage() {
               <div className="text-[11.5px] mb-3" style={{ color: C.brownSoft }}>
                 🕒 Data per <b style={{ color: C.brown }}>{updatedWIB}</b>
               </div>
+            )}
+            {/* Kegagalan memuat HARUS terlihat — jangan tampil sbg "memuat" abadi. */}
+            {roomsError && !rooms && (
+              <p className="text-[12.5px] mb-3 rounded-[10px] px-3 py-2 font-semibold"
+                style={{ background: '#FDECEC', border: '1.5px solid #F3B4B4', color: '#B42318' }}>
+                ⚠️ Gagal memuat ketersediaan kamar. Cek koneksi internetmu lalu tekan
+                tombol <b>🔄 Perbarui</b> di atas. Kalau masih gagal, konfirmasi via WhatsApp ya. 🙏
+              </p>
             )}
 
             <div className="flex flex-wrap items-end gap-2.5">
