@@ -1,38 +1,36 @@
 /*******************************************************************
  * BACKEND_PATCH_EMAIL_NOTIF_FIX.gs — Top Hills
  * =================================================================
- * Perbaiki notifikasi EMAIL ke admin saat ada booking baru dari /info
- * yang selama ini TIDAK terkirim (gagal diam-diam).
+ * Notifikasi ADMIN via EMAIL saat ada booking baru dari /info.
+ *   • EMAIL ke SEMUA admin (default: dewiatika4295 + kostputritophills).
+ * (WA ke Mezi tetap lewat _notifyMeziNewBooking_ di file booking — TAK diubah.
+ *  Keputusan owner: notif cukup Mezi (WA) + email admin; TANPA WA helpdesk.)
  *
- * Penyebab tersering:
- *   1) Izin MailApp belum di-Allow → MailApp.sendEmail dilempar error
- *      "authorization required", lalu ditelan `catch(e){}` (senyap).
- *   2) ADMIN_EMAIL belum di-set → email tujuan kosong → tidak dikirim.
+ * Dipicu otomatis oleh submitBookingRequest (baris `_notifyAdminNewBooking_(vals,…)`).
+ * SIGNATURE SAMA (v, buktiUrl) → submitBookingRequest TIDAK perlu diubah.
+ *
+ * Sumber alamat (override via Script Properties):
+ *   • ADMIN_EMAILS (comma) — default dewiatika4295@gmail.com,kostputritophills@gmail.com
+ *   • ADMIN_EMAIL           — dipakai kalau ADMIN_EMAILS kosong (kompat lama)
  *
  * ┌───────────────────────────────────────────────────────────────┐
  * │ CARA PASANG:                                                   │
- * │ 1) Di apiv2.gs, GANTI 3 fungsi lama ini dengan versi di bawah: │
- * │      _adminEmail_ , setAdminEmail , _notifyAdminNewBooking_    │
- * │    lalu TAMBAH fungsi baru: diagEmail. (Save)                  │
- * │ 2) Di editor, pilih fungsi `diagEmail` → Run.                  │
- * │    → Muncul popup IZIN → klik Allow (izinkan kirim email).     │
- * │      *Langkah ini WAJIB* — tanpa ini email tak akan pernah     │
- * │      terkirim (senyap).                                        │
- * │ 3) Cek INBOX + folder SPAM: dewiatika4295@gmail.com            │
- * │    (harus ada email "✅ TES notifikasi Top Hills").            │
- * │ 4) Deploy → Manage deployments → Edit → New version → Deploy.  │
- * │ 5) Coba booking dari /info → email otomatis masuk.             │
- * │                                                                │
- * │ Kalau masih gagal: Run `diagEmail` lagi → View → Logs, atau    │
- * │ cek Project Settings → Script properties → LAST_MAIL_ERROR.    │
+ * │ 1) Di apiv2.gs, GANTI _adminEmail_ + setAdminEmail +           │
+ * │    _notifyAdminNewBooking_ lama dengan versi file ini, dan     │
+ * │    TAMBAH _adminEmails_, setAdminEmails, previewNotifAdmin,     │
+ * │    testNotifAdmin. Save.                                        │
+ * │ 2) PREVIEW: Run `previewNotifAdmin` → cek Logs (emailKe = 2     │
+ * │    alamat benar? sisa kuota email?). TIDAK mengirim apa pun.    │
+ * │ 3) TES: Run `testNotifAdmin` → klik Allow (izin email) → cek 2  │
+ * │    inbox + folder Spam.                                         │
+ * │ 4) Deploy → Manage deployments → New version → Deploy.          │
  * └───────────────────────────────────────────────────────────────┘
- * CATATAN: email HANYA terkirim untuk booking dari /info
- * (submitBookingRequest). Booking yang dibuat manual dari dashboard
- * ("Tambah Penyewa" = submitBooking) TIDAK memicu email ini.
+ * CATATAN: notif ini HANYA untuk booking /info (submitBookingRequest).
+ * Booking manual dari dashboard TIDAK memicu ini.
  *******************************************************************/
 
-/** Email admin: prioritas ScriptProperties ADMIN_EMAIL, lalu user aktif,
- *  lalu fallback KERAS supaya tidak pernah kosong. */
+/* ── Email admin (SATU, kompat lama) ─────────────────────────────
+ * Prioritas ScriptProperties ADMIN_EMAIL → user aktif → fallback keras. */
 function _adminEmail_() {
   var p = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL');
   if (p && p.indexOf('@') > 0) return p.trim();
@@ -43,25 +41,58 @@ function _adminEmail_() {
   return 'dewiatika4295@gmail.com'; // ← GANTI bila email admin berbeda
 }
 
+/* ── Email admin (DAFTAR — booking baru dikirim ke SEMUA ini) ─────
+ * ADMIN_EMAILS (comma/semicolon/spasi) bila di-set; else union
+ * _adminEmail_() + email resmi kost. Dedupe, buang yang bukan email. */
+function _adminEmails_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '';
+  var list = raw.split(/[,;\s]+/).map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.indexOf('@') > 0; });
+  if (!list.length) list = [_adminEmail_(), 'kostputritophills@gmail.com'];
+  var seen = {}, out = [];
+  list.forEach(function (e) {
+    var k = e.toLowerCase();
+    if (e.indexOf('@') > 0 && !seen[k]) { seen[k] = 1; out.push(e); }
+  });
+  return out;
+}
+
 function setAdminEmail() {
-  var EMAIL = 'dewiatika4295@gmail.com'; // ← email admin/owner
+  var EMAIL = 'dewiatika4295@gmail.com'; // ← email admin/owner (SATU)
   PropertiesService.getScriptProperties().setProperty('ADMIN_EMAIL', EMAIL);
   Logger.log('ADMIN_EMAIL di-set: ' + EMAIL);
   return { ok: true, email: EMAIL };
 }
 
-/** Kirim notifikasi booking baru ke email admin.
- *  TIDAK menelan error diam-diam: dicatat ke Logger + Script property
- *  LAST_MAIL_ERROR / LAST_MAIL_OK supaya bisa didiagnosa. */
+function setAdminEmails() {
+  var EMAILS = 'dewiatika4295@gmail.com, kostputritophills@gmail.com'; // ← daftar admin (koma)
+  PropertiesService.getScriptProperties().setProperty('ADMIN_EMAILS', EMAILS);
+  Logger.log('ADMIN_EMAILS di-set: ' + EMAILS);
+  return { ok: true, emails: _adminEmails_() };
+}
+
+/* ── Normalisasi nomor WA (buat link wa.me di isi email) ─────────── */
+function _adminNotifNormWa_(v) {
+  if (typeof _perpanjangNormWa_ === 'function') { try { var r = _perpanjangNormWa_(v); if (r) return r; } catch (e) {} }
+  var s = String(v || '').replace(/[^0-9]/g, '');
+  if (!s) return '';
+  if (s.charAt(0) === '0') s = '62' + s.slice(1);
+  else if (s.indexOf('62') !== 0 && s.charAt(0) === '8') s = '62' + s;
+  return s;
+}
+
+/* ── Notifikasi booking baru → EMAIL ke SEMUA admin.
+ *  Try/catch + jejak LAST_MAIL_OK / LAST_MAIL_ERROR biar bisa dicek. */
 function _notifyAdminNewBooking_(v, buktiUrl) {
-  var to = _adminEmail_();
+  var props = PropertiesService.getScriptProperties();
   try {
-    if (!to) { Logger.log('notifyAdmin: email admin kosong'); return; }
+    var emails = _adminEmails_();
+    if (!emails.length) { Logger.log('notifyAdmin: daftar email admin kosong'); return; }
     var tz = Session.getScriptTimeZone() || 'GMT+7';
     var waktu = Utilities.formatDate(new Date(), tz, 'dd MMM yyyy, HH:mm') + ' WIB';
     var layanan = String(v.Layanan || '').toUpperCase().indexOf('KOS') >= 0 ? 'Kost' : 'Penginapan';
     var wa = String(v.WhatsApp || '');
-    var waLink = wa ? ((typeof _perpanjangNormWa_ === 'function') ? _perpanjangNormWa_(wa) : wa) : '';
+    var waLink = wa ? _adminNotifNormWa_(wa) : '';
     var subject = '🔔 Booking baru Top Hills — ' + (v.Nama_Customer || '(tanpa nama)') + ' · ' + (v.Nama_Kamar || '');
     var lines = [
       'Ada booking baru masuk dari halaman /info:', '',
@@ -78,28 +109,50 @@ function _notifyAdminNewBooking_(v, buktiUrl) {
       (waLink ? ('Chat customer: https://wa.me/' + waLink) : ''), '',
       'Buka dashboard /booking → "Butuh Konfirmasi" untuk Terima / Tolak.',
     ].filter(function (x) { return x !== null && x !== undefined && x !== false; });
-    MailApp.sendEmail(to, subject, lines.join('\n'));
-    PropertiesService.getScriptProperties().setProperty('LAST_MAIL_OK', to + ' @ ' + waktu);
-    Logger.log('notifyAdmin: email terkirim ke ' + to);
+    MailApp.sendEmail(emails.join(','), subject, lines.join('\n'));
+    props.setProperty('LAST_MAIL_OK', emails.join(',') + ' @ ' + waktu);
+    Logger.log('notifyAdmin EMAIL → ' + emails.join(', '));
   } catch (e) {
-    PropertiesService.getScriptProperties().setProperty('LAST_MAIL_ERROR', String(e) + ' @ ' + new Date());
-    Logger.log('notifyAdmin GAGAL: ' + e);
+    props.setProperty('LAST_MAIL_ERROR', String(e) + ' @ ' + new Date());
+    Logger.log('notifyAdmin EMAIL GAGAL: ' + e);
   }
 }
 
-/** Jalankan SEKALI dari editor untuk: set email, minta izin kirim email,
- *  dan kirim email UJI. Cek inbox + folder Spam. */
+/* ── PREVIEW (TIDAK mengirim apa pun) — jalankan DULU ────────────── */
+function previewNotifAdmin() {
+  var props = PropertiesService.getScriptProperties();
+  var out = {
+    emailKe: _adminEmails_(),
+    sisaKuotaEmail: (function () { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return 'n/a'; } })(),
+    last: {
+      mailOk: props.getProperty('LAST_MAIL_OK') || '(belum)',
+      mailErr: props.getProperty('LAST_MAIL_ERROR') || '(tidak ada)',
+    },
+    catatan: 'PREVIEW — tidak mengirim. emailKe = penerima email admin. Cek benar sebelum testNotifAdmin.',
+  };
+  Logger.log(JSON.stringify(out, null, 2));
+  return out;
+}
+
+/* ── TES kirim beneran (email ke semua admin) ────────────────────── */
+function testNotifAdmin() {
+  var sample = {
+    Nama_Customer: '(TES) Dewi Atika', WhatsApp: '628116646615', Layanan: 'PENGINAPAN',
+    Nama_Kamar: 'D01', Gedung: 'Gedung C', Paket: '2 malam', Jumlah_Orang: 2,
+    Catatan: 'tes notifikasi admin — abaikan', BookingID: 'TH-REQ-TEST',
+  };
+  _notifyAdminNewBooking_(sample, '');
+  var out = { ok: true, emailKe: _adminEmails_() };
+  Logger.log('testNotifAdmin → ' + JSON.stringify(out));
+  return out;
+}
+
+/* ── (lama) diag email admin tunggal — dipertahankan ─────────────── */
 function diagEmail() {
-  setAdminEmail();
   var to = _adminEmail_();
   var sisa = MailApp.getRemainingDailyQuota();
-  Logger.log('Email admin terpakai : ' + to);
-  Logger.log('Sisa kuota email hari ini: ' + sisa);
-  MailApp.sendEmail(
-    to,
-    '✅ TES notifikasi Top Hills',
-    'Kalau kamu terima email ini, notifikasi booking sudah AKTIF.\nWaktu: ' + new Date()
-  );
-  Logger.log('Email uji dikirim ke ' + to + ' — cek INBOX & folder SPAM.');
+  Logger.log('Email admin (tunggal): ' + to + ' · sisa kuota: ' + sisa);
+  MailApp.sendEmail(to, '✅ TES notifikasi Top Hills', 'Notifikasi email AKTIF.\nWaktu: ' + new Date());
+  Logger.log('Email uji dikirim ke ' + to + ' — cek INBOX & SPAM.');
   return { ok: true, to: to, quotaSisa: sisa };
 }

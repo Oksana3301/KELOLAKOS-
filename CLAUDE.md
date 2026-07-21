@@ -55,3 +55,24 @@
 ## Git / commit
 - Author commit: `noreply@anthropic.com`.
 - Backend `.gs` = file referensi di repo, di-paste manual oleh owner ke Apps Script (bukan runtime Vercel).
+
+## KEPUTUSAN OWNER (dicatat — jangan diubah tanpa perintah owner)
+- **JAGA DATA BOOKING:** owner sudah input BANYAK data booking real. Fitur BARU mulai
+  sekarang WAJIB **standalone / additive** (file `.gs` baru) atau perubahan **notifikasi
+  read-only**. DILARANG menyentuh/mengedit kode yang MENULIS data booking
+  (`submitBooking`, `submitBookingRequest`, `confirmBooking`, `_setBookingStatus_`, dst)
+  kecuali owner minta eksplisit — takut korupsi data yang sudah masuk.
+- **Notif customer saat booking:**
+  - `/info` (customer input sendiri) → OTOMATIS kirim Email + WA "Booking Diterima"
+    (via `sendBookingConfirmEmail_` di `submitBookingRequest`). SUDAH aktif.
+  - Dashboard owner/penjaga (owner input) → mau kirim Email + WA JUGA (pilihan C), TAPI
+    **trigger MANUAL** (tombol "Kirim ke Customer"), BUKAN auto saat simpan — takut salah
+    input lalu terkirim ke customer. Perlu: flag per booking (Email_Terkirim/WA_Terkirim +
+    timestamp) supaya anti-spam & ketahuan sudah dikirim apa. (BELUM dibangun — nunggu desain final.)
+- **Auto-SELESAI penginapan** (`BACKEND_PATCH_AUTO_SELESAI_PENGINAPAN.gs`): penginapan +
+  masih DP + **CheckOut + 12.00 WIB sudah lewat** → `Status_Booking = SELESAI`. Preview dulu
+  (`previewAutoSelesaiPenginapan`) sebelum apply. Nggak nge-lock (owner tetap bisa edit/lunasi).
+  Status: file sudah di repo, **DORMANT** (belum di-paste/di-Run owner).
+- **Reminder pelunasan** = Email **DAN** WA (dua channel). Fire bila booking punya Email
+  ATAU WA (WA-only tetap keingetan). Penginapan H-1; kost +7/+14/+30 dari tgl DP.
+- **Email ulang tahun**: PARKED.

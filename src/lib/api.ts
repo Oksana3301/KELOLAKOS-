@@ -80,6 +80,13 @@ export async function callApi<T = unknown>(
   const payload: Record<string, unknown> = { apiKey: API_KEY, action, data: data || {} };
   if (accessCode) payload.accessCode = accessCode;
 
+  // Timeout keras: tanpa ini, request Apps Script yang menggantung (cold start
+  // macet / server hang) membuat fetch menunggu SELAMANYA → UI "memuat" abadi.
+  // 45 detik cukup untuk cold start terburuk, tapi tetap gagal-cepat.
+  const API_TIMEOUT_MS = 45_000;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), API_TIMEOUT_MS);
+
   let response: Response;
   try {
     response = await fetch(APPS_SCRIPT_URL, {
@@ -87,9 +94,15 @@ export async function callApi<T = unknown>(
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
       redirect: 'follow',
+      signal: abort.signal,
     });
   } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      throw new ApiError('Server lambat merespons (lebih dari 45 detik). Coba lagi sebentar lagi.', 'TIMEOUT');
+    }
     throw new ApiError('Network error: ' + (e as Error).message + '. Cek koneksi internet atau Apps Script URL.', 'NETWORK');
+  } finally {
+    clearTimeout(timer);
   }
   if (!response.ok) throw new ApiError('HTTP ' + response.status + ': ' + response.statusText, 'HTTP_' + response.status);
 
@@ -146,9 +159,21 @@ export interface BookingItem {
   Refund_Total: number; Net_Diterima: number; Sisa_Bayar: number;
   Kelebihan_Bayar: number; DP_Hangus: number; Is_Closed: string; Label: string;
   Bukti_Bayar?: string; Tgl_Pembayaran?: string; Email?: string;
+  // Jejak notifikasi manual ke customer (diisi backend kirimKeCustomerManual).
+  Notif_Email_At?: string; Notif_Email_Info?: string; Notif_WA_At?: string; Notif_WA_Info?: string;
   // Jejak waktu: Created_At (saat dibuat) & Updated_At (tiap diubah). Timestamp =
   // kolom lama utk booking dari /info. Dipakai utk urutan "terbaru" & tampil di detail.
   Created_At?: string; Updated_At?: string; Timestamp?: string;
+}
+
+// Hasil kirimKeCustomerManual — status per channel + anti-spam (alreadySent).
+export interface KirimNotifChannel {
+  sent?: boolean; tipe?: string; status?: string; at?: string; to?: string;
+  reason?: string; err?: string; info?: string; body?: string;
+}
+export interface KirimCustomerResult {
+  ok: boolean; mode?: string; alreadySent?: boolean; message?: string; error?: string;
+  email?: KirimNotifChannel; wa?: KirimNotifChannel;
 }
 
 export interface BookingFullData extends BookingItem {
@@ -180,6 +205,9 @@ export interface BookingFormData { rooms: RoomStatus[]; prices: PriceItem[] }
 
 /** Sanitized room info for the PUBLIC /info page (no tenant names / money). */
 export interface PublicRoom {
+  /** RoomID kanonik — dikirim backend agar /info cocokkan booking by-RoomID,
+   *  identik dgn menu Kamar dashboard (opsional utk kompat versi lama). */
+  roomId?: string;
   nama: string;
   gedung: string;
   tipe: string;
@@ -534,6 +562,12 @@ export const api = {
   // Kirim invoice (DP) / kuitansi (Lunas) / reminder ke email customer.
   sendBookingDoc: (data: { bookingId: string; kind?: 'invoice' | 'kwitansi' | 'reminder' }) =>
     callApi<{ ok: boolean; to?: string; skipped?: boolean }>('sendBookingDoc', { bookingId: data.bookingId, booking_id: data.bookingId, kind: data.kind }),
+  // Kirim MANUAL Email + WA ke customer (tombol dashboard owner/penjaga). Backend
+  // BACKEND_PATCH_KIRIM_KE_CUSTOMER_MANUAL.gs — anti-spam via flag, force utk kirim ulang.
+  kirimKeCustomerManual: (data: { bookingId: string; kind?: 'invoice' | 'kwitansi' | 'reminder' | 'received'; force?: boolean }) =>
+    callApi<KirimCustomerResult>('kirimKeCustomerManual', {
+      bookingId: data.bookingId, booking_id: data.bookingId, kind: data.kind, force: data.force,
+    }),
   // Ringkasan fasilitas per booking (untuk badge di kartu daftar /booking).
   // Backend: BACKEND_PATCH_BOOKING_FASILITAS_LIST.gs (action getBookingFasilitas).
   getBookingFasilitas: () =>

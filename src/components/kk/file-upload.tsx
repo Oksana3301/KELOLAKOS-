@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import type { BuktiFile } from '@/lib/api';
 
 const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+const MAX_FILES = 10; // maksimal bukti per booking (jaga payload Apps Script tetap aman)
 const ALLOWED_EXT = ['png', 'pdf', 'jpg', 'jpeg', 'svg'] as const;
 const ACCEPT = '.png,.pdf,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml,application/pdf';
 
@@ -81,6 +82,10 @@ export function FileUpload({
     setBusy(true);
     const next = [...valueRef.current];
     for (const file of files) {
+      if (next.length >= MAX_FILES) {
+        toast.error(`Maksimal ${MAX_FILES} foto/berkas per booking — sisanya tidak ditambahkan.`);
+        break;
+      }
       const ext = resolveExt(file);
       if (!ALLOWED_EXT.includes(ext as (typeof ALLOWED_EXT)[number])) {
         toast.error(`"${file.name || 'berkas'}" formatnya tidak didukung. Pakai PNG, PDF, JPG, JPEG, atau SVG.`);

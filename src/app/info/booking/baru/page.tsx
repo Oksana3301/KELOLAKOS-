@@ -58,7 +58,12 @@ export default function BookingBaruPage() {
   const [done, setDone] = useState(false);
   const [demo, setDemo] = useState(false);
 
-  const { data: rooms } = useQuery({ queryKey: ['public-rooms'], queryFn: api.getPublicRooms, retry: 0, staleTime: 60_000 });
+  // retry 2x + backoff: cold start Apps Script sering gagal sekali lalu sukses.
+  // isError + refetch dipakai supaya kegagalan TIDAK tampil sbg "memuat" abadi.
+  const { data: rooms, isError: roomsError, refetch: refetchRooms } = useQuery({
+    queryKey: ['public-rooms'], queryFn: api.getPublicRooms,
+    retry: 2, retryDelay: (a) => Math.min(2000 * 2 ** a, 8000), staleTime: 60_000,
+  });
   const { data: infoRaw } = useQuery({ queryKey: ['halaman-info'], queryFn: halamanInfoApi.get, retry: 0, staleTime: 60_000 });
   const { data: fasData } = useQuery({ queryKey: ['public-fasilitas'], queryFn: fetchFasilitas, retry: 0, staleTime: 60_000 });
   const info = mergeInfo(infoRaw || DEFAULT_INFO);
@@ -431,8 +436,21 @@ export default function BookingBaruPage() {
         {/* 4) Pilih kamar — tap yang Tersedia. Status lain (DP/Terisi) ditampilkan juga. */}
         <THField
           label={`${isKost ? '3' : '4'}. Pilih kamar (tap yang ✅ Tersedia)${!isKost ? ' — boleh lebih dari 1' : ''}`}
-          hint={!rooms ? 'Memuat data kamar…' : needDates ? '⬆️ Isi tanggal check-in & check-out dulu' : !isKost ? `Bisa pilih beberapa kamar sekaligus. ${rangeReady ? `Status untuk ${fmtTgl(mulai)} → ${fmtTgl(checkOut)}` : ''}`.trim() : 'Status kamar saat ini'}
+          hint={!rooms ? (roomsError ? '⚠️ Gagal memuat data kamar.' : 'Memuat data kamar…') : needDates ? '⬆️ Isi tanggal check-in & check-out dulu' : !isKost ? `Bisa pilih beberapa kamar sekaligus. ${rangeReady ? `Status untuk ${fmtTgl(mulai)} → ${fmtTgl(checkOut)}` : ''}`.trim() : 'Status kamar saat ini'}
         >
+          {/* Kegagalan memuat HARUS terlihat + bisa dicoba lagi — jangan pernah
+              tampil sebagai "memuat" abadi (bug lama yang bikin customer stuck). */}
+          {!rooms && roomsError && (
+            <div className="text-[13px] rounded-[12px] px-3.5 py-3 flex items-center justify-between gap-3"
+              style={{ background: '#FDECEC', border: '1.5px solid #F3B4B4', color: '#B42318' }}>
+              <span>Gagal memuat ketersediaan kamar. Cek koneksi internetmu, lalu coba lagi.</span>
+              <button type="button" onClick={() => refetchRooms()}
+                className="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-bold"
+                style={{ background: '#B42318', color: '#fff' }}>
+                🔄 Coba lagi
+              </button>
+            </div>
+          )}
           {showRooms && (
             classified.length === 0 ? (
               <div className="text-[13px] rounded-[12px] px-3.5 py-3" style={{ background: TH.cream, border: `1px solid ${TH.border}`, color: TH.brownSoft }}>

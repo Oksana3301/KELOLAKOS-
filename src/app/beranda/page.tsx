@@ -19,7 +19,7 @@ import {
   type MoneyData,
 } from '@/components/kk/money';
 import { HelpSheet } from '@/components/kk/help-sheet';
-import { mapRoomStatus, mapPayStatus, rupiah } from '@/components/kk/status';
+import { deriveRoomStatus, mapPayStatus, rupiah } from '@/components/kk/status';
 
 const HELP = {
   title: 'Beranda',
@@ -110,16 +110,35 @@ export default function BerandaPage() {
       }
     : undefined;
 
-  // Room counts (3 plain statuses)
+  // Status hunian dihitung dari SUMBER KEBENARAN data Booking (deriveRoomStatus) —
+  // seragam dgn menu Kamar & denah. Group booking per RoomID (dedupe by BookingID).
+  const bookingsByRoom = new Map<string, BookingItem[]>();
+  {
+    const seen = new Set<string>();
+    [
+      ...(data.paymentBookings || []),
+      ...(data.statusActionBookings || []),
+      ...(data.closingBookings || []),
+      ...(data.feeBookingOptions || []),
+    ].forEach((b) => {
+      if (!b.RoomID || (b.BookingID && seen.has(b.BookingID))) return;
+      if (b.BookingID) seen.add(b.BookingID);
+      const arr = bookingsByRoom.get(b.RoomID);
+      if (arr) arr.push(b);
+      else bookingsByRoom.set(b.RoomID, [b]);
+    });
+  }
+  // Room counts (Terisi / DP / Kosong) — DP dipisah biar tahu yang belum lunas.
+  // Kamar perbaikan (jarang) dihitung sbg "kosong" di ringkasan ini.
   const roomStats = rooms.reduce(
     (acc, r) => {
-      const s = mapRoomStatus(r);
-      if (s === 'Terisi') acc.terisi++;
-      else if (s === 'Tersedia') acc.kosong++;
-      else acc.perhatian++;
+      const s = deriveRoomStatus(r, bookingsByRoom.get(r.RoomID) || []);
+      if (s === 'terisi') acc.terisi++;
+      else if (s === 'dp') acc.dp++;
+      else acc.kosong++;
       return acc;
     },
-    { terisi: 0, kosong: 0, perhatian: 0 },
+    { terisi: 0, dp: 0, kosong: 0 },
   );
 
   // Perlu Tindakan: bookings that still owe money (Belum Bayar / DP).
@@ -151,9 +170,9 @@ export default function BerandaPage() {
             </span>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <RoomStat dot="bg-kk-green" value={roomStats.terisi} label="Terisi" />
+            <RoomStat dot="bg-kk-green" value={roomStats.terisi} label="Terisi (lunas)" />
+            <RoomStat dot="bg-kk-yellow" value={roomStats.dp} label="DP (dipesan)" />
             <RoomStat dot="bg-kk-ink" value={roomStats.kosong} label="Masih Kosong" />
-            <RoomStat dot="bg-kk-orange" value={roomStats.perhatian} label="Perlu Perhatian" />
           </div>
         </KkCard>
       </Link>

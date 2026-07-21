@@ -5,7 +5,10 @@
 import type { BookingItem, RoomStatus } from '@/lib/api';
 
 export type PayStatus = 'Lunas' | 'DP' | 'Belum Bayar' | 'Batal';
-export type RoomDisplayStatus = 'Terisi' | 'Tersedia' | 'Perlu Perhatian';
+export type RoomDisplayStatus = 'Terisi' | 'DP' | 'Tersedia' | 'Perlu Perhatian';
+// Status hunian kamar yang dihitung dari booking (SUMBER KEBENARAN = data Booking),
+// bukan dari Status_Code backend. Dipakai seragam di Kamar, Beranda, denah.
+export type RoomLiveStatus = 'kosong' | 'dp' | 'terisi' | 'perbaikan';
 
 export interface BadgeStyle {
   /** Tailwind bg class */
@@ -25,6 +28,7 @@ export const PAY_BADGE: Record<PayStatus, BadgeStyle> = {
 
 export const ROOM_BADGE: Record<RoomDisplayStatus, BadgeStyle> = {
   Terisi: { bg: 'bg-kk-green', fg: 'text-white', dot: 'bg-white' },
+  DP: { bg: 'bg-kk-yellow', fg: 'text-kk-navy', dot: 'bg-kk-navy' },
   Tersedia: { bg: 'bg-kk-mint', fg: 'text-kk-navy', dot: 'bg-kk-navy' },
   'Perlu Perhatian': { bg: 'bg-kk-orange', fg: 'text-white', dot: 'bg-white' },
 };
@@ -70,26 +74,50 @@ export function mapRoomStatus(r: Pick<RoomStatus, 'Status_Code'>): RoomDisplaySt
   return 'Terisi';
 }
 
-// Status kamar untuk DENAH (peta 2D/3D), berdasarkan pembayaran booking aktifnya:
-//   Lunas → terisi · DP → dp · Belum Bayar / tidak ada booking → kosong (masih
-//   tersedia) · kamar perbaikan/maintenance → perbaikan.
-// Beda dari mapRoomStatus (yang murni dari Status_Code) — di sini DP & Belum Bayar
-// dibedakan supaya owner tahu kamar yang baru DP belum benar-benar terisi.
-type DenahStatus3 = 'kosong' | 'dp' | 'terisi' | 'perbaikan';
-export function denahRoomStatus(
+/** Tanggal kalender lokal "yyyy-mm-dd" (dipakai buat bandingin CheckOut). */
+function localISODate(d: Date): string {
+  if (isNaN(d.getTime())) return '';
+  const t = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return t.toISOString().slice(0, 10);
+}
+
+// SUMBER KEBENARAN status hunian kamar — dihitung dari booking (bukan Status_Code):
+//   Lunas (aktif) → terisi · DP (aktif) → dp · else → kosong · maintenance → perbaikan.
+// Booking DIABAIKAN (tidak memblok kamar) bila: CANCEL/BATAL/TOLAK/REJECT, MENUNGGU
+// (belum dikonfirmasi), SELESAI (tamu sudah checkout), atau CheckOut sudah lewat.
+// Ini menyatukan Kamar/Beranda dengan denah/Layout/info & konsisten dgn menu Booking.
+export function deriveRoomStatus(
   room: Pick<RoomStatus, 'Status_Code'>,
-  bookings: Array<Parameters<typeof mapPayStatus>[0]>,
-): DenahStatus3 {
+  bookings: Array<
+    Parameters<typeof mapPayStatus>[0] & Pick<BookingItem, 'Status_Booking' | 'CheckOut'>
+  >,
+  todayISO?: string,
+): RoomLiveStatus {
   const code = (room.Status_Code || '').toUpperCase();
   if (code === 'NONAKTIF' || code.includes('MAINT') || code.includes('PERBAIKAN')) return 'perbaikan';
+  const today = todayISO || localISODate(new Date());
   let hasDp = false;
   for (const b of bookings) {
+    const sb = (b.Status_Booking || '').toUpperCase();
+    if (sb.includes('CANCEL') || sb.includes('BATAL') || sb.includes('TOLAK') || sb.includes('REJECT')) continue;
+    if (sb.includes('MENUNGGU') || sb.includes('PENDING')) continue; // belum dikonfirmasi → belum blok
+    if (sb.includes('SELESAI')) continue; // sudah checkout → kamar bebas
+    const co = b.CheckOut ? localISODate(new Date(b.CheckOut)) : '';
+    if (co && today && co < today) continue; // lewat tanggal keluar → kamar bebas
     const pay = mapPayStatus(b);
-    if (pay === 'Lunas') return 'terisi'; // lunas → benar-benar terisi
+    if (pay === 'Lunas') return 'terisi'; // lunas & aktif → benar-benar terisi
     if (pay === 'DP') hasDp = true;
-    // 'Belum Bayar' & 'Batal' → tidak memblokir kamar (tetap tersedia)
+    // 'Belum Bayar' & 'Batal' → tidak memblokir kamar
   }
   return hasDp ? 'dp' : 'kosong';
+}
+
+/** RoomLiveStatus (4 bucket booking-derived) → badge display 4-status. */
+export function liveToDisplay(s: RoomLiveStatus): RoomDisplayStatus {
+  if (s === 'terisi') return 'Terisi';
+  if (s === 'dp') return 'DP';
+  if (s === 'perbaikan') return 'Perlu Perhatian';
+  return 'Tersedia';
 }
 
 const rupiahFmt = new Intl.NumberFormat('id-ID', {

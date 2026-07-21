@@ -13,7 +13,7 @@ import { DEFAULT_INFO, mergeInfo, driveImageUrl, drivePreviewUrl } from '@/lib/h
 import { FAQ } from '@/lib/faq';
 import { BuildingViewer } from '@/components/kk/building-map';
 import { roomKey, statusOnDate, ALL_ROOMS, type RoomStatus3 } from '@/lib/building-layout';
-import { todayISO, addDaysISO } from '@/lib/availability';
+import { todayISO, addDaysISO, withStatusFallbackRanges } from '@/lib/availability';
 import { JAM_NOTE } from '@/lib/booking-rules';
 import {
   buildAvailabilityImage,
@@ -450,10 +450,12 @@ export default function InfoPage() {
   const info = mergeInfo(data || DEFAULT_INFO);
 
   // Live room availability (public, sanitized). On error → empty → fallback card.
-  const { data: rooms, dataUpdatedAt, isFetching: roomsFetching, refetch: refetchRooms } = useQuery({
+  const { data: rooms, dataUpdatedAt, isFetching: roomsFetching, isError: roomsError, refetch: refetchRooms } = useQuery({
     queryKey: ['public-rooms'],
     queryFn: api.getPublicRooms,
-    retry: 0,
+    // retry 2x + backoff: cold start Apps Script sering gagal sekali lalu sukses.
+    retry: 2,
+    retryDelay: (a) => Math.min(2000 * 2 ** a, 8000),
     staleTime: 60 * 1000,
   });
   // Waktu data terakhir dimuat, format WIB (GMT+7) — jelas juga untuk tamu LN.
@@ -471,7 +473,13 @@ export default function InfoPage() {
   const [bookPick, setBookPick] = useState<RangeRow | null>(null);
   // Grup daftar "Kamar tersedia" yang sedang di-expand (lihat semua kamar).
   const [availExpand, setAvailExpand] = useState<Record<string, boolean>>({});
-  const roomList = useMemo<PublicRoom[]>(() => (Array.isArray(rooms) ? rooms : []), [rooms]);
+  // withStatusFallbackRanges: kamar dp/terisi tanpa bookedRanges (mis. DP kost
+  // belum ada CheckIn) di-fallback ke rentang blok-penuh, biar tak tampil salah
+  // "kosong" di denah/cek-tanggal. Lihat docs/SESI_HANDOFF.md §14 Temuan B.
+  const roomList = useMemo<PublicRoom[]>(
+    () => withStatusFallbackRanges(Array.isArray(rooms) ? rooms : []),
+    [rooms],
+  );
   // Apakah backend sudah mengirim rentang booking (untuk cek ketersediaan)?
   const hasRangeData = useMemo(() => roomList.some((r) => Array.isArray(r.bookedRanges)), [roomList]);
 
@@ -494,7 +502,10 @@ export default function InfoPage() {
     for (const b of booked) {
       if (!b.start) continue;
       const bs = b.start;
-      const be = b.end || '9999-12-31';
+      // CheckOut kosong = data belum lengkap → anggap 1 malam saja (start+1),
+      // JANGAN blok tak-hingga (bikin "Terisi palsu"). Sentinel blok-selamanya
+      // yang disengaja (kost DP tanpa tanggal) sudah pakai '9999-12-31' eksplisit.
+      const be = b.end || addDaysISO(bs, 1);
       free = free.flatMap((iv) => {
         if (be <= iv.start || bs >= iv.end) return [iv];
         const out: Interval[] = [];
@@ -513,7 +524,8 @@ export default function InfoPage() {
     const out: BookedInterval[] = [];
     for (const b of r.bookedRanges || []) {
       if (!b.start) continue;
-      const be = b.end || qe;
+      // CheckOut kosong → 1 malam (start+1), bukan blok sampai akhir rentang.
+      const be = b.end || addDaysISO(b.start, 1);
       const s = b.start > qs ? b.start : qs;
       const e = be < qe ? be : qe;
       if (s < e) out.push({ start: s, end: e, status: b.status === 'lunas' || b.status === 'dp' ? b.status : fallback });
@@ -1048,6 +1060,14 @@ export default function InfoPage() {
                 🕒 Data per <b style={{ color: C.brown }}>{updatedWIB}</b>
               </div>
             )}
+            {/* Kegagalan memuat HARUS terlihat — jangan tampil sbg "memuat" abadi. */}
+            {roomsError && !rooms && (
+              <p className="text-[12.5px] mb-3 rounded-[10px] px-3 py-2 font-semibold"
+                style={{ background: '#FDECEC', border: '1.5px solid #F3B4B4', color: '#B42318' }}>
+                ⚠️ Gagal memuat ketersediaan kamar. Cek koneksi internetmu lalu tekan
+                tombol <b>🔄 Perbarui</b> di atas. Kalau masih gagal, konfirmasi via WhatsApp ya. 🙏
+              </p>
+            )}
 
             <div className="flex flex-wrap items-end gap-2.5">
               <label className="flex-1 min-w-[140px] text-[12px] font-semibold" style={{ color: C.brownSoft }}>
@@ -1073,10 +1093,14 @@ export default function InfoPage() {
               <b> Salin Gambar</b> (denah kamar tersedia) untuk dikirim ke calon penyewa. 🌸
             </p>
 
-            {/* Peringatan bila backend belum kirim data rentang */}
+            {/* Peringatan bila backend belum kirim data rentang — status yang tampil
+                di denah = status HARI INI, BUKAN tanggal yang dipilih (jangan sampai
+                menyesatkan: kamar bisa saja kosong di tanggal itu). */}
             {(rangeActive && !hasRangeData) && (
-              <p className="text-[12px] mt-2 rounded-[10px] px-3 py-2" style={{ background: '#FBF0E6', border: `1px solid ${C.goldSoft}`, color: C.brown }}>
-                ⚠️ Ketersediaan per tanggal belum bisa ditampilkan otomatis. Mohon konfirmasi langsung via WhatsApp ya.
+              <p className="text-[12.5px] mt-2 rounded-[10px] px-3 py-2 font-semibold" style={{ background: '#FDECEC', border: '1.5px solid #F3B4B4', color: '#B42318' }}>
+                ⚠️ Cek per-tanggal belum aktif — warna denah di bawah adalah status <b>HARI INI</b>,
+                bukan tanggal {fmtShort(rangeStart)}–{fmtShort(rangeEnd)}. Untuk kepastian tanggal
+                tersebut, konfirmasi via WhatsApp ya. 🙏
               </p>
             )}
 

@@ -74,7 +74,11 @@ export function statusOnDate(
   let dp = false;
   for (const b of bookedRanges || []) {
     if (!b.start) continue;
-    const covers = b.end ? dateISO >= b.start && dateISO < b.end : dateISO >= b.start;
+    // CheckOut kosong = data belum lengkap → JANGAN blok semua tanggal ke depan
+    // (bikin "Terisi palsu"). Tanpa end, hanya HARI check-in yang dianggap terisi
+    // (1 malam). Blok "selamanya" yang disengaja (kost DP tanpa tanggal) pakai
+    // end sentinel eksplisit '9999-12-31' → tetap tercakup lewat cabang b.end.
+    const covers = b.end ? dateISO >= b.start && dateISO < b.end : dateISO === b.start;
     if (!covers) continue;
     const st = b.status === 'lunas' ? 'lunas' : b.status === 'dp' ? 'dp' : snapshotFallback === 'terisi' ? 'lunas' : 'dp';
     if (st === 'lunas') return 'terisi';

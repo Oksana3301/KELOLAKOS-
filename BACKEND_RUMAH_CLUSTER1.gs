@@ -6,7 +6,7 @@
  * CARA PASANG:
  * 1) Paste file ini ke Apps Script project yang sama dengan backend kamu.
  * 2) Set Script Properties (Project Settings → Script properties):
- *      FONNTE_TOKEN = RGFCuAhsJpQqEmrxmeyS
+ *      FONNTE_TOKEN = <token-fonnte-kamu>   (JANGAN commit token asli ke repo!)
  *      FONNTE_DEVICE = 628116646615           (opsional, info saja)
  *      JWT_SECRET   = <random 32+ char, SAMA dengan env Next>
  *      MEZI_WA      = 628xxxxxxxxx             (nomor Bang Mezi; fallback ke Setting)
